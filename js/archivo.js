@@ -13,7 +13,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const iso = task.archivedOn || task.lastModified;
         if (!iso) return '';
         try {
-            return new Date(iso).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' });
+            const locale = (window.i18n && i18n.getLocale) ? i18n.getLocale() : 'es-ES';
+            return new Date(iso).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' });
         } catch (_) {
             return iso;
         }
@@ -76,7 +77,7 @@ document.addEventListener('DOMContentLoaded', function() {
         archiveContainer.innerHTML = '';
 
         if (view.length === 0) {
-            archiveContainer.innerHTML = '<p>No hay actividades archivadas.</p>';
+            archiveContainer.innerHTML = `<p>${(window.i18n&&i18n.t)?i18n.t('no_archived'):'No hay actividades archivadas.'}</p>`;
             // Aún actualizar el dropdown según las tareas originales
             updateArchiveFilterDropdown(currentFilter, archivedTasks);
             return;
@@ -85,14 +86,16 @@ document.addEventListener('DOMContentLoaded', function() {
         view.forEach(taskObj => {
             const taskDiv = document.createElement('div');
             taskDiv.className = 'task';
+            const unarchiveTxt = (window.i18n&&i18n.t)?i18n.t('unarchive'):'Desarchivar';
+            const deletePermTxt = (window.i18n&&i18n.t)?i18n.t('delete_permanently'):'Eliminar Permanentemente';
             taskDiv.innerHTML = `
                 <input type="checkbox" ${taskObj.completed ? 'checked' : ''} disabled>
                 <span class="${taskObj.completed ? 'completed' : ''}">${convertirEnlaces(taskObj.task)}
                     ${taskObj.tags && taskObj.tags.length ? `<small class="tags">${taskObj.tags.map(t => `<span class=\"tag-chip in-task\">#${t}</span>`).join(' ')}</small>` : ''}
                 </span>
                 <small class="archived-meta">Archivada: ${formatArchivedDate(taskObj)}</small>
-                <button onclick="unarchiveTask('${taskObj.id}')">Desarchivar</button>
-                <button onclick="deletePermanently('${taskObj.id}')">Eliminar Permanentemente</button>
+                <button onclick="unarchiveTask('${taskObj.id}')">${unarchiveTxt}</button>
+                <button onclick="deletePermanently('${taskObj.id}')">${deletePermTxt}</button>
             `;
             archiveContainer.appendChild(taskDiv);
         });
@@ -156,6 +159,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Cargar las tareas al iniciar
     renderArchivedTasks();
+    if (window.i18n && i18n.applyI18nAll) {
+        window.__rerenderArchive = renderArchivedTasks;
+        i18n.applyI18nAll();
+    }
 
     // Gestionar cambios en el filtro
     filterSelect?.addEventListener('change', (e) => {

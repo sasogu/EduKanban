@@ -11,13 +11,7 @@ const categories = {
     "archivadas": []
 };
 
-const categoryNames = {
-    "en-preparacion": "En preparación",
-    "preparadas": "Preparadas",
-    "en-proceso": "En proceso",
-    "pendientes": "Pendientes",
-    "archivadas": "Archivadas"
-};
+// category names dependen del idioma (ver i18n.i18nCategoryNames)
 
 const deletedTasks = JSON.parse(localStorage.getItem('deletedTasks') || '[]');
 const DROPBOX_APP_KEY = 'dvvtedkibz396hq';
@@ -184,9 +178,7 @@ async function removeTask(taskId) {
     if (!taskData) return;
 
     const taskTitle = (taskData.task && taskData.task.task) ? taskData.task.task : '';
-    const msg = taskTitle
-        ? `¿Estás seguro de que quieres eliminar la actividad "${taskTitle}"?`
-        : '¿Estás seguro de que quieres eliminar esta actividad?';
+    const msg = (window.i18n && i18n.t) ? i18n.t('confirm_delete_activity', { title: taskTitle }) : (taskTitle ? `¿Estás seguro de que quieres eliminar la actividad "${taskTitle}"?` : '¿Estás seguro de que quieres eliminar esta actividad?');
     const confirmed = await showConfirm(msg, 'Eliminar', 'Cancelar');
     if (!confirmed) return;
 
@@ -303,7 +295,7 @@ function openEditTask(taskId) {
     form.dataset.mode = 'edit';
     form.dataset.editingId = taskId;
     const submitBtn = form.querySelector('button[type="submit"]');
-    if (submitBtn) submitBtn.textContent = 'Guardar';
+    if (submitBtn) submitBtn.textContent = (window.i18n && i18n.t) ? i18n.t('save') : 'Guardar';
 
     popup.style.display = 'flex';
     taskNameInput.focus();
@@ -317,13 +309,14 @@ function resetPopupFormMode() {
     form.dataset.mode = 'add';
     form.dataset.editingId = '';
     const submitBtn = form.querySelector('button[type="submit"]');
-    if (submitBtn) submitBtn.textContent = 'Añadir';
+    if (submitBtn) submitBtn.textContent = (window.i18n && i18n.t) ? i18n.t('add') : 'Añadir';
 }
 
 // --- RENDERIZADO EN EL DOM (SIN BOTÓN DE ELIMINAR) ---
 function renderTasks() {
     const taskContainer = document.getElementById('task-container');
     const filterTagSelect = document.getElementById('filter-tag');
+    const locale = (window.i18n && i18n.getLocale) ? i18n.getLocale() : 'es-ES';
     // Mantener filtro activo: tomar el valor actual o el guardado en localStorage
     let filterTag = '';
     if (filterTagSelect) {
@@ -333,6 +326,9 @@ function renderTasks() {
     }
     taskContainer.innerHTML = '';
 
+    const catNames = (window.i18n && i18n.i18nCategoryNames) ? i18n.i18nCategoryNames() : {
+      'en-preparacion':'En preparación','preparadas':'Preparadas','en-proceso':'En proceso','pendientes':'Pendientes','archivadas':'Archivadas'
+    };
     for (const [category, tasks] of Object.entries(categories)) {
         if (category === 'archivadas') continue;
         const categoryDiv = document.createElement('div');
@@ -350,21 +346,21 @@ function renderTasks() {
                     <span>
                         ${convertirEnlaces(task.task)}
                         ${task.tags && task.tags.length ? `<small class="tags">${task.tags.map(t => `<span class=\"tag-chip in-task\">#${t}</span>`).join(' ')}</small>` : ''}
-                        ${task.reminderAt ? `<small class=\"reminder-meta\">⏰ ${new Date(task.reminderAt).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' })}</small>` : ''}
+                        ${task.reminderAt ? `<small class=\"reminder-meta\">⏰ ${new Date(task.reminderAt).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' })}</small>` : ''}
                     </span>
                 </div>
                 <div class="task-actions">
-                    <select aria-label="Mover actividad" onchange="moveTask('${task.id}', this.value)">
-                        <option value="" disabled selected>Mover</option>
-                        ${Object.keys(categoryNames).filter(c => c !== category).map(c => `<option value="${c}">${categoryNames[c]}</option>`).join('')}
+                    <select aria-label="${(window.i18n&&i18n.t)?i18n.t('move'):'Mover'} actividad" onchange="moveTask('${task.id}', this.value)">
+                        <option value="" disabled selected>${(window.i18n&&i18n.t)?i18n.t('move'):'Mover'}</option>
+                        ${Object.keys(catNames).filter(c => c !== category).map(c => `<option value="${c}">${catNames[c]}</option>`).join('')}
                     </select>
-                    <button class="edit-btn" aria-label="Editar actividad" onclick="openEditTask('${task.id}')">✏️ <span class="btn-label">Editar</span></button>
-                    <button class="delete-btn" aria-label="Eliminar actividad" onclick="removeTask('${task.id}')">🗑️ <span class="btn-label">Eliminar</span></button>
+                    <button class="edit-btn" aria-label="${(window.i18n&&i18n.t)?i18n.t('edit'):'Editar'} actividad" onclick="openEditTask('${task.id}')">✏️ <span class="btn-label">${(window.i18n&&i18n.t)?i18n.t('edit'):'Editar'}</span></button>
+                    <button class="delete-btn" aria-label="${(window.i18n&&i18n.t)?i18n.t('delete'):'Eliminar'} actividad" onclick="removeTask('${task.id}')">🗑️ <span class="btn-label">${(window.i18n&&i18n.t)?i18n.t('delete'):'Eliminar'}</span></button>
                 </div>
             </div>
         `).join('');
 
-        categoryDiv.innerHTML = `<h3>${categoryNames[category]}</h3><div class="task-list">${tasksHTML}</div>`;
+        categoryDiv.innerHTML = `<h3>${catNames[category]}</h3><div class="task-list">${tasksHTML}</div>`;
         // Añadir manejadores de DnD a cada categoría renderizada
         categoryDiv.addEventListener('dragover', function(e) {
             e.preventDefault();
@@ -377,8 +373,8 @@ function renderTasks() {
             e.preventDefault();
             categoryDiv.classList.remove('drag-over');
             const taskId = e.dataTransfer.getData('text/plain');
-            const newCategory = Object.keys(categoryNames).find(
-                key => categoryDiv.querySelector('h3').textContent === categoryNames[key]
+            const newCategory = Object.keys(catNames).find(
+                key => categoryDiv.querySelector('h3').textContent === catNames[key]
             );
             if (taskId && newCategory) moveTask(taskId, newCategory);
         });
@@ -414,7 +410,8 @@ function updateTagFilterDropdown(currentValue = '') {
     const tags = getAllTags();
 
     // Construir opciones con "Mostrar todo" al principio
-    let optionsHtml = '<option value="">Mostrar todo</option>';
+    const showAll = (window.i18n && i18n.t) ? i18n.t('show_all') : 'Mostrar todo';
+    let optionsHtml = `<option value="">${showAll}</option>`;
 
     // Si hay un valor actual que ya no existe en las etiquetas, añadirlo para conservar selección
     const hasCurrent = currentValue && tags.includes(currentValue);
@@ -600,7 +597,7 @@ async function syncToDropbox(showAlert = true) {
             accessToken = null;
             localStorage.removeItem('dropbox_access_token');
             updateDropboxButtons();
-            showToast('⚠️ Tu sesión de Dropbox ha caducado. Vuelve a conectar.');
+            showToast((window.i18n && i18n.t) ? i18n.t('dropbox_expired') : '⚠️ Tu sesión de Dropbox ha caducado. Vuelve a conectar.');
             showReconnectDropboxBtn();
             return false;
         }
@@ -608,7 +605,7 @@ async function syncToDropbox(showAlert = true) {
             const metadata = await response.json();
             localLastSync = metadata.server_modified;
             localStorage.setItem('lastSync', localLastSync);
-            if (showAlert) showToast('✅ Actividades subidas a Dropbox');
+            if (showAlert) showToast((window.i18n && i18n.t) ? i18n.t('toast_dropbox_uploaded') : '✅ Actividades subidas a Dropbox');
             return true;
         }
     } catch (e) { console.error('Error en syncToDropbox', e); }
@@ -642,7 +639,7 @@ async function syncFromDropbox(force = false) {
                 accessToken = null;
                 localStorage.removeItem('dropbox_access_token');
                 updateDropboxButtons();
-                showToast('⚠️ Tu sesión de Dropbox ha caducado. Vuelve a conectar.');
+                showToast((window.i18n && i18n.t) ? i18n.t('dropbox_expired') : '⚠️ Tu sesión de Dropbox ha caducado. Vuelve a conectar.');
                 showReconnectDropboxBtn();
                 return false;
             }
@@ -940,6 +937,11 @@ document.addEventListener('DOMContentLoaded', function() {
     updateSyncGroupVisibility();
     window.addEventListener('online', updateSyncGroupVisibility);
     window.addEventListener('offline', updateSyncGroupVisibility);
+
+    // Aplicar idioma al cargar
+    if (window.i18n && i18n.applyI18nAll) {
+        i18n.applyI18nAll();
+    }
 });
 
 // Muestra un popup con recordatorios vencidos al abrir
@@ -999,7 +1001,7 @@ function checkDueReminders() {
             const when = Date.parse(task.reminderAt);
             if (!isNaN(when) && when <= now) {
                 const body = `Categoría: ${categoryNames[cat]}`;
-                showLocalNotification('Recordatorio de actividad', {
+                showLocalNotification((window.i18n&&i18n.t)?i18n.t('notification_title'):'Recordatorio de actividad', {
                     body: `${task.task}\n${body}`,
                     icon: 'icons/icon-192.png',
                     tag: `reminder-${task.id}`,
@@ -1043,7 +1045,7 @@ async function tryScheduleTaskTrigger(task, categoryKey) {
         if (task.triggerScheduledAt === task.reminderAt) return; // Ya programado
         const reg = await navigator.serviceWorker?.getRegistration();
         if (!reg) return;
-        await reg.showNotification('Recordatorio de actividad', {
+        await reg.showNotification((window.i18n&&i18n.t)?i18n.t('notification_title'):'Recordatorio de actividad', {
             body: `${task.task}\nCategoría: ${categoryNames[categoryKey] || ''}`.trim(),
             tag: `reminder-${task.id}`,
             icon: 'icons/icon-192.png',

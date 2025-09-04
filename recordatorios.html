@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="ca">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -13,6 +13,10 @@
         <img src="icons/logolargo.png" alt="EduKanban" class="logo"/>
         <div class="acciones">
             <a href="index.html" class="boton-accion boton-secundario">Volver a EduKanban</a>
+            <select id="lang-select">
+                <option value="es">Español</option>
+                <option value="val">Valencià</option>
+            </select>
         </div>
     </header>
 
@@ -22,6 +26,7 @@
         </div>
     </main>
 
+    <script src="js/i18n.js"></script>
     <script src="js/recordatorios.js"></script>
     <script src="js/sw-register.js"></script>
 </body>

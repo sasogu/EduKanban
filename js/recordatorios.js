@@ -10,7 +10,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function formatDate(iso) {
         try {
-            return new Date(iso).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' });
+            const locale = (window.i18n && i18n.getLocale) ? i18n.getLocale() : 'es-ES';
+            return new Date(iso).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' });
         } catch (_) { return iso || ''; }
     }
 
@@ -36,7 +37,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const raw = JSON.parse(localStorage.getItem('categories') || '{}');
         const all = migrateObj(raw);
         try { localStorage.setItem('categories', JSON.stringify(all)); } catch(_) {}
-        const categoryNames = {
+        const categoryNames = (window.i18n && i18n.i18nCategoryNames) ? i18n.i18nCategoryNames() : {
             'en-preparacion': 'En preparación',
             'preparadas': 'Preparadas',
             'en-proceso': 'En proceso',
@@ -74,7 +75,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         container.innerHTML = '';
         if (overdue.length === 0 && upcoming.length === 0) {
-            container.innerHTML = '<p>No hay actividades con recordatorio programado.</p>';
+            container.innerHTML = `<p>${(window.i18n&&i18n.t)?i18n.t('no_reminders'):'No hay actividades con recordatorio programado.'}</p>`;
             return;
         }
 
@@ -101,11 +102,16 @@ document.addEventListener('DOMContentLoaded', function() {
             container.appendChild(section);
         };
 
-        renderList(overdue, 'Vencidos', 'overdue');
-        renderList(upcoming, 'Próximos');
+        renderList(overdue, (window.i18n&&i18n.t)?i18n.t('overdue'):'Vencidos', 'overdue');
+        renderList(upcoming, (window.i18n&&i18n.t)?i18n.t('upcoming'):'Próximos');
     }
 
     render();
+
+    if (window.i18n && i18n.applyI18nAll) {
+        window.__rerenderReminders = render;
+        i18n.applyI18nAll();
+    }
 
     // Completar y archivar tarea desde esta vista
     window.completeAndArchive = function(taskId) {
