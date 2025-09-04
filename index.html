@@ -29,7 +29,7 @@
             </div>
     </header>
     <main>
-
+   &nbsp;&nbsp;Filtrar por etiqueta:
     <select id="filter-tag">
         <option value="">-- Filtrar por etiqueta --</option>
     </select>
@@ -49,14 +49,14 @@
     <div id="popup-tarea" class="modal">
         <div class="modal-content">
             <form id="popup-task-form">
-                <input type="text" id="popup-task-name" placeholder="Nueva actividad" autocomplete="off">
+                <textarea id="popup-task-name" placeholder="Nueva actividad" rows="8"></textarea>
                 <select id="popup-task-category">
                     <option value="en-preparacion">En preparación</option>
                     <option value="preparadas">Preparadas</option>
                     <option value="en-proceso">En proceso</option>
                     <option value="pendientes">Pendientes</option>
                 </select>
-                <input type="text" id="popup-task-tags" placeholder="Etiquetas (separadas por comas)" list="all-tags-list">
+                <textarea id="popup-task-tags" placeholder="Etiquetas (separadas por comas)" rows="3"></textarea>
                 <datalist id="all-tags-list"></datalist>
                 <div id="tag-suggestions" class="tag-suggestions"></div>
                 <label for="popup-task-reminder">Recordatorio (fecha y hora)</label>

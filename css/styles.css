@@ -233,7 +233,7 @@ footer {
     padding: 20px;
     border-radius: 8px;
     width: 90%;
-    max-width: 400px;
+    max-width: 720px;
     margin: auto;
     box-shadow: 0 2px 8px rgba(0,0,0,0.2);
     display: flex;
@@ -253,10 +253,28 @@ footer {
 }
 
 /* Inputs y selects consistentes */
-input[type="text"], select {
+input[type="text"], select, textarea {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 10px 12px;
+}
+
+/* Área de descripción más amplia para nuevas actividades */
+#popup-task-name {
+  width: 95%;
+  min-height: 160px;
+  resize: vertical;
+  font-size: 1.05rem;
+  line-height: 1.35;
+}
+
+/* Área de etiquetas más amplia */
+#popup-task-tags {
+  width: 95%;
+  min-height: 6px;
+  resize: vertical;
+  font-size: 1rem;
+  line-height: 1.3;
 }
 
 .boton-accion {
@@ -398,7 +416,7 @@ input[type="text"], select {
     #popup-tarea .modal-content {
         margin: 12px auto 20px;  /* evitar margen auto vertical que centra */
         width: 94%;              /* un poco más ancho en móvil */
-        max-width: 520px;        /* tope razonable */
+        max-width: 560px;        /* tope razonable en móvil */
     }
 }
 
