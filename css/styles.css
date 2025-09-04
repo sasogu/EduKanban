@@ -1,0 +1,509 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f4f4f4;
+
+}
+
+header {
+    background: var(--color-header-bg);
+    color: var(--color-header-text);
+    padding: 10px 0;
+    text-align: center;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 25px;
+    border-bottom: 2px solid #e8491d;
+}
+
+h1 {
+    margin: 0;
+}
+
+header h1 {
+    margin: 0;
+}
+
+header .acciones {
+    display: flex;
+    gap: 15px; /* Espacio entre los botones */
+}
+/* Evita que las reglas genéricas de .acciones alteren el header */
+header .acciones { flex-direction: row; flex-wrap: wrap; }
+/* En pantallas grandes, los botones del header no ocupan ancho completo */
+@media (min-width: 601px) {
+  header .acciones .boton-accion {
+    width: auto;
+    max-width: none;
+    flex: 1 1 0; /* Mismo ancho para ambos botones */
+    min-width: 180px; /* Evita que se encojan demasiado */
+  }
+}
+
+#task-container {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+    padding: 16px;
+}
+@media (min-width: 700px) {
+  #task-container { grid-template-columns: repeat(2, 1fr); }
+}
+@media (min-width: 1100px) {
+  /* En escritorio amplio, mostrar 4 columnas para alinear 'Algún Día' */
+  #task-container { grid-template-columns: repeat(4, 1fr); }
+}
+
+/* Estilo normal de la categoría */
+.category {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    transition: box-shadow 0.2s ease, transform 0.05s ease;
+}
+.category:hover { box-shadow: 0 6px 18px rgba(0,0,0,0.08); }
+
+.category h2 {
+    margin-top: 0;
+}
+
+/* Estilo cuando se está arrastrando una tarea encima */
+.category.drag-over { border-color: var(--color-accent); box-shadow: 0 0 0 2px rgba(53,66,74,0.15) inset; }
+
+.category h3 {
+    margin: 0 0 12px 0;
+    font-size: 1.05rem;
+    color: var(--color-text);
+    border-left: 4px solid var(--color-primary);
+    padding-left: 8px;
+}
+
+.task {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-left: 4px solid var(--color-primary);
+    padding: 10px 10px 10px 12px;
+    margin: 8px 0;
+    border-radius: 10px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    /* Mostrar acciones debajo del texto también en escritorio */
+    flex-wrap: wrap;
+}
+.task .task-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+  /* Ocupa toda la línea superior para que el texto tenga ancho completo */
+  flex-basis: 100%;
+}
+.task .task-actions {
+  /* Ocupa una nueva línea bajo el contenido principal */
+  flex-basis: 100%;
+  width: 100%;
+  margin-left: 0;
+  margin-top: 6px;
+  /* Disposición similar a móvil: selector ancho + 2 botones */
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  column-gap: 8px;
+  align-items: center;
+  overflow: visible;
+}
+.task .task-actions > * {
+  flex: 0 0 auto; /* no encoger controles */
+}
+.task:hover { background: #f3f4f6; }
+
+
+.task span {
+    flex: 1 1 auto;
+    /* Permitir que el contenido se encoja en contenedores flex */
+    min-width: 0;
+    text-align: left !important;
+    font-size: 1rem;
+    color: var(--color-text);
+    line-height: 1.35;
+    /* Evitar que URLs largas desborden el ancho en móvil */
+    overflow-wrap: anywhere; /* permite cortes en cualquier punto si es necesario */
+    word-break: break-word;  /* compatibilidad con navegadores más antiguos */
+}
+.task a {
+  color: var(--color-primary);
+  text-decoration: underline;
+  /* Asegurar que los enlaces muy largos también se partan en varias líneas */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.task.completed { opacity: 0.75; border-left-color: #86efac; }
+
+button {
+    background: #374151; /* slate 700 */
+    color: #ffffff;
+    border: none;
+    padding: 8px 12px;
+    cursor: pointer;
+    border-radius: 8px;
+}
+
+button:hover { background: #1f2937; }
+
+/* Botones dentro de cada tarea: estilo sutil y sin fondo sólido */
+.task .edit-btn,
+.task .delete-btn {
+  background: transparent;
+  color: var(--color-muted);
+  border: none;
+  padding: 6px 8px;
+}
+.task .btn-label { display: inline; margin-left: 4px; }
+.task .edit-btn:hover { color: var(--color-primary); }
+.task .delete-btn:hover { color: #dc2626; }
+
+.task select {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  min-width: 120px; /* asegura visibilidad del selector */
+}
+/* Hacer que el selector dentro de acciones ocupe todo el ancho disponible */
+.task .task-actions select {
+  width: 100%;
+  min-width: 0;
+}
+
+.task .tags { display: block; margin-top: 4px; }
+.tag-chip.in-task {
+  background: #eef2f7;
+  color: #374151;
+  border: 1px solid #d1d5db;
+}
+/* Metadatos de recordatorio/archivo */
+.task .reminder-meta,
+.task .archived-meta {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+/* Destacar recordatorios vencidos en la vista de recordatorios */
+.category.overdue .task .reminder-meta {
+  color: #dc2626; /* rojo para vencidos */
+}
+
+footer {
+    text-align: center;
+    padding: 10px 0;
+    background: var(--color-header-bg);
+    color: var(--color-header-text);
+    position: relative;
+    bottom: 0;
+    width: 100%;
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0; top: 0;
+    width: 100%; height: 100%;
+    background: rgba(175, 163, 163, 0.4);
+    justify-content: center;
+    align-items: center;
+}
+.modal-content {
+    background: #e7dede;
+    padding: 20px;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 400px;
+    margin: auto;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* Texto del modal de confirmación */
+.confirm-message {
+  color: var(--color-text);
+  font-size: 1rem;
+}
+
+/* Acciones del modal (reutiliza .acciones-popup) */
+.modal .acciones-popup button {
+  min-width: 110px;
+}
+
+/* Inputs y selects consistentes */
+input[type="text"], select {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.boton-accion {
+    margin-bottom: 12px;
+    width: 100%;
+    max-width: 350px;
+    font-weight: 600;
+    border-radius: 8px;
+    padding: 12px 20px;
+    font-size: 16px;
+    display: inline-flex; /* Para alinear el icono y el texto */
+    align-items: center;
+    gap: 8px; /* Espacio entre icono y texto */
+    border: 1px solid transparent;
+    box-sizing: border-box;
+    text-decoration: none; /* Para <a> con estilo de botón */
+    min-height: 44px; /* Altura táctil consistente */
+    justify-content: center; /* Centrar contenido horizontalmente */
+}
+
+/* Estilo para el botón de acción principal */
+.boton-primario {
+    background-color: var(--color-primary);
+    color: rgb(157, 106, 106);
+    box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35);
+}
+.boton-primario:hover {
+    background-color: var(--color-primary-dark);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 22px rgba(37, 99, 235, 0.35);
+}
+
+/* Estilo para el botón de acción secundario */
+.boton-secundario {
+    background-color: #a06969;
+    color: #333;
+    border-color: #ddd;
+}
+.boton-secundario:hover {
+    background-color: #976c6c;
+    border-color: #ccc;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* Para los botones de copia de seguridad */
+.acciones {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-width: 350px;
+    margin: 0 auto 20px auto;
+}
+
+/* Para los botones del popup */
+.acciones-popup {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 10px;
+}
+
+@media (min-width: 500px) {
+    .acciones-popup {
+        flex-direction: row;
+        justify-content: flex-end;
+        gap: 16px;
+    }
+}
+
+@media (max-width: 600px) {
+    /* En móvil, colocar acciones debajo del texto */
+    .task {
+        flex-wrap: wrap;
+    }
+    .task .task-actions {
+        flex-basis: 100%;
+        display: grid;
+        grid-template-columns: 1fr auto auto;
+        column-gap: 8px;
+        align-items: center;
+        margin-left: 0;
+        margin-top: 6px;
+        width: 100%;
+    }
+    .task .task-actions select {
+        width: 100%;
+        min-width: 0;
+    }
+    .task .edit-btn, .task .delete-btn {
+        font-size: 16px;
+        padding: 8px 10px;
+    }
+    /* En móvil, ocultar texto y dejar solo iconos */
+    .task .btn-label { display: none; }
+    header { 
+        flex-direction: column; 
+        align-items: stretch; 
+        gap: 10px;
+        text-align: left;
+    }
+    header h1 { margin-bottom: 6px; }
+    header .acciones { 
+        width: 100%; 
+        justify-content: center; 
+        gap: 10px; 
+        flex-direction: column;
+    }
+    header .acciones .boton-accion { 
+        width: 100%; 
+        max-width: 100%; 
+    }
+
+    .container {
+        width: 98%;
+        padding: 0 1%;
+    }
+    form {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    input[type="text"], button {
+        width: 100%;
+        box-sizing: border-box;
+        font-size: 1.1em;
+    }
+    .boton-accion {
+        font-size: 1.1em;
+        margin-bottom: 18px;
+    }
+
+    /* Colocar el popup de añadir tarea en la parte superior en móviles */
+    #popup-tarea {
+        align-items: flex-start; /* alinear arriba */
+        padding-top: 12px;       /* pequeño margen desde el borde superior */
+        overflow-y: auto;        /* permitir scroll si el contenido crece */
+    }
+    #popup-tarea .modal-content {
+        margin: 12px auto 20px;  /* evitar margen auto vertical que centra */
+        width: 94%;              /* un poco más ancho en móvil */
+        max-width: 520px;        /* tope razonable */
+    }
+}
+
+/* Estilos para Notificaciones Toast */
+.toast {
+    visibility: hidden;
+    min-width: 250px;
+    margin-left: -125px;
+    background-color: #333;
+    color: #fff;
+    text-align: center;
+    border-radius: 4px;
+    padding: 16px;
+    position: fixed;
+    z-index: 100;
+    left: 50%;
+    bottom: 30px;
+    font-size: 17px;
+    opacity: 0;
+    transition: opacity 0.5s, bottom 0.5s;
+}
+
+.toast.show {
+    visibility: visible;
+    opacity: 1;
+}
+
+.toast.success {
+    background-color: #4CAF50; /* Verde */
+}
+
+.toast.error {
+    background-color: #f44336; /* Rojo */
+}
+
+.controles-principales {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    padding: 20px;
+    background-color: #b1a4a4;
+    border-top: 1px solid #eee;
+    justify-content: center;
+}
+.grupo-botones {
+    display: flex;
+    flex-direction: column;
+/* Paleta y variables de diseño */
+:root {
+    /* Paleta base: alto contraste y sobria */
+    --color-bg: #824c4c;
+    --color-surface: #512c2c;
+    --color-text: #111827;     /* gris muy oscuro */
+    --color-muted: #4b5563;    /* gris medio */
+    --color-border: #e5e7eb;   /* borde claro */
+
+    /* Encabezado y pie */
+    --color-header-bg: #111827; /* casi negro azulado */
+    --color-header-text: #161313;
+
+    /* Acentos */
+    --color-primary: #2563eb;      /* azul accesible */
+    --color-primary-dark: #1e40af; /* hover */
+    --color-success: #16a34a;
+    --color-danger: #dc2626;
+    --color-accent: #374151;
+}
+
+html, body { background: var(--color-bg); color: var(--color-text); }
+body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+    gap: 10px;
+}
+
+/* Chips de etiquetas rápidas */
+.tag-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+}
+.tag-chip {
+    background: #eef2f7;
+    color: #35424a;
+    border: 1px solid #cfd8e3;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    cursor: pointer;
+}
+.tag-chip.selected {
+    background: #35424a;
+    color: white;
+    border-color: #35424a;
+}
+.grupo-botones h3 {
+    margin: 0 0 5px 0;
+    font-size: 16px;
+    color: #555;
+}
+.boton-peligro {
+    background-color: #d9534f;
+    color: white;
+    border-color: #d43f3a;
+}
+.boton-peligro:hover {
+    background-color: #c9302c;
+    border-color: #ac2925;
+}
+
+/* Opcional: solo aplicar en pantallas grandes */
+@media (min-width: 900px) {
+    body {
+        max-width: 80vw;
+        margin: 2em auto;
+    }
+}

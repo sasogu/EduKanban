@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://api.dropboxapi.com https://content.dropboxapi.com; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'">
+    <title>Tareas Archivadas</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗄️</text></svg>">
+</head>
+<body>
+    <header>
+        <h1>Tareas Archivadas</h1>
+        <div class="acciones">
+            <a href="index.html" class="boton-accion boton-secundario">Volver al Gestor</a>
+        </div>
+    </header>
+
+    <main>
+        <select id="archive-filter-tag">
+            <option value="">Mostrar todo</option>
+        </select>
+        <div id="archive-container" class="task-container">
+            <!-- Las tareas archivadas se cargarán aquí -->
+        </div>
+    </main>
+
+    <script src="js/archivo.js"></script>
+    <script src="js/sw-register.js"></script>
+</body>
+</html>
