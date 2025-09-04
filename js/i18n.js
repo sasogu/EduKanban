@@ -223,9 +223,9 @@
 
       // Handlers de backup
       const fileInput = document.getElementById('backup-file-input');
-      if (be) be.onclick = exportBackup;
-      if (bi) bi.onclick = ()=> fileInput && fileInput.click();
-      if (fileInput) fileInput.onchange = (e)=> { const f=e.target.files&&e.target.files[0]; if (f) importBackup(f); e.target.value=''; };
+      if (be) be.onclick = () => (window.i18n && i18n.exportBackup) ? i18n.exportBackup() : null;
+      if (bi) bi.onclick = () => fileInput && fileInput.click();
+      if (fileInput) fileInput.onchange = (e)=> { const f=e.target.files&&e.target.files[0]; if (f && window.i18n && i18n.importBackup) i18n.importBackup(f); e.target.value=''; };
     }
     // Enlaces de retorno
     document.querySelectorAll('a[href="index.html"]').forEach(a => a.textContent = t('back_to_app'));
@@ -243,5 +243,5 @@
   }
 
   // Exponer API global
-  window.i18n = { t, getLang, setLang, getLocale, i18nCategoryNames, applyI18nAll };
+  window.i18n = { t, getLang, setLang, getLocale, i18nCategoryNames, applyI18nAll, exportBackup, importBackup };
 })();
