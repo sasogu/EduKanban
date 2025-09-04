@@ -1,15 +1,17 @@
-# Task Manager App
+# EduKanban — Gestor de Actividades
 
 ## Descripción
-Esta es una aplicación sencilla para gestionar tareas, organizada en cuatro categorías: Inbox, Tareas Prioritarias, Próximas, Algún Día y Archivadas. La aplicación permite a los usuarios crear, visualizar, gestionar y archivar tareas de manera eficiente.
+EduKanban es una aplicación sencilla para gestionar actividades del aula con enfoque kanban. Está organizada en cuatro columnas: En preparación, Preparadas, En proceso, Pendientes y una vista de Archivadas. Permite crear, visualizar, etiquetar, recordar y archivar actividades de manera eficiente.
 
 ## Estructura del Proyecto
 El proyecto contiene los siguientes archivos y directorios:
 
-- `index.html`: Página principal de la aplicación que incluye la estructura HTML básica y referencias a los archivos CSS y JavaScript.
-- `css/styles.css`: Archivo de estilos CSS que define el diseño y la apariencia de los elementos en `index.html`.
-- `js/app.js`: Archivo de lógica de la aplicación que maneja la creación, visualización y gestión de tareas.
-- `assets/icons`: Directorio que contiene los íconos utilizados en la aplicación.
+- `index.html`: Página principal de la aplicación (PWA) con el tablero.
+- `css/styles.css`: Estilos de la interfaz.
+- `js/app.js`: Lógica principal (kanban, etiquetas, recordatorios, Dropbox opcional).
+- `js/archivo.js`: Vista de actividades archivadas.
+- `js/recordatorios.js`: Vista centrada en recordatorios.
+- `icons/`: Íconos PWA.
 
 ## Instalación
 1. Clona el repositorio en tu máquina local:
@@ -18,18 +20,21 @@ El proyecto contiene los siguientes archivos y directorios:
    ```
 2. Navega al directorio del proyecto:
    ```
-   cd task-manager-app
+   cd EduKanban
    ```
 
 ## Ejecución
 1. Abre el archivo `index.html` en tu navegador web.
-2. Interactúa con la aplicación para gestionar tus tareas.
+2. Interactúa con la aplicación para gestionar tus actividades.
 
 ## Características
-- Agregar nuevas tareas a las diferentes categorías.
-- Marcar tareas como completadas.
-- Eliminar tareas.
-- Archivar tareas completadas.
+- Agregar nuevas actividades a las diferentes categorías.
+- Marcar actividades como completadas.
+- Eliminar actividades.
+- Archivar actividades completadas.
+
+## Notas de migración
+- Dropbox usa únicamente `/edukanban.json`. No se lee ni migra desde `/tareas.json` para mantener esta app independiente.
 
 ## Contribuciones
 Las contribuciones son bienvenidas. Si deseas mejorar la aplicación, por favor abre un issue o envía un pull request.

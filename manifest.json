@@ -1,18 +1,18 @@
 {
-  "name": "Gestor de Tareas",
-  "short_name": "TareasGT",
+  "name": "EduKanban — Gestor de Actividades",
+  "short_name": "EduKanban",
   "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#35424a",
   "theme_color": "#35424a",
-  "description": "Una aplicación para gestionar tus tareas.",
+  "description": "Gestor de actividades para aulas (kanban educativo).",
   "shortcuts": [
     {
-      "name": "Añadir tarea",
-      "short_name": "Nueva tarea",
-      "description": "Abrir el formulario para añadir una tarea",
+      "name": "Añadir actividad",
+      "short_name": "Nueva actividad",
+      "description": "Abrir el formulario para añadir una actividad",
       "url": "index.html?quick=1",
       "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     }

@@ -4,27 +4,29 @@
 
 // --- ESTADO GLOBAL DE LA APLICACIÓN ---
 const categories = {
-    "bandeja-de-entrada": [],
-    "prioritaria": [],
-    "proximas": [],
-    "algun-dia": [],
+    "en-preparacion": [],
+    "preparadas": [],
+    "en-proceso": [],
+    "pendientes": [],
     "archivadas": []
 };
 
 const categoryNames = {
-    "bandeja-de-entrada": "Bandeja de Entrada",
-    "prioritaria": "Prioritaria",
-    "proximas": "Próximas",
-    "algun-dia": "Algún Día",
+    "en-preparacion": "En preparación",
+    "preparadas": "Preparadas",
+    "en-proceso": "En proceso",
+    "pendientes": "Pendientes",
     "archivadas": "Archivadas"
 };
 
 const deletedTasks = JSON.parse(localStorage.getItem('deletedTasks') || '[]');
-const DROPBOX_APP_KEY = 'f21fzdjtng58vcg';
+const DROPBOX_APP_KEY = 'dvvtedkibz396hq';
+const DROPBOX_FILE_PATH = '/edukanban.json';
 let accessToken = localStorage.getItem('dropbox_access_token');
 let localLastSync = localStorage.getItem('lastSync');
 let syncInterval = null;
-const DROPBOX_REDIRECT_URI = 'https://sasogu.github.io/task-manager-app/';
+// Flujo de redirect dinámico; constante obsoleta tras rebranding
+const DROPBOX_REDIRECT_URI = 'about:blank';
 
 // --- FUNCIONES DE UTILIDAD ---
 function generateUUID() { return crypto.randomUUID(); }
@@ -101,9 +103,44 @@ function convertirEnlaces(texto) {
 
 // --- GESTIÓN DE DATOS LOCALES ---
 function saveCategoriesToLocalStorage() { localStorage.setItem('categories', JSON.stringify(categories)); }
+function normalizeCategoryKey(key) {
+    const map = {
+        'bandeja-de-entrada': 'en-preparacion',
+        'prioritaria': 'preparadas',
+        'proximas': 'en-proceso',
+        'algun-dia': 'pendientes',
+        // Nuevas claves se mapean a sí mismas
+        'en-preparacion': 'en-preparacion',
+        'preparadas': 'preparadas',
+        'en-proceso': 'en-proceso',
+        'pendientes': 'pendientes',
+        'archivadas': 'archivadas'
+    };
+    return map[key] || key;
+}
+
+function migrateCategoryKeysObject(obj) {
+    const target = { 'en-preparacion': [], 'preparadas': [], 'en-proceso': [], 'pendientes': [], 'archivadas': [] };
+    try {
+        for (const k in obj) {
+            const nk = normalizeCategoryKey(k);
+            if (!Array.isArray(obj[k])) continue;
+            if (!Array.isArray(target[nk])) target[nk] = [];
+            target[nk] = target[nk].concat(obj[k]);
+        }
+    } catch (_) {}
+    return target;
+}
+
 function loadCategoriesFromLocalStorage() {
     const stored = localStorage.getItem('categories');
-    if (stored) Object.assign(categories, JSON.parse(stored));
+    if (stored) {
+        const raw = JSON.parse(stored);
+        const migrated = migrateCategoryKeysObject(raw);
+        Object.keys(categories).forEach(k => { categories[k] = Array.isArray(migrated[k]) ? migrated[k] : []; });
+        // Guardar de vuelta en nuevo formato
+        localStorage.setItem('categories', JSON.stringify(categories));
+    }
 }
 function migrateOldTasks() {
     let needsSave = false;
@@ -148,8 +185,8 @@ async function removeTask(taskId) {
 
     const taskTitle = (taskData.task && taskData.task.task) ? taskData.task.task : '';
     const msg = taskTitle
-        ? `¿Estás seguro de que quieres eliminar la tarea "${taskTitle}"?`
-        : '¿Estás seguro de que quieres eliminar esta tarea?';
+        ? `¿Estás seguro de que quieres eliminar la actividad "${taskTitle}"?`
+        : '¿Estás seguro de que quieres eliminar esta actividad?';
     const confirmed = await showConfirm(msg, 'Eliminar', 'Cancelar');
     if (!confirmed) return;
 
@@ -175,7 +212,7 @@ function toggleTaskCompletion(taskId) {
         } else if (!task.completed && taskData.category === 'archivadas') {
             const [movedTask] = categories[taskData.category].splice(taskData.taskIndex, 1);
             delete movedTask.archivedOn;
-            categories['bandeja-de-entrada'].push(movedTask);
+            categories['en-preparacion'].push(movedTask);
         }
         saveCategoriesToLocalStorage();
         renderTasks();
@@ -317,12 +354,12 @@ function renderTasks() {
                     </span>
                 </div>
                 <div class="task-actions">
-                    <select aria-label="Mover tarea" onchange="moveTask('${task.id}', this.value)">
+                    <select aria-label="Mover actividad" onchange="moveTask('${task.id}', this.value)">
                         <option value="" disabled selected>Mover</option>
                         ${Object.keys(categoryNames).filter(c => c !== category).map(c => `<option value="${c}">${categoryNames[c]}</option>`).join('')}
                     </select>
-                    <button class="edit-btn" aria-label="Editar tarea" onclick="openEditTask('${task.id}')">✏️ <span class="btn-label">Editar</span></button>
-                    <button class="delete-btn" aria-label="Eliminar tarea" onclick="removeTask('${task.id}')">🗑️ <span class="btn-label">Eliminar</span></button>
+                    <button class="edit-btn" aria-label="Editar actividad" onclick="openEditTask('${task.id}')">✏️ <span class="btn-label">Editar</span></button>
+                    <button class="delete-btn" aria-label="Eliminar actividad" onclick="removeTask('${task.id}')">🗑️ <span class="btn-label">Eliminar</span></button>
                 </div>
             </div>
         `).join('');
@@ -514,7 +551,8 @@ function mergeTasks(localCategories, remoteCategories, deletedIdsSet) {
                 if (deletedIdsSet.has(task.id)) continue;
                 const existing = tasksById.get(task.id);
                 if (!existing || new Date(task.lastModified) > new Date(existing.lastModified)) {
-                    tasksById.set(task.id, { ...task, category: categoryName });
+                    const normalized = normalizeCategoryKey(categoryName);
+                    tasksById.set(task.id, { ...task, category: normalized });
                 }
             }
         }
@@ -523,11 +561,12 @@ function mergeTasks(localCategories, remoteCategories, deletedIdsSet) {
     processCategory(localCategories);
     processCategory(remoteCategories);
 
-    const mergedCategories = { "bandeja-de-entrada": [], "prioritaria": [], "proximas": [], "algun-dia": [], "archivadas": [] };
+    const mergedCategories = { "en-preparacion": [], "preparadas": [], "en-proceso": [], "pendientes": [], "archivadas": [] };
     for (const task of tasksById.values()) {
-        if (mergedCategories[task.category]) {
+        const targetCat = normalizeCategoryKey(task.category);
+        if (mergedCategories[targetCat]) {
             const { category, ...finalTask } = task;
-            mergedCategories[task.category].push(finalTask);
+            mergedCategories[targetCat].push(finalTask);
         }
     }
     // Orden determinista por lastModified (más recientes primero)
@@ -549,7 +588,13 @@ async function syncToDropbox(showAlert = true) {
     const data = { categories, deletedTasks, lastSync: new Date().toISOString() };
     try {
         const response = await fetch('https://content.dropboxapi.com/2/files/upload', {
-            method: 'POST', headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/octet-stream', 'Dropbox-API-Arg': JSON.stringify({ path: '/tareas.json', mode: 'overwrite' }) }, body: JSON.stringify(data, null, 2)
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/octet-stream',
+                'Dropbox-API-Arg': JSON.stringify({ path: DROPBOX_FILE_PATH, mode: 'overwrite' })
+            },
+            body: JSON.stringify(data, null, 2)
         });
         if (response.status === 401) {
             accessToken = null;
@@ -563,7 +608,7 @@ async function syncToDropbox(showAlert = true) {
             const metadata = await response.json();
             localLastSync = metadata.server_modified;
             localStorage.setItem('lastSync', localLastSync);
-            if (showAlert) showToast('✅ Tareas subidas a Dropbox');
+            if (showAlert) showToast('✅ Actividades subidas a Dropbox');
             return true;
         }
     } catch (e) { console.error('Error en syncToDropbox', e); }
@@ -573,7 +618,11 @@ async function syncToDropbox(showAlert = true) {
 async function syncFromDropbox(force = false) {
     if (!accessToken) return false;
     try {
-        const meta = await fetch('https://api.dropboxapi.com/2/files/get_metadata', { method: 'POST', headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ path: '/tareas.json' }) });
+        // Consultar metadata únicamente del archivo de EduKanban
+        let meta = await fetch('https://api.dropboxapi.com/2/files/get_metadata', {
+            method: 'POST', headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: DROPBOX_FILE_PATH })
+        });
         if (meta.status === 401) {
             accessToken = null;
             localStorage.removeItem('dropbox_access_token');
@@ -585,7 +634,10 @@ async function syncFromDropbox(force = false) {
         if (!meta.ok) return meta.status === 409 ? await syncToDropbox(false) : false;
         const remoteMeta = await meta.json();
         if (force || !localLastSync || new Date(remoteMeta.server_modified) > new Date(localLastSync)) {
-            const res = await fetch('https://content.dropboxapi.com/2/files/download', { method: 'POST', headers: { 'Authorization': `Bearer ${accessToken}`, 'Dropbox-API-Arg': JSON.stringify({ path: '/tareas.json' }) } });
+            // Descargar desde el archivo de EduKanban
+            let res = await fetch('https://content.dropboxapi.com/2/files/download', {
+                method: 'POST', headers: { 'Authorization': `Bearer ${accessToken}`, 'Dropbox-API-Arg': JSON.stringify({ path: DROPBOX_FILE_PATH }) }
+            });
             if (res.status === 401) {
                 accessToken = null;
                 localStorage.removeItem('dropbox_access_token');
@@ -746,7 +798,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             if (!nombre) {
-                showToast('Por favor, ingresa un nombre de tarea.', 'error');
+                showToast('Por favor, ingresa un nombre de actividad.', 'error');
                 return;
             }
 
@@ -947,7 +999,7 @@ function checkDueReminders() {
             const when = Date.parse(task.reminderAt);
             if (!isNaN(when) && when <= now) {
                 const body = `Categoría: ${categoryNames[cat]}`;
-                showLocalNotification('Recordatorio de tarea', {
+                showLocalNotification('Recordatorio de actividad', {
                     body: `${task.task}\n${body}`,
                     icon: 'icons/icon-192.png',
                     tag: `reminder-${task.id}`,
@@ -991,7 +1043,7 @@ async function tryScheduleTaskTrigger(task, categoryKey) {
         if (task.triggerScheduledAt === task.reminderAt) return; // Ya programado
         const reg = await navigator.serviceWorker?.getRegistration();
         if (!reg) return;
-        await reg.showNotification('Recordatorio de tarea', {
+        await reg.showNotification('Recordatorio de actividad', {
             body: `${task.task}\nCategoría: ${categoryNames[categoryKey] || ''}`.trim(),
             tag: `reminder-${task.id}`,
             icon: 'icons/icon-192.png',

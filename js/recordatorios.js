@@ -14,13 +14,33 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (_) { return iso || ''; }
     }
 
+    function normalizeKey(k){
+        const m={
+            'bandeja-de-entrada':'en-preparacion',
+            'prioritaria':'preparadas',
+            'proximas':'en-proceso',
+            'algun-dia':'pendientes',
+            'en-preparacion':'en-preparacion',
+            'preparadas':'preparadas',
+            'en-proceso':'en-proceso',
+            'pendientes':'pendientes',
+            'archivadas':'archivadas'
+        };return m[k]||k;
+    }
+    function migrateObj(obj){
+        const t={'en-preparacion':[],'preparadas':[],'en-proceso':[],'pendientes':[],'archivadas':[]};
+        for(const k in obj){const nk=normalizeKey(k);if(Array.isArray(obj[k])){t[nk]=(t[nk]||[]).concat(obj[k]);}}
+        return t;
+    }
     function render() {
-        const all = JSON.parse(localStorage.getItem('categories') || '{}');
+        const raw = JSON.parse(localStorage.getItem('categories') || '{}');
+        const all = migrateObj(raw);
+        try { localStorage.setItem('categories', JSON.stringify(all)); } catch(_) {}
         const categoryNames = {
-            'bandeja-de-entrada': 'Bandeja de Entrada',
-            'prioritaria': 'Prioritaria',
-            'proximas': 'Próximas',
-            'algun-dia': 'Algún Día',
+            'en-preparacion': 'En preparación',
+            'preparadas': 'Preparadas',
+            'en-proceso': 'En proceso',
+            'pendientes': 'Pendientes',
             'archivadas': 'Archivadas'
         };
         const items = [];
@@ -54,7 +74,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         container.innerHTML = '';
         if (overdue.length === 0 && upcoming.length === 0) {
-            container.innerHTML = '<p>No hay tareas con recordatorio programado.</p>';
+            container.innerHTML = '<p>No hay actividades con recordatorio programado.</p>';
             return;
         }
 
@@ -90,7 +110,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Completar y archivar tarea desde esta vista
     window.completeAndArchive = function(taskId) {
         const all = JSON.parse(localStorage.getItem('categories') || '{}');
-        const cats = ['bandeja-de-entrada', 'prioritaria', 'proximas', 'algun-dia', 'archivadas'];
+        const cats = ['en-preparacion', 'preparadas', 'en-proceso', 'pendientes', 'archivadas'];
         cats.forEach(c => { if (!Array.isArray(all[c])) all[c] = []; });
 
         // Buscar en no-archivadas
@@ -127,7 +147,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/octet-stream',
-                    'Dropbox-API-Arg': JSON.stringify({ path: '/tareas.json', mode: 'overwrite' })
+                    'Dropbox-API-Arg': JSON.stringify({ path: '/edukanban.json', mode: 'overwrite' })
                 },
                 body: JSON.stringify(payload, null, 2)
             });

@@ -18,6 +18,14 @@ header {
     border-bottom: 2px solid #e8491d;
 }
 
+/* Logo en el header */
+header .logo {
+    height: 144px;
+    width: auto;
+    display: block;
+    object-fit: contain;
+}
+
 h1 {
     margin: 0;
 }

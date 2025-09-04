@@ -36,8 +36,29 @@ document.addEventListener('DOMContentLoaded', function() {
         filterSelect.value = currentValue || '';
     }
 
+    function normalizeKey(k){
+        const m={
+            'bandeja-de-entrada':'en-preparacion',
+            'prioritaria':'preparadas',
+            'proximas':'en-proceso',
+            'algun-dia':'pendientes',
+            'en-preparacion':'en-preparacion',
+            'preparadas':'preparadas',
+            'en-proceso':'en-proceso',
+            'pendientes':'pendientes',
+            'archivadas':'archivadas'
+        };return m[k]||k;
+    }
+    function migrateObj(obj){
+        const t={'en-preparacion':[],'preparadas':[],'en-proceso':[],'pendientes':[],'archivadas':[]};
+        for(const k in obj){const nk=normalizeKey(k);if(Array.isArray(obj[k])){t[nk]=(t[nk]||[]).concat(obj[k]);}}
+        return t;
+    }
+
     function renderArchivedTasks() {
-        const allCategories = JSON.parse(localStorage.getItem('categories') || '{}');
+        const raw = JSON.parse(localStorage.getItem('categories') || '{}');
+        const allCategories = migrateObj(raw);
+        try { localStorage.setItem('categories', JSON.stringify(allCategories)); } catch(_) {}
         const archivedTasks = allCategories['archivadas'] || [];
         const currentFilter = (filterSelect?.value || localStorage.getItem('selectedArchiveFilterTag') || '');
         // Orden estable: más recientes primero por archivedOn (si existe) o lastModified
@@ -55,7 +76,7 @@ document.addEventListener('DOMContentLoaded', function() {
         archiveContainer.innerHTML = '';
 
         if (view.length === 0) {
-            archiveContainer.innerHTML = '<p>No hay tareas archivadas.</p>';
+            archiveContainer.innerHTML = '<p>No hay actividades archivadas.</p>';
             // Aún actualizar el dropdown según las tareas originales
             updateArchiveFilterDropdown(currentFilter, archivedTasks);
             return;
@@ -82,7 +103,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // FUNCIÓN DE ELIMINACIÓN CORREGIDA
     window.deletePermanently = function(taskId) {
-        if (confirm('¿Estás seguro de que quieres eliminar esta tarea permanentemente? Esta acción no se puede deshacer.')) {
+        if (confirm('¿Estás seguro de que quieres eliminar esta actividad permanentemente? Esta acción no se puede deshacer.')) {
             // Cargar ambos, categorías y tareas eliminadas
             const allCategories = JSON.parse(localStorage.getItem('categories') || '{}');
             const deletedTasks = JSON.parse(localStorage.getItem('deletedTasks') || '[]');
@@ -112,7 +133,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Desarchivar: mover a Bandeja de Entrada y marcar como no completada
     window.unarchiveTask = function(taskId) {
-        const allCategories = JSON.parse(localStorage.getItem('categories') || '{}');
+        const raw = JSON.parse(localStorage.getItem('categories') || '{}');
+        const allCategories = migrateObj(raw);
         const archived = allCategories['archivadas'];
         if (!Array.isArray(archived)) return;
         const idx = archived.findIndex(t => t.id === taskId);
@@ -122,10 +144,10 @@ document.addEventListener('DOMContentLoaded', function() {
         task.lastModified = new Date().toISOString();
         // Limpiar metadato de archivado al desarchivar
         if (task.archivedOn) delete task.archivedOn;
-        if (!Array.isArray(allCategories['bandeja-de-entrada'])) {
-            allCategories['bandeja-de-entrada'] = [];
+        if (!Array.isArray(allCategories['en-preparacion'])) {
+            allCategories['en-preparacion'] = [];
         }
-        allCategories['bandeja-de-entrada'].push(task);
+        allCategories['en-preparacion'].push(task);
         localStorage.setItem('categories', JSON.stringify(allCategories));
         renderArchivedTasks();
         // Intentar sincronizar con Dropbox si hay sesión
@@ -154,7 +176,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/octet-stream',
-                    'Dropbox-API-Arg': JSON.stringify({ path: '/tareas.json', mode: 'overwrite' })
+                    'Dropbox-API-Arg': JSON.stringify({ path: '/edukanban.json', mode: 'overwrite' })
                 },
                 body: JSON.stringify(payload, null, 2)
             });
