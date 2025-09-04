@@ -1,4 +1,10 @@
 document.addEventListener('DOMContentLoaded', function() {
+    const LS = {
+        categories: 'edukanban.categories',
+        deleted: 'edukanban.deletedTasks',
+        token: 'edukanban.dropbox_access_token',
+        selectedArchiveFilterTag: 'edukanban.selectedArchiveFilterTag'
+    };
     const archiveContainer = document.getElementById('archive-container');
     const filterSelect = document.getElementById('archive-filter-tag');
 
@@ -57,11 +63,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function renderArchivedTasks() {
-        const raw = JSON.parse(localStorage.getItem('categories') || '{}');
+        const raw = JSON.parse(localStorage.getItem(LS.categories) || '{}');
         const allCategories = migrateObj(raw);
-        try { localStorage.setItem('categories', JSON.stringify(allCategories)); } catch(_) {}
+        try { localStorage.setItem(LS.categories, JSON.stringify(allCategories)); } catch(_) {}
         const archivedTasks = allCategories['archivadas'] || [];
-        const currentFilter = (filterSelect?.value || localStorage.getItem('selectedArchiveFilterTag') || '');
+        const currentFilter = (filterSelect?.value || localStorage.getItem(LS.selectedArchiveFilterTag) || '');
         // Orden estable: más recientes primero por archivedOn (si existe) o lastModified
         let view = archivedTasks.slice().sort((a, b) => {
             const aTime = new Date(a.archivedOn || a.lastModified || 0).getTime();
@@ -108,8 +114,8 @@ document.addEventListener('DOMContentLoaded', function() {
     window.deletePermanently = function(taskId) {
         if (confirm('¿Estás seguro de que quieres eliminar esta actividad permanentemente? Esta acción no se puede deshacer.')) {
             // Cargar ambos, categorías y tareas eliminadas
-            const allCategories = JSON.parse(localStorage.getItem('categories') || '{}');
-            const deletedTasks = JSON.parse(localStorage.getItem('deletedTasks') || '[]');
+            const allCategories = JSON.parse(localStorage.getItem(LS.categories) || '{}');
+            const deletedTasks = JSON.parse(localStorage.getItem(LS.deleted) || '[]');
 
             if (allCategories['archivadas']) {
                 const taskIndex = allCategories['archivadas'].findIndex(t => t.id === taskId);
@@ -122,8 +128,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     deletedTasks.push({ ...removedTask, deletedOn: new Date().toISOString() });
 
                     // 3. Guardar ambos cambios en localStorage
-                    localStorage.setItem('categories', JSON.stringify(allCategories));
-                    localStorage.setItem('deletedTasks', JSON.stringify(deletedTasks));
+                    localStorage.setItem(LS.categories, JSON.stringify(allCategories));
+                    localStorage.setItem(LS.deleted, JSON.stringify(deletedTasks));
                     
                     // 4. Volver a renderizar la vista
                     renderArchivedTasks();
@@ -136,7 +142,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Desarchivar: mover a Bandeja de Entrada y marcar como no completada
     window.unarchiveTask = function(taskId) {
-        const raw = JSON.parse(localStorage.getItem('categories') || '{}');
+        const raw = JSON.parse(localStorage.getItem(LS.categories) || '{}');
         const allCategories = migrateObj(raw);
         const archived = allCategories['archivadas'];
         if (!Array.isArray(archived)) return;
@@ -151,7 +157,7 @@ document.addEventListener('DOMContentLoaded', function() {
             allCategories['en-preparacion'] = [];
         }
         allCategories['en-preparacion'].push(task);
-        localStorage.setItem('categories', JSON.stringify(allCategories));
+        localStorage.setItem(LS.categories, JSON.stringify(allCategories));
         renderArchivedTasks();
         // Intentar sincronizar con Dropbox si hay sesión
         syncToDropboxFromArchive();
@@ -166,17 +172,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Gestionar cambios en el filtro
     filterSelect?.addEventListener('change', (e) => {
-        try { localStorage.setItem('selectedArchiveFilterTag', e.target.value || ''); } catch (_) {}
+        try { localStorage.setItem(LS.selectedArchiveFilterTag, e.target.value || ''); } catch (_) {}
         renderArchivedTasks();
     });
 
     // Sincronización básica a Dropbox desde la vista de archivo
     async function syncToDropboxFromArchive() {
-        const token = localStorage.getItem('dropbox_access_token');
+        const token = localStorage.getItem(LS.token);
         if (!token) return;
         try {
-            const categories = JSON.parse(localStorage.getItem('categories') || '{}');
-            const deletedTasks = JSON.parse(localStorage.getItem('deletedTasks') || '[]');
+            const categories = JSON.parse(localStorage.getItem(LS.categories) || '{}');
+            const deletedTasks = JSON.parse(localStorage.getItem(LS.deleted) || '[]');
             const payload = { categories, deletedTasks, lastSync: new Date().toISOString() };
             const res = await fetch('https://content.dropboxapi.com/2/files/upload', {
                 method: 'POST',

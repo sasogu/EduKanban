@@ -4,6 +4,13 @@
     es: {
       language: 'Idioma',
       synchronization: 'Sincronización',
+      administration: 'Administración',
+      backup: 'Copia de seguridad',
+      export_backup: 'Exportar copia',
+      import_backup: 'Importar copia',
+      backup_created: 'Copia creada',
+      backup_restored: 'Copia restaurada',
+      backup_invalid: 'Archivo de copia no válido',
       new_activity: 'Nueva Actividad',
       view_reminders: '⏰ Ver Recordatorios',
       view_archive: '🗄️ Ver Archivo',
@@ -42,6 +49,15 @@
     val: {
       language: 'Idioma',
       synchronization: 'Sincronització',
+      administration: 'Administració',
+      reconnecting: 'Tornant a connectar amb Dropbox…',
+      reconnected_retrying: 'Reconnectat. Reintentant operació…',
+      backup: 'Còpia de seguretat',
+      export_backup: 'Exportar còpia',
+      import_backup: 'Importar còpia',
+      backup_created: 'Còpia creada',
+      backup_restored: 'Còpia restaurada',
+      backup_invalid: 'Fitxer de còpia no vàlid',
       new_activity: 'Nova activitat',
       view_reminders: '⏰ Veure recordatoris',
       view_archive: '🗄️ Veure arxiu',
@@ -80,14 +96,14 @@
   };
 
   function getLang(){
-    const l = localStorage.getItem('lang');
+    const l = localStorage.getItem('edukanban.lang');
     if (l) return l;
     const nav = (navigator.language || 'ca').toLowerCase();
     if (nav.startsWith('ca')) return 'val';
     if (nav.startsWith('es')) return 'es';
     return 'val'; // Valencià por defecto
   }
-  function setLang(l){ try { localStorage.setItem('lang', l); } catch(_){} }
+  function setLang(l){ try { localStorage.setItem('edukanban.lang', l); } catch(_){} }
   function getLocale(){
     const l = getLang();
     if (l === 'val') return 'ca-ES';
@@ -133,6 +149,15 @@
     if (btnLogin) btnLogin.textContent = t('connect_dropbox');
     const btnSync = document.getElementById('dropbox-sync');
     if (btnSync) btnSync.textContent = t('sync_dropbox');
+    const btnAdmin = document.getElementById('open-admin');
+    if (btnAdmin) btnAdmin.textContent = '⚙️ ' + t('administration');
+    // Backup section
+    const backupLabel = document.querySelector('#backup-group h3');
+    if (backupLabel) backupLabel.textContent = t('backup');
+    const be = document.getElementById('backup-export');
+    if (be) be.textContent = '📤 ' + t('export_backup');
+    const bi = document.getElementById('backup-import');
+    if (bi) bi.textContent = '📥 ' + t('import_backup');
     // Filtros
     const filterTag = document.getElementById('filter-tag');
     if (filterTag && filterTag.options.length) {
@@ -152,6 +177,24 @@
     if (confirmAccept) confirmAccept.textContent = t('delete');
     const confirmCancel = document.getElementById('confirm-cancel');
     if (confirmCancel) confirmCancel.textContent = t('cancel');
+    // Admin modal labels y handlers
+    const adminModal = document.getElementById('admin-modal');
+    if (adminModal) {
+      const title = adminModal.querySelector('h2');
+      if (title) title.textContent = t('administration');
+      const closeBtn = document.getElementById('admin-close');
+      if (closeBtn) closeBtn.textContent = t('save');
+            const openAdmin = document.getElementById('open-admin');
+      if (openAdmin) openAdmin.onclick = ()=> { adminModal.style.display = 'flex'; };
+      if (closeBtn) closeBtn.onclick = ()=> { adminModal.style.display = 'none'; };
+      adminModal.onclick = (e)=>{ if (e.target === adminModal) adminModal.style.display = 'none'; };
+
+      // Handlers de backup
+      const fileInput = document.getElementById('backup-file-input');
+      if (be) be.onclick = exportBackup;
+      if (bi) bi.onclick = ()=> fileInput && fileInput.click();
+      if (fileInput) fileInput.onchange = (e)=> { const f=e.target.files&&e.target.files[0]; if (f) importBackup(f); e.target.value=''; };
+    }
     // Enlaces de retorno
     document.querySelectorAll('a[href="index.html"]').forEach(a => a.textContent = t('back_to_app'));
   }

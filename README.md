@@ -19,6 +19,7 @@ El projecte conté els següents fitxers i directoris:
 
 1. Obri el fitxer index.html en el teu navegador web.
 2. Interactua amb l’aplicació per a gestionar les teues activitats.
+3. Configuració: fes clic en “Administració” (⚙️) per a canviar l’idioma.
 
 ## Característiques
 
@@ -27,9 +28,22 @@ El projecte conté els següents fitxers i directoris:
 - Eliminar activitats.
 - Arxivar activitats completades.
 
+## Emmagatzematge i sincronització
+
+- Dropbox utilitza únicament `/edukanban.json` (no compatible amb apps anteriors).
+- Les claus en localStorage estan prefixades amb `edukanban.*` per a evitar interferències (p. ex. `edukanban.categories`, `edukanban.deletedTasks`).
+
 ## Contribucions
 
 Les contribucions són benvingudes. Si desitges millorar l’aplicació, per favor obri un issue o envia un pull request.
+
+## Descàrrec de responsabilitat
+
+Aquest programari es proporciona «tal qual», sense cap garantia explícita ni implícita. Els autors no ens fem responsables dels possibles danys o pèrdues derivades de l’ús d’aquesta aplicació. L’ús és sota la teua pròpia responsabilitat.
+
+## Llicència
+
+Aquest projecte està sota la llicència MIT. Pots utilitzar, copiar, modificar i distribuir el programari lliurement, sempre que s’incloga el text de la llicència original.
 
 # EduKanban — Gestor de Actividades
 
@@ -49,6 +63,7 @@ El proyecto contiene los siguientes archivos y directorios:
 ## Ejecución
 1. Abre el archivo `index.html` en tu navegador web.
 2. Interactúa con la aplicación para gestionar tus actividades.
+3. Configuración: haz clic en “Administración” (⚙️) para cambiar el idioma.
 
 ## Características
 - Agregar nuevas actividades a las diferentes categorías.
@@ -56,6 +71,18 @@ El proyecto contiene los siguientes archivos y directorios:
 - Eliminar actividades.
 - Archivar actividades completadas.
 
+## Almacenamiento y sincronización
+
+- Dropbox usa únicamente `/edukanban.json` (no compatible con apps anteriores).
+- Las claves en localStorage están espaciadas con prefijo `edukanban.*` para evitar interferencias (por ejemplo `edukanban.categories`, `edukanban.deletedTasks`).
+
 ## Contribuciones
 Las contribuciones son bienvenidas. Si deseas mejorar la aplicación, por favor abre un issue o envía un pull request.
 
+## Descargo de responsabilidad
+
+Este software se proporciona «tal cual», sin ninguna garantía explícita ni implícita. Los autores no nos hacemos responsables de los posibles daños o pérdidas derivados del uso de esta aplicación. El uso es bajo tu propia responsabilidad.
+
+## Licencia
+
+Este proyecto está bajo la licencia MIT. Puedes utilizar, copiar, modificar y distribuir el software libremente, siempre que se incluya el texto de la licencia original.

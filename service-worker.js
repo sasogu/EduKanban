@@ -1,4 +1,4 @@
-const CACHE_NAME = 'edukanban-cache-v0.0.1'; // Versión incrementada por rebranding
+const CACHE_NAME = 'edukanban-cache-v0.0.7'; // Versión incrementada por rebranding
 // URL base del scope del SW (funciona tanto en GitHub Pages como en localhost)
 const SCOPE_BASE = self.registration?.scope || self.location.origin + '/';
 const OFFLINE_FALLBACK_URL = new URL('index.html', SCOPE_BASE).toString();

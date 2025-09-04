@@ -13,10 +13,7 @@
         <img src="icons/logolargo.png" alt="EduKanban" class="logo"/>
         <div class="acciones">
             <a href="index.html" class="boton-accion boton-secundario">Volver a EduKanban</a>
-            <select id="lang-select">
-                <option value="es">Español</option>
-                <option value="val">Valencià</option>
-            </select>
+            <button id="open-admin" type="button" class="boton-accion">⚙️ Administración</button>
         </div>
     </header>
 
@@ -28,6 +25,29 @@
             <!-- Las tareas archivadas se cargarán aquí -->
         </div>
     </main>
+
+    <!-- Modal de Administración -->
+    <div id="admin-modal" class="modal">
+        <div class="modal-content">
+            <h2>Administración</h2>
+            <div class="grupo-botones" id="lang-group">
+                <h3>Idioma</h3>
+                <select id="lang-select">
+                    <option value="es">Español</option>
+                    <option value="val">Valencià</option>
+                </select>
+            </div>
+            <div class="grupo-botones" id="backup-group">
+                <h3>Copia de seguridad</h3>
+                <button id="backup-export" type="button" class="boton-accion">📤 Exportar copia</button>
+                <button id="backup-import" type="button" class="boton-accion">📥 Importar copia</button>
+                <input id="backup-file-input" type="file" accept="application/json" style="display:none" />
+            </div>
+            <div class="acciones-popup">
+                <button type="button" id="admin-close">Guardar</button>
+            </div>
+        </div>
+    </div>
 
     <script src="js/i18n.js"></script>
     <script src="js/archivo.js"></script>

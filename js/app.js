@@ -13,11 +13,23 @@ const categories = {
 
 // category names dependen del idioma (ver i18n.i18nCategoryNames)
 
-const deletedTasks = JSON.parse(localStorage.getItem('deletedTasks') || '[]');
+// Claves de almacenamiento local específicas de EduKanban
+const LS = {
+  categories: 'edukanban.categories',
+  deleted: 'edukanban.deletedTasks',
+  token: 'edukanban.dropbox_access_token',
+  lastSync: 'edukanban.lastSync',
+  selectedFilterTag: 'edukanban.selectedFilterTag',
+  notificationsEnabled: 'edukanban.notificationsEnabled',
+  pendingDropboxAction: 'edukanban.pendingDropboxAction',
+  lastReauthAt: 'edukanban.lastReauthAt'
+};
+
+const deletedTasks = JSON.parse(localStorage.getItem(LS.deleted) || '[]');
 const DROPBOX_APP_KEY = 'dvvtedkibz396hq';
 const DROPBOX_FILE_PATH = '/edukanban.json';
-let accessToken = localStorage.getItem('dropbox_access_token');
-let localLastSync = localStorage.getItem('lastSync');
+let accessToken = localStorage.getItem(LS.token);
+let localLastSync = localStorage.getItem(LS.lastSync);
 let syncInterval = null;
 // Flujo de redirect dinámico; constante obsoleta tras rebranding
 const DROPBOX_REDIRECT_URI = 'about:blank';
@@ -35,6 +47,23 @@ function showToast(message, type = 'success') {
         toast.classList.remove('show');
         setTimeout(() => { if (document.body.contains(toast)) document.body.removeChild(toast); }, 500);
     }, 3000);
+
+function showReconnectIndicator(text) {
+    try {
+        let el = document.getElementById('reconnect-indicator');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'reconnect-indicator';
+            document.body.appendChild(el);
+        }
+        el.textContent = text || ((window.i18n&&i18n.t)?i18n.t('reconnecting'):'Reconectando con Dropbox…');
+    } catch (_) {}
+}
+function hideReconnectIndicator() {
+    const el = document.getElementById('reconnect-indicator');
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+}
+
 }
 
 // Modal de confirmación personalizado (Promise-based)
@@ -96,7 +125,7 @@ function convertirEnlaces(texto) {
 }
 
 // --- GESTIÓN DE DATOS LOCALES ---
-function saveCategoriesToLocalStorage() { localStorage.setItem('categories', JSON.stringify(categories)); }
+function saveCategoriesToLocalStorage() { localStorage.setItem(LS.categories, JSON.stringify(categories)); }
 function normalizeCategoryKey(key) {
     const map = {
         'bandeja-de-entrada': 'en-preparacion',
@@ -127,13 +156,13 @@ function migrateCategoryKeysObject(obj) {
 }
 
 function loadCategoriesFromLocalStorage() {
-    const stored = localStorage.getItem('categories');
+    const stored = localStorage.getItem(LS.categories);
     if (stored) {
         const raw = JSON.parse(stored);
         const migrated = migrateCategoryKeysObject(raw);
         Object.keys(categories).forEach(k => { categories[k] = Array.isArray(migrated[k]) ? migrated[k] : []; });
         // Guardar de vuelta en nuevo formato
-        localStorage.setItem('categories', JSON.stringify(categories));
+        localStorage.setItem(LS.categories, JSON.stringify(categories));
     }
 }
 function migrateOldTasks() {
@@ -184,7 +213,7 @@ async function removeTask(taskId) {
 
     const [removedTask] = categories[taskData.category].splice(taskData.taskIndex, 1);
     deletedTasks.push({ ...removedTask, deletedOn: new Date().toISOString() });
-    localStorage.setItem('deletedTasks', JSON.stringify(deletedTasks));
+    localStorage.setItem(LS.deleted, JSON.stringify(deletedTasks));
     saveCategoriesToLocalStorage();
     renderTasks();
     if (accessToken) syncToDropbox(false);
@@ -320,9 +349,9 @@ function renderTasks() {
     // Mantener filtro activo: tomar el valor actual o el guardado en localStorage
     let filterTag = '';
     if (filterTagSelect) {
-        filterTag = filterTagSelect.value || localStorage.getItem('selectedFilterTag') || '';
+        filterTag = filterTagSelect.value || localStorage.getItem(LS.selectedFilterTag) || '';
     } else {
-        filterTag = localStorage.getItem('selectedFilterTag') || '';
+        filterTag = localStorage.getItem(LS.selectedFilterTag) || '';
     }
     taskContainer.innerHTML = '';
 
@@ -537,6 +566,42 @@ async function validateToken() {
     }
 }
 
+// --- REAUTENTICACIÓN AUTOMÁTICA CON DROPBOX ---
+function getDropboxRedirectUri() {
+    const baseUrl = window.location.origin;
+    const cleanPath = window.location.pathname.split('?')[0].split('#')[0];
+    if (cleanPath.endsWith('index.html')) return baseUrl + cleanPath.replace(/index\.html$/, '');
+    if (cleanPath === '/' || cleanPath === '') return baseUrl + '/';
+    return baseUrl + cleanPath;
+}
+
+function startDropboxAuth() {
+    const redirectUri = getDropboxRedirectUri();
+    const authUrl = `https://www.dropbox.com/oauth2/authorize?client_id=${DROPBOX_APP_KEY}&response_type=token&redirect_uri=${encodeURIComponent(redirectUri)}`;
+    window.location.href = authUrl;
+}
+
+function scheduleDropboxReauth(reason = '') {
+    try {
+        if (!navigator.onLine) return;
+        const key = LS.lastReauthAt;
+        const now = Date.now();
+        const last = parseInt(localStorage.getItem(key) || '0', 10);
+        // Evitar bucles: al menos 60s entre reauths
+        if (isFinite(last) && now - last < 60000) return;
+        localStorage.setItem(key, String(now));
+        try {
+            const kind = (reason || '').indexOf('upload') !== -1 ? 'upload' : 'download';
+            localStorage.setItem(LS.pendingDropboxAction, kind);
+        } catch (_) {}
+        showReconnectIndicator((window.i18n && i18n.t) ? i18n.t('reconnecting') : 'Reconectando con Dropbox…');
+        setTimeout(startDropboxAuth, 1200);
+    } catch (_) {
+        // Fallback directo
+        setTimeout(startDropboxAuth, 1200);
+    }
+}
+
 // FUNCIÓN DE FUSIÓN CORREGIDA Y MÁS ROBUSTA
 function mergeTasks(localCategories, remoteCategories, deletedIdsSet) {
     const tasksById = new Map();
@@ -595,16 +660,17 @@ async function syncToDropbox(showAlert = true) {
         });
         if (response.status === 401) {
             accessToken = null;
-            localStorage.removeItem('dropbox_access_token');
+            localStorage.removeItem(LS.token);
             updateDropboxButtons();
-            showToast((window.i18n && i18n.t) ? i18n.t('dropbox_expired') : '⚠️ Tu sesión de Dropbox ha caducado. Vuelve a conectar.');
-            showReconnectDropboxBtn();
+            try { localStorage.setItem(LS.pendingDropboxAction, 'upload'); } catch (e) {}
+            showReconnectIndicator((window.i18n&&i18n.t)?i18n.t('reconnecting'):'Reconectando con Dropbox…');
+            scheduleDropboxReauth('upload-401');
             return false;
         }
         if (response.ok) {
             const metadata = await response.json();
             localLastSync = metadata.server_modified;
-            localStorage.setItem('lastSync', localLastSync);
+            localStorage.setItem(LS.lastSync, localLastSync);
             if (showAlert) showToast((window.i18n && i18n.t) ? i18n.t('toast_dropbox_uploaded') : '✅ Actividades subidas a Dropbox');
             return true;
         }
@@ -622,10 +688,11 @@ async function syncFromDropbox(force = false) {
         });
         if (meta.status === 401) {
             accessToken = null;
-            localStorage.removeItem('dropbox_access_token');
+            localStorage.removeItem(LS.token);
             updateDropboxButtons();
-            showToast('⚠️ Tu sesión de Dropbox ha caducado. Vuelve a conectar.');
-            showReconnectDropboxBtn();
+            try { localStorage.setItem(LS.pendingDropboxAction, 'download'); } catch (e) {}
+            showReconnectIndicator((window.i18n&&i18n.t)?i18n.t('reconnecting'):'Reconectando con Dropbox…');
+            scheduleDropboxReauth('meta-401');
             return false;
         }
         if (!meta.ok) return meta.status === 409 ? await syncToDropbox(false) : false;
@@ -637,10 +704,11 @@ async function syncFromDropbox(force = false) {
             });
             if (res.status === 401) {
                 accessToken = null;
-                localStorage.removeItem('dropbox_access_token');
+                localStorage.removeItem(LS.token);
                 updateDropboxButtons();
-                showToast((window.i18n && i18n.t) ? i18n.t('dropbox_expired') : '⚠️ Tu sesión de Dropbox ha caducado. Vuelve a conectar.');
-                showReconnectDropboxBtn();
+                try { localStorage.setItem(LS.pendingDropboxAction, 'download'); } catch (e) {}
+                showReconnectIndicator((window.i18n&&i18n.t)?i18n.t('reconnecting'):'Reconectando con Dropbox…');
+                scheduleDropboxReauth('download-401');
                 return false;
             }
             if (res.ok) {
@@ -656,10 +724,10 @@ async function syncFromDropbox(force = false) {
                     deletedTasks.length = 0;
                     Array.prototype.push.apply(deletedTasks, mergedDeletedList);
                     saveCategoriesToLocalStorage();
-                    localStorage.setItem('deletedTasks', JSON.stringify(deletedTasks));
+                    localStorage.setItem(LS.deleted, JSON.stringify(deletedTasks));
                     renderTasks();
                     localLastSync = remoteMeta.server_modified;
-                    localStorage.setItem('lastSync', localLastSync);
+                    localStorage.setItem(LS.lastSync, localLastSync);
                     return true;
                 }
             }
@@ -706,7 +774,7 @@ function handleAuthCallback() {
     
     if (newToken) {
         console.log('💾 Guardando token...');
-        localStorage.setItem('dropbox_access_token', newToken);
+        localStorage.setItem(LS.token, newToken);
         accessToken = newToken;
         
         // Limpiar URL
@@ -718,7 +786,19 @@ function handleAuthCallback() {
         // Intentar sincronizar con más delay
         setTimeout(() => {
             console.log('🔄 Intentando primera sincronización...');
-            syncFromDropbox();
+            try {
+                const pending = localStorage.getItem(LS.pendingDropboxAction) || '';
+                if (pending) {
+                    showReconnectIndicator((window.i18n&&i18n.t)?i18n.t('reconnected_retrying'):'Reconectado. Reintentando operación…');
+                }
+                if (pending === 'upload') {
+                    syncToDropbox(false).then(() => { hideReconnectIndicator(); localStorage.removeItem(LS.pendingDropboxAction); });
+                } else if (pending === 'download') {
+                    syncFromDropbox(true).then(() => { hideReconnectIndicator(); localStorage.removeItem(LS.pendingDropboxAction); });
+                } else {
+                    syncFromDropbox();
+                }
+            } catch (e) { console.warn('retry after auth failed', e); syncFromDropbox(); }
         }, 2000); // Aumentado a 2 segundos
     } else {
         updateDropboxButtons();
@@ -730,7 +810,8 @@ function handleAuthCallback() {
                     if (valid) {
                         syncFromDropbox();
                     } else {
-                        console.log('❌ Token existente no válido');
+            console.log('❌ Token existente no válido, reautenticando...');
+                        scheduleDropboxReauth('validate-false');
                     }
                 });
             }, 1000);
@@ -820,25 +901,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Lógica de Dropbox
     document.getElementById('dropbox-login')?.addEventListener('click', () => {
-        // Usamos una URL fija y absoluta que coincida exactamente con lo registrado en Dropbox
-        const baseUrl = window.location.origin;
-        const cleanPath = window.location.pathname.split('?')[0].split('#')[0]; // Eliminar parámetros y hash
-        let redirectUri;
-        
-        // Construir redirect de forma robusta para /, /dir/, y /dir/index.html
-        if (cleanPath.endsWith('index.html')) {
-            redirectUri = baseUrl + cleanPath.replace(/index\.html$/, '');
-        } else if (cleanPath === '/' || cleanPath === '') {
-            redirectUri = baseUrl + '/';
-        } else {
-            redirectUri = baseUrl + cleanPath;
-        }
-        
+        const redirectUri = getDropboxRedirectUri();
         console.log('🔍 URL de redirección:', redirectUri);
-        
-        const authUrl = `https://www.dropbox.com/oauth2/authorize?client_id=${DROPBOX_APP_KEY}&response_type=token&redirect_uri=${encodeURIComponent(redirectUri)}`;
-        
-        window.location.href = authUrl;
+        startDropboxAuth();
     });
     document.getElementById('dropbox-sync')?.addEventListener('click', performFullSync);
 
@@ -881,7 +946,7 @@ document.addEventListener('DOMContentLoaded', function() {
     handleAuthCallback();
 
     document.getElementById('filter-tag')?.addEventListener('change', (e) => {
-        try { localStorage.setItem('selectedFilterTag', e.target.value || ''); } catch (_) {}
+        try { localStorage.setItem(LS.selectedFilterTag, e.target.value || ''); } catch (_) {}
         renderTasks();
     });
 
@@ -897,10 +962,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 perm = await Notification.requestPermission();
             }
             if (perm === 'granted') {
-                localStorage.setItem('notificationsEnabled', 'true');
+                localStorage.setItem(LS.notificationsEnabled, 'true');
                 showToast('Notificaciones habilitadas ✅');
             } else {
-                localStorage.setItem('notificationsEnabled', 'false');
+                localStorage.setItem(LS.notificationsEnabled, 'false');
                 showToast('Permiso de notificaciones denegado', 'error');
             }
         } catch (e) {
@@ -942,6 +1007,14 @@ document.addEventListener('DOMContentLoaded', function() {
     if (window.i18n && i18n.applyI18nAll) {
         i18n.applyI18nAll();
     }
+
+    // Administración: abrir/cerrar modal
+    const adminModal = document.getElementById('admin-modal');
+    const openAdmin = document.getElementById('open-admin');
+    const closeAdmin = document.getElementById('admin-close');
+    if (openAdmin && adminModal) openAdmin.addEventListener('click', ()=> { adminModal.style.display = 'flex'; });
+    if (closeAdmin && adminModal) closeAdmin.addEventListener('click', ()=> { adminModal.style.display = 'none'; });
+    if (adminModal) adminModal.addEventListener('click', (e)=>{ if (e.target === adminModal) adminModal.style.display = 'none'; });
 });
 
 // Muestra un popup con recordatorios vencidos al abrir
@@ -985,7 +1058,7 @@ async function showLocalNotification(title, options = {}) {
 }
 
 function checkDueReminders() {
-    const enabled = localStorage.getItem('notificationsEnabled') === 'true';
+    const enabled = localStorage.getItem(LS.notificationsEnabled) === 'true';
     // Si soporta triggers y hay permiso, delegamos en ellos y no hacemos polling
     if (enabled && supportsNotificationTriggers() && Notification.permission === 'granted') return;
     const now = Date.now();

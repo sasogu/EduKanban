@@ -1,4 +1,9 @@
 document.addEventListener('DOMContentLoaded', function() {
+    const LS = {
+        categories: 'edukanban.categories',
+        deleted: 'edukanban.deletedTasks',
+        token: 'edukanban.dropbox_access_token'
+    };
     const container = document.getElementById('reminder-container');
 
     function convertirEnlaces(texto) {
@@ -34,9 +39,9 @@ document.addEventListener('DOMContentLoaded', function() {
         return t;
     }
     function render() {
-        const raw = JSON.parse(localStorage.getItem('categories') || '{}');
+        const raw = JSON.parse(localStorage.getItem(LS.categories) || '{}');
         const all = migrateObj(raw);
-        try { localStorage.setItem('categories', JSON.stringify(all)); } catch(_) {}
+        try { localStorage.setItem(LS.categories, JSON.stringify(all)); } catch(_) {}
         const categoryNames = (window.i18n && i18n.i18nCategoryNames) ? i18n.i18nCategoryNames() : {
             'en-preparacion': 'En preparación',
             'preparadas': 'Preparadas',
@@ -115,7 +120,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Completar y archivar tarea desde esta vista
     window.completeAndArchive = function(taskId) {
-        const all = JSON.parse(localStorage.getItem('categories') || '{}');
+        const all = JSON.parse(localStorage.getItem(LS.categories) || '{}');
         const cats = ['en-preparacion', 'preparadas', 'en-proceso', 'pendientes', 'archivadas'];
         cats.forEach(c => { if (!Array.isArray(all[c])) all[c] = []; });
 
@@ -135,18 +140,18 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!Array.isArray(all['archivadas'])) all['archivadas'] = [];
         all['archivadas'].push(task);
 
-        localStorage.setItem('categories', JSON.stringify(all));
+        localStorage.setItem(LS.categories, JSON.stringify(all));
         render();
         // Intentar sincronizar con Dropbox si hay sesión
         syncToDropboxFromReminders();
     }
 
     async function syncToDropboxFromReminders() {
-        const token = localStorage.getItem('dropbox_access_token');
+        const token = localStorage.getItem(LS.token);
         if (!token) return;
         try {
-            const categories = JSON.parse(localStorage.getItem('categories') || '{}');
-            const deletedTasks = JSON.parse(localStorage.getItem('deletedTasks') || '[]');
+            const categories = JSON.parse(localStorage.getItem(LS.categories) || '{}');
+            const deletedTasks = JSON.parse(localStorage.getItem(LS.deleted) || '[]');
             const payload = { categories, deletedTasks, lastSync: new Date().toISOString() };
             const res = await fetch('https://content.dropboxapi.com/2/files/upload', {
                 method: 'POST',

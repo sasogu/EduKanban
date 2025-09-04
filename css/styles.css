@@ -515,3 +515,15 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
         margin: 2em auto;
     }
 }
+/* Indicador de reconexión Dropbox */
+#reconnect-indicator {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 2000;
+  background: #fde68a; /* amber-200 */
+  color: #7c2d12; /* amber-900 */
+  text-align: center;
+  padding: 8px 12px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  font-weight: 600;
+}

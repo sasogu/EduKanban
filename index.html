@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://api.dropboxapi.com https://content.dropboxapi.com; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://api.dropboxapi.com https://content.dropboxapi.com; object-src 'none'; base-uri 'self'; form-action 'self'">
     <title>EduKanban — Gestor de Actividades</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="manifest" href="manifest.json">
@@ -17,6 +17,7 @@
             <button id="abrir-popup-tarea" type="button" class="boton-accion boton-primario">➕ Nueva Actividad</button>
             <a href="recordatorios.html" class="boton-accion boton-secundario">⏰ Ver Recordatorios</a>
             <a href="archivo.html" class="boton-accion boton-secundario">🗄️ Ver Archivo</a>
+            <button id="open-admin" type="button" class="boton-accion">⚙️ Administración</button>
         </div>
           <!-- Contenedor de Controles -->
     <div class="controles-principales">
@@ -25,14 +26,7 @@
             <button id="dropbox-login" type="button" class="boton-accion">Conectar con Dropbox</button>
             <button id="dropbox-sync" type="button" class="boton-accion" style="display:none;">Sincronizar</button>
         </div>
-        <div class="grupo-botones" id="lang-group">
-            <h3>Idioma</h3>
-            <select id="lang-select">
-                <option value="es">Español</option>
-                <option value="val">Valencià</option>
-            </select>
-        </div>
-    </div>
+            </div>
     </header>
     <main>
 
@@ -86,11 +80,34 @@
         </div>
     </div>
 
+    <!-- Modal de Administración -->
+    <div id="admin-modal" class="modal">
+        <div class="modal-content">
+            <h2>Administración</h2>
+            <div class="grupo-botones" id="lang-group">
+                <h3>Idioma</h3>
+                <select id="lang-select">
+                    <option value="es">Español</option>
+                    <option value="val">Valencià</option>
+                </select>
+            </div>
+            <div class="grupo-botones" id="backup-group">
+                <h3>Copia de seguridad</h3>
+                <button id="backup-export" type="button" class="boton-accion">📤 Exportar copia</button>
+                <button id="backup-import" type="button" class="boton-accion">📥 Importar copia</button>
+                <input id="backup-file-input" type="file" accept="application/json" style="display:none" />
+            </div>
+            <div class="acciones-popup">
+                <button type="button" id="admin-close">Guardar</button>
+            </div>
+        </div>
+    </div>
+
     <footer>
         <script src="js/i18n.js"></script>
         <script src="js/app.js"></script>
         <script src="js/sw-register.js"></script>
-        Versió 0.0.2 — EduKanban
+        Versió 0.0.7 — EduKanban
     </footer>
 
 </body>
