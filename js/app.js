@@ -524,15 +524,12 @@ function showReconnectDropboxBtn() { /* no-op: el botón de login ya queda visib
 
 // Muestra/Oculta todo el bloque de sincronización si no hay conexión
 function updateSyncGroupVisibility() {
-    const group = document.getElementById('sync-group');
-    if (!group) return;
-    if (navigator.onLine) {
-        group.style.display = '';
-        // Ajustar botones internos según sesión
-        updateDropboxButtons();
-    } else {
-        group.style.display = 'none';
-    }
+    const headerGroup = document.getElementById('sync-group');
+    const modalGroup = document.getElementById('sync-group-modal');
+    const online = navigator.onLine;
+    if (headerGroup) headerGroup.style.display = online ? '' : 'none';
+    if (modalGroup) modalGroup.style.display = online ? '' : 'none';
+    if (online) updateDropboxButtons();
 }
 
 

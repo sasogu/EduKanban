@@ -15,21 +15,17 @@
         <img src="icons/logolargo.png" alt="EduKanban" class="logo"/>
         <div class="acciones">
             <button id="abrir-popup-tarea" type="button" class="boton-accion boton-primario">➕ Nueva Actividad</button>
-            <a href="recordatorios.html" class="boton-accion boton-secundario">⏰ Ver Recordatorios</a>
-            <a href="archivo.html" class="boton-accion boton-secundario">🗄️ Ver Archivo</a>
-            <button id="open-admin" type="button" class="boton-accion">⚙️ Administración</button>
+            <a href="recordatorios.html" class="boton-accion boton-primario">⏰ Ver Recordatorios</a>
+           
         </div>
           <!-- Contenedor de Controles -->
-    <div class="controles-principales">
-        <div class="grupo-botones" id="sync-group">
-            <h3>Sincronización</h3>
-            <button id="dropbox-login" type="button" class="boton-accion">Conectar con Dropbox</button>
-            <button id="dropbox-sync" type="button" class="boton-accion" style="display:none;">Sincronizar</button>
-        </div>
+    <div class="acciones">
+         <a href="archivo.html" class="boton-accion boton-primario">🗄️ Ver Archivo</a>
+            <button id="open-admin" type="button" class="boton-accion">⚙️ Administración</button>
             </div>
     </header>
     <main>
-   &nbsp;&nbsp;Filtrar por etiqueta:
+   <label id="filter-tag-label" for="filter-tag">Filtrar por etiqueta:</label>
     <select id="filter-tag">
         <option value="">-- Filtrar por etiqueta --</option>
     </select>
@@ -91,6 +87,11 @@
                     <option value="val">Valencià</option>
                 </select>
             </div>
+            <div class="grupo-botones" id="sync-group-modal">
+                <h3>Sincronización</h3>
+                <button id="dropbox-login" type="button" class="boton-accion">Conectar con Dropbox</button>
+                <button id="dropbox-sync" type="button" class="boton-accion" style="display:none;">Sincronizar</button>
+            </div>
             <div class="grupo-botones" id="backup-group">
                 <h3>Copia de seguridad</h3>
                 <button id="backup-export" type="button" class="boton-accion">📤 Exportar copia</button>
@@ -107,7 +108,7 @@
         <script src="js/i18n.js"></script>
         <script src="js/app.js"></script>
         <script src="js/sw-register.js"></script>
-        Versió 0.0.9 — EduKanban
+        Versió 0.0.14 — EduKanban
     </footer>
 
 </body>

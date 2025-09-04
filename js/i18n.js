@@ -50,6 +50,7 @@
       language: 'Idioma',
       synchronization: 'Sincronització',
       administration: 'Administració',
+      filter_by_tag: 'Filtrar per etiqueta:',
       reconnecting: 'Tornant a connectar amb Dropbox…',
       reconnected_retrying: 'Reconnectat. Reintentant operació…',
       backup: 'Còpia de seguretat',
@@ -170,6 +171,8 @@
     // Cabecera de sincronización
     const syncLabel = document.querySelector('#sync-group h3');
     if (syncLabel) syncLabel.textContent = t('synchronization');
+    const syncModalLabel = document.querySelector('#sync-group-modal h3');
+    if (syncModalLabel) syncModalLabel.textContent = t('synchronization');
     // Botones comunes si existen
     const btnNew = document.getElementById('abrir-popup-tarea');
     if (btnNew) btnNew.textContent = '➕ ' + t('new_activity');
@@ -200,6 +203,17 @@
     if (nameInput) nameInput.placeholder = t('placeholder_activity');
     const tagsInput = document.getElementById('popup-task-tags');
     if (tagsInput) tagsInput.placeholder = t('placeholder_tags');
+    const filterLbl = document.getElementById('filter-tag-label');
+    if (filterLbl) filterLbl.textContent = t('filter_by_tag');
+    // Selector de categorías en el modal: traducir etiquetas
+    const catSelect = document.getElementById('popup-task-category');
+    if (catSelect && typeof i18nCategoryNames === 'function') {
+      const names = i18nCategoryNames();
+      Array.from(catSelect.options).forEach(opt => {
+        const key = opt && opt.value;
+        if (key && names[key]) opt.textContent = names[key];
+      });
+    }
     const remLabel = document.querySelector('label[for="popup-task-reminder"]');
     if (remLabel) remLabel.textContent = t('reminder_label');
     // Confirm modal
