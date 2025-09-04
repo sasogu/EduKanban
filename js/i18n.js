@@ -126,6 +126,38 @@
     };
   }
 
+
+  // Helpers de backup reutilizables en todas las páginas
+  const LS_BACKUP = { categories: 'edukanban.categories', deleted: 'edukanban.deletedTasks' };
+  function getNowStamp(){
+    const d=new Date(); const pad=n=>String(n).padStart(2,'0');
+    return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
+  }
+  function safeToast(msg,type){ if (window.showToast) showToast(msg,type); else try{console.log(msg)}catch(_){}}
+  function exportBackup(){
+    try{
+      const categories = JSON.parse(localStorage.getItem(LS_BACKUP.categories) || '{}');
+      const deletedTasks = JSON.parse(localStorage.getItem(LS_BACKUP.deleted) || '[]');
+      const payload = { app: 'EduKanban', version: '2.0.0', exportedAt: new Date().toISOString(), categories, deletedTasks };
+      const blob = new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`edukanban-backup-${getNowStamp()}.json`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      safeToast(t('backup_created'));
+    }catch(e){ console.error('exportBackup',e); safeToast('Error exportando','error'); }
+  }
+  async function importBackup(file){
+    try{
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (!data || typeof data !== 'object' || !data.categories) throw new Error('invalid');
+      localStorage.setItem(LS_BACKUP.categories, JSON.stringify(data.categories));
+      if (Array.isArray(data.deletedTasks)) localStorage.setItem(LS_BACKUP.deleted, JSON.stringify(data.deletedTasks));
+      safeToast(t('backup_restored'));
+      if (typeof window.renderTasks === 'function') window.renderTasks();
+      if (typeof window.__rerenderArchive === 'function') window.__rerenderArchive();
+      if (typeof window.__rerenderReminders === 'function') window.__rerenderReminders();
+    }catch(e){ console.error('importBackup',e); safeToast(t('backup_invalid'),'error'); }
+  }
   function applyI18nCommon(){
     // Selector de idioma si existe
     const sel = document.getElementById('lang-select');
