@@ -47,6 +47,7 @@ function showToast(message, type = 'success') {
         toast.classList.remove('show');
         setTimeout(() => { if (document.body.contains(toast)) document.body.removeChild(toast); }, 500);
     }, 3000);
+}
 
 function showReconnectIndicator(text) {
     try {
@@ -62,8 +63,6 @@ function showReconnectIndicator(text) {
 function hideReconnectIndicator() {
     const el = document.getElementById('reconnect-indicator');
     if (el && el.parentNode) el.parentNode.removeChild(el);
-}
-
 }
 
 // Modal de confirmación personalizado (Promise-based)
@@ -125,6 +124,19 @@ function convertirEnlaces(texto) {
 }
 
 // --- GESTIÓN DE DATOS LOCALES ---
+function getCategoryNames() {
+    if (window.i18n && typeof i18n.i18nCategoryNames === 'function') {
+        return i18n.i18nCategoryNames();
+    }
+    return {
+        'en-preparacion': 'En preparación',
+        'preparadas': 'Preparadas',
+        'en-proceso': 'En proceso',
+        'pendientes': 'Pendientes',
+        'archivadas': 'Archivadas'
+    };
+}
+
 function saveCategoriesToLocalStorage() { localStorage.setItem(LS.categories, JSON.stringify(categories)); }
 function normalizeCategoryKey(key) {
     const map = {
@@ -1027,7 +1039,8 @@ function checkDueRemindersAndAlertOnce() {
             if (task.reminderDone) continue;
             const when = Date.parse(task.reminderAt);
             if (!isNaN(when) && when <= now) {
-                due.push({ title: task.task, category: categoryNames[cat] || cat });
+                const names = getCategoryNames();
+                due.push({ title: task.task, category: names[cat] || cat });
                 task.reminderDone = true;
                 task.lastModified = new Date().toISOString();
                 needsSave = true;
@@ -1070,7 +1083,8 @@ function checkDueReminders() {
             if (task.reminderDone) continue;
             const when = Date.parse(task.reminderAt);
             if (!isNaN(when) && when <= now) {
-                const body = `Categoría: ${categoryNames[cat]}`;
+                const names = getCategoryNames();
+                const body = `Categoría: ${names[cat] || cat}`;
                 showLocalNotification((window.i18n&&i18n.t)?i18n.t('notification_title'):'Recordatorio de actividad', {
                     body: `${task.task}\n${body}`,
                     icon: 'icons/icon-192.png',
@@ -1116,7 +1130,7 @@ async function tryScheduleTaskTrigger(task, categoryKey) {
         const reg = await navigator.serviceWorker?.getRegistration();
         if (!reg) return;
         await reg.showNotification((window.i18n&&i18n.t)?i18n.t('notification_title'):'Recordatorio de actividad', {
-            body: `${task.task}\nCategoría: ${categoryNames[categoryKey] || ''}`.trim(),
+            body: `${task.task}\nCategoría: ${(getCategoryNames()[categoryKey] || '')}`.trim(),
             tag: `reminder-${task.id}`,
             icon: 'icons/icon-192.png',
             showTrigger: new TimestampTrigger(when),
