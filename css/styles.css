@@ -210,6 +210,9 @@ button:hover { background: #1f2937; }
 .attachment-img { width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--color-border); background: #fff; display: block; }
 .attachment-file { display: inline-flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid var(--color-border); border-radius: 8px; background: #fff; color: var(--color-text); text-decoration: none; }
 .attachment-file:hover { border-color: var(--color-primary); }
+.attachment-wrap { display: inline-flex; align-items: center; gap: 6px; }
+.attachment-dl { display: inline-block; padding: 4px 6px; border: 1px solid var(--color-border); border-radius: 6px; background: #fff; text-decoration: none; color: var(--color-text); }
+.attachment-dl:hover { border-color: var(--color-primary); }
 /* Botón eliminar en el modal */
 .popup-attachments .attachment-row { display:flex; align-items:center; gap:8px; }
 .popup-attachments .attachment-remove { background:#eee; color:#333; border:1px solid var(--color-border); border-radius:6px; padding:4px 8px; cursor:pointer; }

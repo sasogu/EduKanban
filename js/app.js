@@ -244,6 +244,19 @@ function isPdfAttachment(att) {
     } catch (_) { return false; }
 }
 
+function preferredFileName(att) {
+    const name = (att && att.name) ? String(att.name) : '';
+    if (name && /\.[A-Za-z0-9]+$/.test(name)) return name;
+    const t = (att && att.type || '').toLowerCase();
+    const base = name || 'archivo';
+    if (t.includes('pdf')) return base.replace(/\.$/, '') + '.pdf';
+    if (t.includes('jpeg') || t.includes('jpg')) return base.replace(/\.$/, '') + '.jpg';
+    if (t.includes('png')) return base.replace(/\.$/, '') + '.png';
+    if (t.includes('webp')) return base.replace(/\.$/, '') + '.webp';
+    if (t.includes('zip')) return base.replace(/\.$/, '') + '.zip';
+    return base;
+}
+
 async function prepareAttachmentsFromFiles(fileList) {
     const files = Array.from(fileList || []);
     const metas = [];
@@ -493,8 +506,9 @@ async function renderPopupAttachments(task) {
         const label = att.name || 'archivo';
         const img = att.isImage ? `<img class="attachment-img" data-att-id="${att.id}" alt="${label}">` : '';
         const link = att.isImage ? '' : `<a class="attachment-file" data-att-id="${att.id}" href="#" title="${label}">📎 ${label}</a>`;
+        const dl = !att.isImage ? `<a class="attachment-dl" data-att-id="${att.id}" href="#" title="Descargar">⬇️</a>` : '';
         const del = `<button type="button" class="attachment-remove" data-att-id="${att.id}">${(window.i18n&&i18n.t)?i18n.t('delete'):'Eliminar'}</button>`;
-        return `<div class="attachment-row" data-att-id="${att.id}">${img}${link}${del}</div>`;
+        return `<div class="attachment-row" data-att-id="${att.id}">${img}${link}${dl}${del}</div>`;
     }).join('');
     // Hidratar blobs
     for (const att of list) {
@@ -516,9 +530,14 @@ async function renderPopupAttachments(task) {
                     aEl.dataset.pdfBound = '1';
                 }
             } else {
-                aEl.download = att.name || 'archivo';
+                aEl.download = preferredFileName(att);
                 aEl.removeAttribute('target');
             }
+        }
+        const dlEl = container.querySelector(`a.attachment-dl[data-att-id="${att.id}"]`);
+        if (dlEl && blob) {
+            dlEl.href = URL.createObjectURL(blob);
+            dlEl.setAttribute('download', preferredFileName(att));
         }
     }
     // Delegar eliminación
@@ -573,11 +592,14 @@ function renderTasks() {
                         ${task.tags && task.tags.length ? `<small class="tags">${task.tags.map(t => `<span class=\"tag-chip in-task\">#${t}</span>`).join(' ')}</small>` : ''}
                         ${task.reminderAt ? `<small class=\"reminder-meta\">⏰ ${new Date(task.reminderAt).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' })}</small>` : ''}
                         ${task.attachments && task.attachments.length ? `
-                          <div class="attachments">${task.attachments.map(att => (
-                            att.isImage
-                              ? `<img class="attachment-img" alt="${att.name}" data-att-id="${att.id}" />`
-                              : `<a class="attachment-file" href="#" data-att-id="${att.id}" title="${att.name}">📎 ${att.name}</a>`
-                          )).join('')}</div>` : ''}
+                          <div class="attachments">${task.attachments.map(att => {
+                            if (att.isImage) {
+                              return `<img class="attachment-img" alt="${att.name}" data-att-id="${att.id}" />`;
+                            } else {
+                              const extra = isPdfAttachment(att) ? ` <a class=\"attachment-dl\" href=\"#\" data-att-id=\"${att.id}\" title=\"Descargar\">⬇️</a>` : '';
+                              return `<span class=\"attachment-wrap\"><a class=\"attachment-file\" href=\"#\" data-att-id=\"${att.id}\" title=\"${att.name}\">📎 ${att.name}</a>${extra}</span>`;
+                            }
+                          }).join('')}</div>` : ''}
                     </span>
                 </div>
                 <div class="task-actions">
@@ -653,6 +675,7 @@ function hydrateAttachmentsForCategory(tasks, rootEl) {
         for (const att of t.attachments) {
             const imgEl = taskEl.querySelector(`img.attachment-img[data-att-id="${att.id}"]`);
             const aEl = taskEl.querySelector(`a.attachment-file[data-att-id="${att.id}"]`);
+            const dlEl = taskEl.querySelector(`a.attachment-dl[data-att-id="${att.id}"]`);
             if (imgEl && !imgEl.src) {
                 const blob = await ensureAttachmentBlob(att);
                 if (blob) imgEl.src = URL.createObjectURL(blob);
@@ -677,9 +700,14 @@ function hydrateAttachmentsForCategory(tasks, rootEl) {
                         aEl.dataset.pdfBound = '1';
                     }
                 } else {
-                    aEl.download = att.name || 'archivo';
+                    aEl.download = preferredFileName(att);
                     aEl.removeAttribute('target');
                 }
+            }
+            if (dlEl && dlEl.getAttribute('href') === '#') {
+                const blob = await ensureAttachmentBlob(att);
+                if (blob) dlEl.href = URL.createObjectURL(blob);
+                dlEl.setAttribute('download', preferredFileName(att));
             }
             // eliminación de adjuntos solo desde el modal de edición
         }
