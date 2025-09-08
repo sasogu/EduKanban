@@ -249,28 +249,24 @@ function isPdfAttachment(att) {
 // Intentar abrir un PDF de forma compatible (iOS/Android/desktop)
 function openPdfBlobInNewTab(blob) {
     try {
-        const ua = navigator.userAgent || '';
-        const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-        // En iOS (y algunos WebViews) los blob: PDF pueden quedar en blanco; usar data:URL
-        if (isIOS) {
+        // Usar visor dedicado para máxima compatibilidad
+        const popup = window.open('pdf-viewer.html', '_blank');
+        if (popup) {
+            const url = URL.createObjectURL(blob);
+            // Intento 1: pasar URL directamente
+            try { popup.postMessage({ type: 'OPEN_PDF_URL', url }, '*'); return; } catch (_) {}
+            // Intento 2: pasar Blob (structured clone)
+            try { popup.postMessage({ type: 'OPEN_PDF_BLOB', blob }, '*'); return; } catch (_) {}
+            // Intento 3: dataURL
+            const r = new FileReader(); r.onloadend = () => { try { popup.postMessage({ type: 'OPEN_PDF_DATA', dataUrl: r.result }, '*'); } catch (_) {} }; r.readAsDataURL(blob);
+        } else {
+            // Si el navegador bloquea la ventana, caer a data URL directamente
             const r = new FileReader();
-            r.onloadend = () => {
-                const dataUrl = r.result; // data:application/pdf;base64,...
-                const w = window.open('', '_blank');
-                if (w) {
-                    try { w.location.href = String(dataUrl); } catch (_) { window.location.href = String(dataUrl); }
-                } else {
-                    window.location.href = String(dataUrl);
-                }
-            };
-            try { r.readAsDataURL(blob); } catch (_) { /* fallback a blob */ window.open(URL.createObjectURL(blob), '_blank', 'noopener'); }
-            return;
+            r.onloadend = () => { const dataUrl = r.result; try { window.location.href = String(dataUrl); } catch (_) {} };
+            r.readAsDataURL(blob);
         }
-        // Desktop/Android moderno: blob: suele funcionar
-        const url = URL.createObjectURL(blob);
-        window.open(url, '_blank', 'noopener');
     } catch (_) {
-        try { window.open(URL.createObjectURL(blob), '_blank', 'noopener'); } catch (__) {}
+        try { const r = new FileReader(); r.onloadend = () => window.location.href = String(r.result); r.readAsDataURL(blob); } catch (__) {}
     }
 }
 

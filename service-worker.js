@@ -1,4 +1,4 @@
-const CACHE_NAME = 'edukanban-cache-v0.0.36'; // Bump cache para forzar actualización
+const CACHE_NAME = 'edukanban-cache-v0.0.37'; // Bump cache para forzar actualización
 // URL base del scope del SW (funciona tanto en GitHub Pages como en localhost)
 const SCOPE_BASE = self.registration?.scope || self.location.origin + '/';
 const OFFLINE_FALLBACK_URL = new URL('index.html', SCOPE_BASE).toString();
@@ -8,6 +8,7 @@ const urlsToCache = [
   'index.html',
   'archivo.html',
   'recordatorios.html',
+  'pdf-viewer.html',
   'recordatorios.html',
   'css/styles.css',
   'js/app.js',
