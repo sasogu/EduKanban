@@ -236,6 +236,13 @@ async function deleteAttachmentBlob(id) {
 }
 
 function isImageType(mime) { return typeof mime === 'string' && mime.startsWith('image/'); }
+function isPdfAttachment(att) {
+    try {
+        const n = (att && att.name || '').toLowerCase();
+        const t = (att && att.type || '').toLowerCase();
+        return t.includes('pdf') || n.endsWith('.pdf');
+    } catch (_) { return false; }
+}
 
 async function prepareAttachmentsFromFiles(fileList) {
     const files = Array.from(fileList || []);
@@ -495,7 +502,17 @@ async function renderPopupAttachments(task) {
         const aEl = container.querySelector(`a.attachment-file[data-att-id="${att.id}"]`);
         const blob = await ensureAttachmentBlob(att);
         if (imgEl && blob) imgEl.src = URL.createObjectURL(blob);
-        if (aEl && blob) { aEl.href = URL.createObjectURL(blob); aEl.download = att.name || 'archivo'; }
+        if (aEl && blob) {
+            aEl.href = URL.createObjectURL(blob);
+            if (isPdfAttachment(att)) {
+                aEl.target = '_blank';
+                aEl.rel = 'noopener noreferrer';
+                aEl.removeAttribute('download');
+            } else {
+                aEl.download = att.name || 'archivo';
+                aEl.removeAttribute('target');
+            }
+        }
     }
     // Delegar eliminación
     container.querySelectorAll('.attachment-remove').forEach(btn => {
@@ -640,7 +657,14 @@ function hydrateAttachmentsForCategory(tasks, rootEl) {
             if (aEl && aEl.getAttribute('href') === '#') {
                 const blob = await ensureAttachmentBlob(att);
                 if (blob) aEl.href = URL.createObjectURL(blob);
-                aEl.download = att.name || 'archivo';
+                if (isPdfAttachment(att)) {
+                    aEl.target = '_blank';
+                    aEl.rel = 'noopener noreferrer';
+                    aEl.removeAttribute('download');
+                } else {
+                    aEl.download = att.name || 'archivo';
+                    aEl.removeAttribute('target');
+                }
             }
             // eliminación de adjuntos solo desde el modal de edición
         }
