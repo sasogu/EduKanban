@@ -274,6 +274,49 @@ function moveTask(taskId, newCategory) {
     }
 }
 
+// --- DIVIDIR TAREA POR ETIQUETAS ---
+async function splitTaskByTags(taskId) {
+    const data = findTask(taskId);
+    if (!data) return;
+    const { task, category } = data;
+    const tags = Array.isArray(task.tags) ? Array.from(new Set(task.tags.filter(t => typeof t === 'string' && t.trim().length))) : [];
+    if (tags.length <= 1) {
+        showToast((window.i18n&&i18n.t)?i18n.t('split_single_error'):'La actividad ya tiene una sola etiqueta.', 'error');
+        return;
+    }
+
+    const msg = (window.i18n && i18n.t)
+        ? i18n.t('confirm_split_tags')
+        : 'Se crearán copias, una por etiqueta. ¿Continuar?';
+    const confirmed = await showConfirm(msg, (window.i18n&&i18n.t)?i18n.t('split'):'Dividir', (window.i18n&&i18n.t)?i18n.t('cancel'):'Cancelar');
+    if (!confirmed) return;
+
+    // Mantener la primera etiqueta en la tarea original
+    const firstTag = tags[0];
+    task.tags = [firstTag];
+    task.lastModified = new Date().toISOString();
+
+    // Crear copias para las demás etiquetas
+    const extraTags = tags.slice(1);
+    const clones = extraTags.map(tg => ({
+        id: generateUUID(),
+        task: task.task,
+        completed: !!task.completed,
+        lastModified: new Date().toISOString(),
+        tags: [tg],
+        reminderAt: task.reminderAt || null,
+        reminderDone: false,
+        triggerScheduledAt: null
+    }));
+
+    // Insertar clones justo después de la tarea original para mantener el orden
+    categories[category].splice(data.taskIndex + 1, 0, ...clones);
+    saveCategoriesToLocalStorage();
+    renderTasks();
+    showToast((window.i18n&&i18n.t)?i18n.t('split_done'):'Actividad dividida por etiquetas.');
+    if (accessToken) syncToDropbox(false);
+}
+
 // --- EDICIÓN DE TAREAS ---
 function updateTask(taskId, newName, newCategory, newTags = [], newReminderAt = null) {
     const data = findTask(taskId);
@@ -396,6 +439,7 @@ function renderTasks() {
                         ${Object.keys(catNames).filter(c => c !== category).map(c => `<option value="${c}">${catNames[c]}</option>`).join('')}
                     </select>
                     <button class="edit-btn" aria-label="${(window.i18n&&i18n.t)?i18n.t('edit'):'Editar'} actividad" onclick="openEditTask('${task.id}')">✏️ <span class="btn-label">${(window.i18n&&i18n.t)?i18n.t('edit'):'Editar'}</span></button>
+                    ${task.tags && task.tags.length > 1 ? `<button class=\"split-btn\" aria-label=\"${(window.i18n&&i18n.t)?i18n.t('split_by_tags'):'Dividir por etiquetas'}\" onclick=\"splitTaskByTags('${task.id}')\">🔀 <span class=\"btn-label\">${(window.i18n&&i18n.t)?i18n.t('split'):'Dividir'}</span></button>` : ''}
                     <button class="delete-btn" aria-label="${(window.i18n&&i18n.t)?i18n.t('delete'):'Eliminar'} actividad" onclick="removeTask('${task.id}')">🗑️ <span class="btn-label">${(window.i18n&&i18n.t)?i18n.t('delete'):'Eliminar'}</span></button>
                 </div>
             </div>
