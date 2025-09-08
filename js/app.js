@@ -434,13 +434,13 @@ function renderTasks() {
                     </span>
                 </div>
                 <div class="task-actions">
-                    <select aria-label="${(window.i18n&&i18n.t)?i18n.t('move'):'Mover'} actividad" onchange="moveTask('${task.id}', this.value)">
+                    <select aria-label="${(window.i18n&&i18n.t)?i18n.t('move'):'Mover'} actividad" title="${(window.i18n&&i18n.t)?i18n.t('move'):'Mover'}" onchange="moveTask('${task.id}', this.value)">
                         <option value="" disabled selected>${(window.i18n&&i18n.t)?i18n.t('move'):'Mover'}</option>
                         ${Object.keys(catNames).filter(c => c !== category).map(c => `<option value="${c}">${catNames[c]}</option>`).join('')}
                     </select>
-                    <button class="edit-btn" aria-label="${(window.i18n&&i18n.t)?i18n.t('edit'):'Editar'} actividad" onclick="openEditTask('${task.id}')">✏️ <span class="btn-label">${(window.i18n&&i18n.t)?i18n.t('edit'):'Editar'}</span></button>
-                    ${task.tags && task.tags.length > 1 ? `<button class=\"split-btn\" aria-label=\"${(window.i18n&&i18n.t)?i18n.t('split_by_tags'):'Dividir por etiquetas'}\" onclick=\"splitTaskByTags('${task.id}')\">🔀 <span class=\"btn-label\">${(window.i18n&&i18n.t)?i18n.t('split'):'Dividir'}</span></button>` : ''}
-                    <button class="delete-btn" aria-label="${(window.i18n&&i18n.t)?i18n.t('delete'):'Eliminar'} actividad" onclick="removeTask('${task.id}')">🗑️ <span class="btn-label">${(window.i18n&&i18n.t)?i18n.t('delete'):'Eliminar'}</span></button>
+                    <button class="edit-btn" aria-label="${(window.i18n&&i18n.t)?i18n.t('edit'):'Editar'} actividad" title="${(window.i18n&&i18n.t)?i18n.t('edit'):'Editar'}" onclick="openEditTask('${task.id}')">✏️ <span class="btn-label">${(window.i18n&&i18n.t)?i18n.t('edit'):'Editar'}</span></button>
+                    ${task.tags && task.tags.length > 1 ? `<button class=\"split-btn\" aria-label=\"${(window.i18n&&i18n.t)?i18n.t('split_by_tags'):'Dividir por etiquetas'}\" title=\"${(window.i18n&&i18n.t)?i18n.t('split_by_tags'):'Dividir por etiquetas'}\" onclick=\"splitTaskByTags('${task.id}')\">🔀 <span class=\"btn-label\">${(window.i18n&&i18n.t)?i18n.t('split'):'Dividir'}</span></button>` : ''}
+                    <button class="delete-btn" aria-label="${(window.i18n&&i18n.t)?i18n.t('delete'):'Eliminar'} actividad" title="${(window.i18n&&i18n.t)?i18n.t('delete'):'Eliminar'}" onclick="removeTask('${task.id}')">🗑️ <span class="btn-label">${(window.i18n&&i18n.t)?i18n.t('delete'):'Eliminar'}</span></button>
                 </div>
             </div>
         `).join('');

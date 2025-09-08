@@ -188,17 +188,17 @@
     if (syncModalLabel) syncModalLabel.textContent = t('synchronization');
     // Botones comunes si existen
     const btnNew = document.getElementById('abrir-popup-tarea');
-    if (btnNew) btnNew.textContent = '➕ ' + t('new_activity');
+    if (btnNew) { btnNew.setAttribute('aria-label', t('new_activity')); btnNew.title = t('new_activity'); }
     const aRem = document.querySelector('a[href="recordatorios.html"]');
-    if (aRem) aRem.textContent = t('view_reminders');
+    if (aRem) { aRem.setAttribute('aria-label', t('view_reminders')); aRem.title = t('view_reminders'); }
     const aArc = document.querySelector('a[href="archivo.html"]');
-    if (aArc) aArc.textContent = t('view_archive');
+    if (aArc) { aArc.setAttribute('aria-label', t('view_archive')); aArc.title = t('view_archive'); }
     const btnLogin = document.getElementById('dropbox-login');
     if (btnLogin) btnLogin.textContent = t('connect_dropbox');
     const btnSync = document.getElementById('dropbox-sync');
     if (btnSync) btnSync.textContent = t('sync_dropbox');
     const btnAdmin = document.getElementById('open-admin');
-    if (btnAdmin) btnAdmin.textContent = '⚙️ ' + t('administration');
+    if (btnAdmin) { btnAdmin.setAttribute('aria-label', t('administration')); btnAdmin.title = t('administration'); }
     // Backup section
     const backupLabel = document.querySelector('#backup-group h3');
     if (backupLabel) backupLabel.textContent = t('backup');

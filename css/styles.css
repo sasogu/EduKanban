@@ -45,8 +45,8 @@ header .acciones { flex-direction: row; flex-wrap: wrap; }
   header .acciones .boton-accion {
     width: auto;
     max-width: none;
-    flex: 1 1 0; /* Mismo ancho para ambos botones */
-    min-width: 180px; /* Evita que se encojan demasiado */
+    flex: 0 0 auto; /* tamaño según contenido */
+    min-width: 44px; /* tamaño mínimo táctil */
   }
 }
 
@@ -118,9 +118,9 @@ header .acciones { flex-direction: row; flex-wrap: wrap; }
   width: 100%;
   margin-left: 0;
   margin-top: 6px;
-  /* Disposición similar a móvil: selector ancho + 2 botones */
+  /* Selector + hasta 3 botones alineados en la misma fila */
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr auto auto auto;
   column-gap: 8px;
   align-items: center;
   overflow: visible;
@@ -166,14 +166,16 @@ button:hover { background: #1f2937; }
 
 /* Botones dentro de cada tarea: estilo sutil y sin fondo sólido */
 .task .edit-btn,
-.task .delete-btn {
+.task .delete-btn,
+.task .split-btn {
   background: transparent;
   color: var(--color-muted);
   border: none;
   padding: 6px 8px;
 }
-.task .btn-label { display: inline; margin-left: 4px; }
-.task .edit-btn:hover { color: var(--color-primary); }
+.task .btn-label { display: none; }
+.task .edit-btn:hover,
+.task .split-btn:hover { color: var(--color-primary); }
 .task .delete-btn:hover { color: #dc2626; }
 
 .task select {
