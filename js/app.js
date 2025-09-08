@@ -713,14 +713,9 @@ async function renderPopupAttachments(task) {
         const imgEl = container.querySelector(`img.attachment-img[data-att-id="${att.id}"]`);
         const aEl = container.querySelector(`a.attachment-file[data-att-id="${att.id}"]`);
         let url = null;
-        if (isPdfAttachment(att) && accessToken && att.dropboxPath) {
-            url = await getDropboxTemporaryLink(att.dropboxPath);
-        }
-        if (!url) {
-            const blob = await ensureAttachmentBlob(att);
-            if (imgEl && blob) imgEl.src = URL.createObjectURL(blob);
-            if (!url && blob) url = URL.createObjectURL(blob);
-        }
+        const blob = await ensureAttachmentBlob(att);
+        if (imgEl && blob) imgEl.src = URL.createObjectURL(blob);
+        if (!url && blob) url = URL.createObjectURL(blob);
         if (aEl && url) {
             aEl.href = url;
             if (isPdfAttachment(att)) {
@@ -846,6 +841,13 @@ window.onDragStart = function(event, taskId) {
 
 async function ensureAttachmentBlob(att) {
     let blob = await getAttachmentBlob(att.id);
+    // Corregir tipo para PDFs si el blob existe pero no tiene application/pdf
+    if (blob && isPdfAttachment(att) && blob.type !== 'application/pdf') {
+        try {
+            blob = new Blob([blob], { type: 'application/pdf' });
+            await putAttachmentBlob(att.id, blob);
+        } catch (_) {}
+    }
     if (!blob && accessToken && att.dropboxPath) {
         try {
             const res = await fetch('https://content.dropboxapi.com/2/files/download', {
@@ -900,16 +902,8 @@ function hydrateAttachmentsForCategory(tasks, rootEl) {
                 }
             }
             if (aEl && aEl.getAttribute('href') === '#') {
-                if (isPdfAttachment(att) && accessToken && att.dropboxPath) {
-                    const link = await getDropboxTemporaryLink(att.dropboxPath);
-                    if (link) aEl.href = link; else {
-                        const blob = await ensureAttachmentBlob(att);
-                        if (blob) aEl.href = URL.createObjectURL(blob);
-                    }
-                } else {
-                    const blob = await ensureAttachmentBlob(att);
-                    if (blob) aEl.href = URL.createObjectURL(blob);
-                }
+                const blob = await ensureAttachmentBlob(att);
+                if (blob) aEl.href = URL.createObjectURL(blob);
                 if (isPdfAttachment(att)) {
                     aEl.target = '_blank';
                     aEl.rel = 'noopener noreferrer';
@@ -920,16 +914,8 @@ function hydrateAttachmentsForCategory(tasks, rootEl) {
                 }
             }
             if (dlEl && dlEl.getAttribute('href') === '#') {
-                if (isPdfAttachment(att) && accessToken && att.dropboxPath) {
-                    const link = await getDropboxTemporaryLink(att.dropboxPath);
-                    if (link) dlEl.href = link; else {
-                        const blob = await ensureAttachmentBlob(att);
-                        if (blob) dlEl.href = URL.createObjectURL(blob);
-                    }
-                } else {
-                    const blob = await ensureAttachmentBlob(att);
-                    if (blob) dlEl.href = URL.createObjectURL(blob);
-                }
+                const blob = await ensureAttachmentBlob(att);
+                if (blob) dlEl.href = URL.createObjectURL(blob);
                 dlEl.setAttribute('download', preferredFileName(att));
             }
             // eliminación de adjuntos solo desde el modal de edición
@@ -959,7 +945,9 @@ async function removeAttachment(taskId, attachmentId) {
     task.lastModified = new Date().toISOString();
     saveCategoriesToLocalStorage();
     renderTasks();
-    if (accessToken) syncToDropbox(false);
+    if (accessToken) {
+        try { performFullSync(); } catch (_) { syncToDropbox(false); }
+    }
     showToast((window.i18n&&i18n.t)?i18n.t('attachment_removed'):'Adjunto eliminado');
 }
 
@@ -1769,6 +1757,9 @@ function startReminderPolling() {
     if (reminderInterval) clearInterval(reminderInterval);
     // Comprobar inmediatamente y luego cada 30 segundos
     checkDueReminders();
+    reminderInterval = setInterval(checkDueReminders, 30000);
+}
+
 function supportsNotificationTriggers() {
     try {
         // showTrigger es parte de las opciones; TimestampTrigger expone el constructor
@@ -1816,6 +1807,4 @@ function schedulePendingTriggers() {
             tryScheduleTaskTrigger(t, cat);
         }
     }
-}
-    reminderInterval = setInterval(checkDueReminders, 30000);
 }
