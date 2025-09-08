@@ -37,6 +37,8 @@ const DROPBOX_REDIRECT_URI = 'about:blank';
 
 // --- FUNCIONES DE UTILIDAD ---
 function generateUUID() { return crypto.randomUUID(); }
+// Adjuntos seleccionados para nuevas tareas (reutilización en modo "Añadir")
+let pendingReusedAttachments = [];
 
 function showToast(message, type = 'success') {
     const toast = document.createElement('div');
@@ -480,6 +482,8 @@ function openEditTask(taskId) {
     const tagsInput = document.getElementById('popup-task-tags');
     const reminderInput = document.getElementById('popup-task-reminder');
     const attList = document.getElementById('popup-existing-attachments');
+    const reuseToggle = document.getElementById('popup-attach-reuse-toggle');
+    const reusePanel = document.getElementById('popup-attach-reuse-panel');
     if (!popup || !form || !taskNameInput || !categorySelect || !tagsInput) return;
 
     // Prefill
@@ -510,9 +514,21 @@ function openEditTask(taskId) {
     updateTagDatalist();
     renderTagSuggestions();
 
+    // Limpiar cualquier selección pendiente al entrar en edición
+    pendingReusedAttachments = [];
+
     // Renderizar adjuntos existentes en el modal
     if (attList) {
         renderPopupAttachments(data.task);
+    }
+    if (reuseToggle && reusePanel) {
+        // Mostrar el botón solo en modo edición
+        reuseToggle.style.display = 'inline-block';
+        reuseToggle.textContent = '🔁 ' + ((window.i18n&&i18n.t)?i18n.t('reuse_attachment'):'Reutilizar adjunto');
+        reuseToggle.onclick = () => {
+            reusePanel.style.display = reusePanel.style.display === 'none' ? 'block' : 'none';
+            if (reusePanel.style.display === 'block') renderReusePanel(data.task.id);
+        };
     }
 }
 
@@ -525,6 +541,156 @@ function resetPopupFormMode() {
     if (submitBtn) submitBtn.textContent = (window.i18n && i18n.t) ? i18n.t('add') : 'Añadir';
     const attList = document.getElementById('popup-existing-attachments');
     if (attList) attList.innerHTML = '';
+    const reusePanel = document.getElementById('popup-attach-reuse-panel');
+    if (reusePanel) reusePanel.style.display = 'none', reusePanel.innerHTML = '';
+}
+
+function iterAllAttachments(cb) {
+    for (const [cat, tasks] of Object.entries(categories)) {
+        for (const t of tasks) {
+            (t.attachments||[]).forEach(att => cb(att, t, cat));
+        }
+    }
+}
+function collectReuseCatalog() {
+    const map = new Map();
+    iterAllAttachments((att, t) => {
+        const key = att.dropboxPath || `${att.name}|${att.type}|${att.size}`;
+        if (!map.has(key)) map.set(key, { att, fromTaskId: t.id, key });
+    });
+    return Array.from(map.values());
+}
+async function addExistingAttachment(targetTaskId, source) {
+    const data = findTask(targetTaskId);
+    if (!data) return;
+    const { task } = data;
+    const srcAtt = source.att;
+    const newId = generateUUID();
+    // Copiar blob local si existe
+    try {
+        const blob = await ensureAttachmentBlob(srcAtt);
+        if (blob) await putAttachmentBlob(newId, blob);
+    } catch (_) {}
+    const newAtt = {
+        id: newId,
+        name: srcAtt.name,
+        type: srcAtt.type,
+        size: srcAtt.size || 0,
+        isImage: !!srcAtt.isImage,
+        dropboxPath: srcAtt.dropboxPath || null,
+        uploadedAt: srcAtt.uploadedAt || null,
+        lastModified: new Date().toISOString()
+    };
+    task.attachments = Array.isArray(task.attachments) ? task.attachments : [];
+    task.attachments.push(newAtt);
+    task.lastModified = new Date().toISOString();
+    saveCategoriesToLocalStorage();
+    renderPopupAttachments(task);
+    renderTasks();
+}
+
+// Reutilización en modo "Añadir": acumula adjuntos seleccionados
+async function addExistingToPending(source) {
+    try {
+        const srcAtt = source.att;
+        const newId = generateUUID();
+        const blob = await ensureAttachmentBlob(srcAtt);
+        if (blob) await putAttachmentBlob(newId, blob);
+        const newAtt = {
+            id: newId,
+            name: srcAtt.name,
+            type: srcAtt.type,
+            size: srcAtt.size || 0,
+            isImage: !!srcAtt.isImage,
+            dropboxPath: srcAtt.dropboxPath || null,
+            uploadedAt: srcAtt.uploadedAt || null,
+            lastModified: new Date().toISOString()
+        };
+        pendingReusedAttachments.push(newAtt);
+        showToast((window.i18n&&i18n.t)?i18n.t('add'):'Añadido');
+        renderPendingAttachments();
+    } catch (e) {
+        console.warn('addExistingToPending', e);
+        showToast('No se pudo añadir el adjunto', 'error');
+    }
+}
+
+function renderPendingAttachments() {
+    try {
+        const form = document.getElementById('popup-task-form');
+        if (!form || form.dataset.mode !== 'add') return;
+        const container = document.getElementById('popup-existing-attachments');
+        if (!container) return;
+        container.classList.add('popup-attachments');
+        const list = Array.isArray(pendingReusedAttachments) ? pendingReusedAttachments : [];
+        if (!list.length) { container.innerHTML = ''; return; }
+        container.innerHTML = list.map(att => {
+            const label = att.name || 'archivo';
+            const img = att.isImage ? `<img class="attachment-img" data-att-id="${att.id}" alt="${label}">` : '';
+            const link = att.isImage ? '' : `<a class="attachment-file" data-att-id="${att.id}" href="#" title="${label}">📎 ${label}</a>`;
+            const dl = !att.isImage ? `<a class="attachment-dl" data-att-id="${att.id}" href="#" title="Descargar">⬇️</a>` : '';
+            return `<div class="attachment-row" data-att-id="${att.id}">${img}${link}${dl}</div>`;
+        }).join('');
+        (async () => {
+            for (const att of list) {
+                const imgEl = container.querySelector(`img.attachment-img[data-att-id="${att.id}"]`);
+                const aEl = container.querySelector(`a.attachment-file[data-att-id="${att.id}"]`);
+                let url = null;
+                const blob = await ensureAttachmentBlob(att);
+                if (imgEl && blob) imgEl.src = URL.createObjectURL(blob);
+                if (!url && blob) url = URL.createObjectURL(blob);
+                if (aEl && url) {
+                    aEl.href = url;
+                    if (isPdfAttachment(att)) {
+                        aEl.target = '_blank';
+                        aEl.rel = 'noopener noreferrer';
+                        aEl.removeAttribute('download');
+                    } else {
+                        aEl.download = preferredFileName(att);
+                        aEl.removeAttribute('target');
+                    }
+                }
+                const dlEl = container.querySelector(`a.attachment-dl[data-att-id="${att.id}"]`);
+                if (dlEl && url) {
+                    dlEl.href = url;
+                    dlEl.setAttribute('download', preferredFileName(att));
+                }
+            }
+        })();
+    } catch (_) {}
+}
+function renderReusePanel(targetTaskId) {
+    const panel = document.getElementById('popup-attach-reuse-panel');
+    if (!panel) return;
+    const items = collectReuseCatalog();
+    if (!items.length) { panel.innerHTML = `<div>${(window.i18n&&i18n.t)?i18n.t('no_items'):'No hay elementos'}</div>`; return; }
+    const grid = document.createElement('div');
+    grid.className = 'reuse-grid';
+    panel.innerHTML = '';
+    panel.appendChild(grid);
+    items.forEach(item => {
+        const att = item.att;
+        const div = document.createElement('div');
+        div.className = 'reuse-item';
+        const name = document.createElement('div');
+        name.className = 'name';
+        name.textContent = att.name || '(archivo)';
+        const thumb = document.createElement(att.isImage ? 'img' : 'div');
+        if (att.isImage) { thumb.className = 'thumb'; thumb.alt = att.name || ''; }
+        else { thumb.textContent = '📎'; thumb.style.fontSize = '40px'; thumb.style.textAlign = 'center'; }
+        const actions = document.createElement('div'); actions.className = 'actions';
+        const btn = document.createElement('button'); btn.type = 'button'; btn.textContent = (window.i18n&&i18n.t)?i18n.t('add_this'):'Añadir';
+        btn.onclick = () => {
+            if (targetTaskId) addExistingAttachment(targetTaskId, item); else addExistingToPending(item);
+        };
+        actions.appendChild(btn);
+        div.appendChild(thumb); div.appendChild(name); div.appendChild(actions);
+        grid.appendChild(div);
+        // hidratar miniatura si es imagen
+        if (att.isImage) {
+            ensureAttachmentBlob(att).then(blob => { if (blob) thumb.src = URL.createObjectURL(blob); });
+        }
+    });
 }
 
 async function renderPopupAttachments(task) {
@@ -781,9 +947,13 @@ async function removeAttachment(taskId, attachmentId) {
     const att = task.attachments[idx];
     // borrar blob local
     try { await deleteAttachmentBlob(att.id); } catch (_) {}
-    // borrar en Dropbox si procede
+    // borrar en Dropbox si procede (solo si ninguna otra tarea lo usa)
     if (accessToken && att.dropboxPath) {
-        try { await deleteDropboxFile(att.dropboxPath); } catch (_) {}
+        let refs = 0;
+        iterAllAttachments((a)=>{ if (a.dropboxPath === att.dropboxPath) refs++; });
+        if (refs <= 1) {
+            try { await deleteDropboxFile(att.dropboxPath); } catch (_) {}
+        }
     }
     task.attachments.splice(idx, 1);
     task.lastModified = new Date().toISOString();
@@ -1034,8 +1204,12 @@ function mergeDeletedTasks(localDeleted, remoteDeleted) {
 
 async function syncToDropbox(showAlert = true) {
     if (!accessToken) return false;
-    const data = { categories, deletedTasks, lastSync: new Date().toISOString() };
     try {
+        // 1) Subir primero los adjuntos pendientes para que el JSON ya incluya dropboxPath
+        const attachmentsUpdated = await uploadPendingAttachmentsToDropbox();
+
+        // 2) Subir JSON de categorías con metadatos actualizados
+        const data = { categories, deletedTasks, lastSync: new Date().toISOString() };
         const response = await fetch('https://content.dropboxapi.com/2/files/upload', {
             method: 'POST',
             headers: {
@@ -1058,8 +1232,6 @@ async function syncToDropbox(showAlert = true) {
             const metadata = await response.json();
             localLastSync = metadata.server_modified;
             localStorage.setItem(LS.lastSync, localLastSync);
-            // Subir adjuntos pendientes después del JSON
-            await uploadPendingAttachmentsToDropbox();
             if (showAlert) showToast((window.i18n && i18n.t) ? i18n.t('toast_dropbox_uploaded') : '✅ Actividades subidas a Dropbox');
             return true;
         }
@@ -1159,7 +1331,8 @@ async function ensureDropboxFolder(path) {
 }
 
 async function uploadPendingAttachmentsToDropbox() {
-    if (!accessToken) return;
+    if (!accessToken) return false;
+    let updatedAny = false;
     await ensureDropboxFolder(DROPBOX_ATTACH_DIR);
     for (const [cat, tasks] of Object.entries(categories)) {
         for (const t of tasks) {
@@ -1185,11 +1358,13 @@ async function uploadPendingAttachmentsToDropbox() {
                         att.uploadedAt = new Date().toISOString();
                         t.lastModified = new Date().toISOString();
                         saveCategoriesToLocalStorage();
+                        updatedAny = true;
                     }
                 } catch (e) { console.warn('upload attachment', e); }
             }
         }
     }
+    return updatedAny;
 }
 
 async function deleteDropboxFile(path) {
@@ -1287,6 +1462,20 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('popup-task-name').focus();
         updateTagDatalist();
         renderTagSuggestions();
+        // En modo añadir, preparar reutilización
+        pendingReusedAttachments = [];
+        const reuseToggle = document.getElementById('popup-attach-reuse-toggle');
+        const reusePanel = document.getElementById('popup-attach-reuse-panel');
+        if (reuseToggle && reusePanel) {
+            reuseToggle.style.display = 'inline-block';
+            reuseToggle.textContent = '🔁 ' + ((window.i18n&&i18n.t)?i18n.t('reuse_attachment'):'Reutilizar adjunto');
+            reusePanel.style.display = 'none';
+            reusePanel.innerHTML = '';
+            reuseToggle.onclick = () => {
+                reusePanel.style.display = reusePanel.style.display === 'none' ? 'block' : 'none';
+                if (reusePanel.style.display === 'block') renderReusePanel(null);
+            };
+        }
     });
     if (cancelarPopupBtn) cancelarPopupBtn.addEventListener('click', () => {
         resetPopupFormMode();
@@ -1334,19 +1523,33 @@ document.addEventListener('DOMContentLoaded', function() {
                 const editingId = popupForm.dataset.editingId;
                 // anexar adjuntos nuevos a la tarea existente
                 const data = findTask(editingId);
+                const hadNewAtts = newAttachments && newAttachments.length > 0;
                 if (data) {
                     data.task.attachments = (data.task.attachments || []).concat(newAttachments);
                 }
                 updateTask(editingId, nombre, categoria, tags, reminderAt);
+                // Si se han añadido adjuntos, realizar una sincronización completa para subirlos primero
+                if (hadNewAtts && accessToken) {
+                    try { performFullSync(); } catch(_) {}
+                }
             } else {
                 addTask(categoria, nombre, tags, reminderAt);
                 // anexar adjuntos a la última tarea creada en la categoría
                 const arr = categories[categoria];
                 const t = arr[arr.length - 1];
-                t.attachments = (t.attachments || []).concat(newAttachments);
+                const toAttach = (newAttachments || []).concat(pendingReusedAttachments || []);
+                t.attachments = (t.attachments || []).concat(toAttach);
+                pendingReusedAttachments = [];
                 saveCategoriesToLocalStorage();
                 renderTasks();
-                if (accessToken) syncToDropbox(false);
+                if (accessToken) {
+                    // Si hay adjuntos, hacer sync completa (subir adjuntos primero, luego JSON)
+                    if (toAttach.length > 0) {
+                        try { performFullSync(); } catch(_) { syncToDropbox(false); }
+                    } else {
+                        syncToDropbox(false);
+                    }
+                }
             }
 
             taskNameInput.value = '';

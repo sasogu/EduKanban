@@ -59,6 +59,8 @@
                 <label for="popup-task-attachments">Adjuntos</label>
                 <input type="file" id="popup-task-attachments" multiple>
                 <div id="popup-existing-attachments" class="attachments"></div>
+                <button type="button" id="popup-attach-reuse-toggle" class="boton-accion">🔁 Reutilizar adjunto</button>
+                <div id="popup-attach-reuse-panel" class="reuse-panel" style="display:none"></div>
                 <div class="acciones-popup">
                     <button type="submit">Añadir</button>
                     <button type="button" id="cancelar-popup">Cancelar</button>
@@ -114,7 +116,7 @@
     <footer>
         <script src="js/i18n.js"></script>
         <script src="js/app.js"></script>
-        <script src="js/sw-register.js"></script> EduKanban — v0.0.29<span id="sw-version"></span>
+        <script src="js/sw-register.js"></script> EduKanban — v0.0.34<span id="sw-version"></span>
     </footer>
 
 </body>
