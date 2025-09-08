@@ -249,22 +249,34 @@ function isPdfAttachment(att) {
 // Intentar abrir un PDF de forma compatible (iOS/Android/desktop)
 function openPdfBlobInNewTab(blob) {
     try {
-        // Usar visor dedicado para máxima compatibilidad
-        const popup = window.open('pdf-viewer.html', '_blank');
+        // Usar visor dedicado; pasar la URL como parámetro y además hacer handshake
+        const url = URL.createObjectURL(blob);
+        const popup = window.open('pdf-viewer.html?u=' + encodeURIComponent(url), '_blank');
         if (popup) {
-            const url = URL.createObjectURL(blob);
-            // Intento 1: pasar URL directamente
-            try { popup.postMessage({ type: 'OPEN_PDF_URL', url }, '*'); return; } catch (_) {}
-            // Intento 2: pasar Blob (structured clone)
-            try { popup.postMessage({ type: 'OPEN_PDF_BLOB', blob }, '*'); return; } catch (_) {}
-            // Intento 3: dataURL
-            const r = new FileReader(); r.onloadend = () => { try { popup.postMessage({ type: 'OPEN_PDF_DATA', dataUrl: r.result }, '*'); } catch (_) {} }; r.readAsDataURL(blob);
-        } else {
-            // Si el navegador bloquea la ventana, caer a data URL directamente
+            // Intentos de enviar la URL
+            const trySendUrl = () => { try { popup.postMessage({ type: 'OPEN_PDF_URL', url }, '*'); } catch (_) {} };
+            setTimeout(trySendUrl, 200);
+            setTimeout(trySendUrl, 1000);
+            // También preparar data URL como último recurso y enviarla cuando esté lista
+            let dataReady = false; let dataVal = '';
             const r = new FileReader();
-            r.onloadend = () => { const dataUrl = r.result; try { window.location.href = String(dataUrl); } catch (_) {} };
-            r.readAsDataURL(blob);
+            r.onloadend = () => { dataReady = true; dataVal = String(r.result || ''); try { popup.postMessage({ type: 'OPEN_PDF_DATA', dataUrl: dataVal }, '*'); } catch (_) {} };
+            try { r.readAsDataURL(blob); } catch (_) {}
+            // Handshake: si el visor avisa que está listo, reenviar lo que tengamos
+            const onMsg = (ev) => {
+                try {
+                    if (ev && ev.data && ev.data.type === 'PDF_VIEWER_READY') {
+                        trySendUrl();
+                        if (dataReady && dataVal) { try { popup.postMessage({ type: 'OPEN_PDF_DATA', dataUrl: dataVal }, '*'); } catch (_) {} }
+                        window.removeEventListener('message', onMsg);
+                    }
+                } catch (_) {}
+            };
+            window.addEventListener('message', onMsg);
+            return;
         }
+        // Si la ventana se bloquea, abrir en la misma pestaña como último recurso
+        window.location.href = 'pdf-viewer.html?u=' + encodeURIComponent(url);
     } catch (_) {
         try { const r = new FileReader(); r.onloadend = () => window.location.href = String(r.result); r.readAsDataURL(blob); } catch (__) {}
     }

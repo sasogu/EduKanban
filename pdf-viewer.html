@@ -12,30 +12,49 @@
   </style>
   <script>
     (function(){
-      let mounted = false;
+      let mountedMode = '';
+      function getParamUrl() {
+        try {
+          const u = new URL(window.location.href);
+          const fromSearch = u.searchParams.get('u');
+          if (fromSearch) return fromSearch;
+          if (u.hash && u.hash.length > 1) {
+            const hash = u.hash.substring(1);
+            if (hash.startsWith('u=')) return decodeURIComponent(hash.substring(2));
+          }
+        } catch (_) {}
+        return '';
+      }
+      function clearBody(){
+        while (document.body.firstChild) document.body.removeChild(document.body.firstChild);
+      }
       function mountWithUrl(url){
-        if (mounted) return; mounted = true;
+        if (mountedMode === 'url') return;
+        mountedMode = 'url';
+        clearBody();
         const emb = document.createElement('embed');
         emb.type = 'application/pdf';
         emb.src = url;
+        emb.style.width = '100%';
+        emb.style.height = '100%';
         document.body.appendChild(emb);
       }
       function mountWithDataUrl(dataUrl){
-        if (mounted) return; mounted = true;
+        if (mountedMode === 'data') return;
+        mountedMode = 'data';
+        clearBody();
         const emb = document.createElement('embed');
         emb.type = 'application/pdf';
         emb.src = dataUrl;
+        emb.style.width = '100%';
+        emb.style.height = '100%';
         document.body.appendChild(emb);
       }
       window.addEventListener('message', (ev) => {
         try {
           const d = ev.data || {};
-          if (d && d.type === 'OPEN_PDF_URL' && typeof d.url === 'string') {
-            mountWithUrl(d.url); return;
-          }
-          if (d && d.type === 'OPEN_PDF_DATA' && typeof d.dataUrl === 'string') {
-            mountWithDataUrl(d.dataUrl); return;
-          }
+          if (d && d.type === 'OPEN_PDF_URL' && typeof d.url === 'string') { mountWithUrl(d.url); return; }
+          if (d && d.type === 'OPEN_PDF_DATA' && typeof d.dataUrl === 'string') { mountWithDataUrl(d.dataUrl); return; }
           if (d && d.type === 'OPEN_PDF_BLOB' && d.blob) {
             const url = URL.createObjectURL(d.blob);
             mountWithUrl(url); return;
@@ -44,9 +63,12 @@
       });
       // Señal para el opener (opcional)
       try { window.opener && window.opener.postMessage({ type: 'PDF_VIEWER_READY' }, '*'); } catch (_) {}
+      // Si viene una URL en la query/hash, montarla directamente
+      const initial = getParamUrl();
+      if (initial) { try { mountWithUrl(initial); } catch (_) {} }
       // Fallback si nadie nos manda nada
       setTimeout(() => {
-        if (!mounted) {
+        if (!mountedMode) {
           const el = document.getElementById('fallback');
           el.style.display = 'block';
           el.textContent = 'No se recibió el PDF. Cierra esta pestaña e inténtalo de nuevo.';
@@ -59,4 +81,3 @@
     <div id="fallback">Cargando…</div>
   </body>
 </html>
-
