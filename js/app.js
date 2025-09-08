@@ -508,6 +508,13 @@ async function renderPopupAttachments(task) {
                 aEl.target = '_blank';
                 aEl.rel = 'noopener noreferrer';
                 aEl.removeAttribute('download');
+                if (!aEl.dataset.pdfBound) {
+                    aEl.addEventListener('click', (e) => {
+                        const url = aEl.href;
+                        if (url && url !== '#') { e.preventDefault(); window.open(url, '_blank', 'noopener'); }
+                    });
+                    aEl.dataset.pdfBound = '1';
+                }
             } else {
                 aEl.download = att.name || 'archivo';
                 aEl.removeAttribute('target');
@@ -661,6 +668,14 @@ function hydrateAttachmentsForCategory(tasks, rootEl) {
                     aEl.target = '_blank';
                     aEl.rel = 'noopener noreferrer';
                     aEl.removeAttribute('download');
+                    if (!aEl.dataset.pdfBound) {
+                        aEl.addEventListener('click', (e) => {
+                            // Asegurar apertura incluso si algún estilo/attr interfiere
+                            const url = aEl.href;
+                            if (url && url !== '#') { e.preventDefault(); window.open(url, '_blank', 'noopener'); }
+                        });
+                        aEl.dataset.pdfBound = '1';
+                    }
                 } else {
                     aEl.download = att.name || 'archivo';
                     aEl.removeAttribute('target');
