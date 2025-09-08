@@ -247,14 +247,40 @@ function isPdfAttachment(att) {
 }
 
 // Intentar abrir un PDF de forma compatible (iOS/Android/desktop)
+function getCurrentBasePath() {
+    const path = window.location.pathname || '/';
+    const i = path.lastIndexOf('/');
+    return i >= 0 ? path.slice(0, i + 1) : '/';
+}
+
+async function registerTempPdfUrl(blob) {
+    try {
+        if (!('caches' in window)) return '';
+        const token = (Math.random().toString(36).slice(2)) + Date.now();
+        const basePath = getCurrentBasePath();
+        const relPath = basePath + '__pdf__/' + token + '.pdf';
+        const absUrl = new URL(relPath, window.location.origin).toString();
+        const headers = new Headers({ 'Content-Type': 'application/pdf', 'Cache-Control': 'no-store' });
+        const resp = new Response(blob, { status: 200, headers });
+        const cache = await caches.open('edukanban-runtime');
+        await cache.put(absUrl, resp);
+        return absUrl;
+    } catch (_) { return ''; }
+}
+
 function openPdfBlobInNewTab(blob) {
     try {
-        // Usar visor dedicado; pasar la URL como parámetro y además hacer handshake
-        const url = URL.createObjectURL(blob);
-        const popup = window.open('pdf-viewer.html?u=' + encodeURIComponent(url), '_blank');
+        // Abrir visor de inmediato para cumplir con el gesto del usuario
+        const viewerHref = new URL(getCurrentBasePath() + 'pdf-viewer.html', window.location.origin).toString();
+        const popup = window.open(viewerHref, '_blank');
+        const blobUrl = URL.createObjectURL(blob);
+        // Preparar también una URL HTTP servida por el SW desde la caché
+        registerTempPdfUrl(blob).then((httpUrl) => {
+            try { if (httpUrl && popup) popup.postMessage({ type: 'OPEN_PDF_URL', url: httpUrl }, '*'); } catch (_) {}
+        });
         if (popup) {
-            // Intentos de enviar la URL
-            const trySendUrl = () => { try { popup.postMessage({ type: 'OPEN_PDF_URL', url }, '*'); } catch (_) {} };
+            // Intentos de enviar la URL blob
+            const trySendUrl = () => { try { popup.postMessage({ type: 'OPEN_PDF_URL', url: blobUrl }, '*'); } catch (_) {} };
             setTimeout(trySendUrl, 200);
             setTimeout(trySendUrl, 1000);
             // También preparar data URL como último recurso y enviarla cuando esté lista
@@ -275,8 +301,8 @@ function openPdfBlobInNewTab(blob) {
             window.addEventListener('message', onMsg);
             return;
         }
-        // Si la ventana se bloquea, abrir en la misma pestaña como último recurso
-        window.location.href = 'pdf-viewer.html?u=' + encodeURIComponent(url);
+        // Si la ventana se bloquea, abrir en la misma pestaña como último recurso con blob URL
+        window.location.href = viewerHref + '?u=' + encodeURIComponent(blobUrl);
     } catch (_) {
         try { const r = new FileReader(); r.onloadend = () => window.location.href = String(r.result); r.readAsDataURL(blob); } catch (__) {}
     }

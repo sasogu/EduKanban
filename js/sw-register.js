@@ -22,7 +22,11 @@
   };
 
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('service-worker.js')
+    const p = window.location.pathname || '/';
+    const i = p.lastIndexOf('/');
+    const base = i >= 0 ? p.slice(0, i + 1) : '/';
+    const swUrl = base + 'service-worker.js';
+    navigator.serviceWorker.register(swUrl)
       .then(() => navigator.serviceWorker.ready)
       .then(() => {
         requestVersion();

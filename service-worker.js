@@ -1,4 +1,4 @@
-const CACHE_NAME = 'edukanban-cache-v0.0.8'; // Bump cache para forzar actualización
+const CACHE_NAME = 'edukanban-cache-v0.0.39'; // Bump cache para forzar actualización
 // URL base del scope del SW (funciona tanto en GitHub Pages como en localhost)
 const SCOPE_BASE = self.registration?.scope || self.location.origin + '/';
 const OFFLINE_FALLBACK_URL = new URL('index.html', SCOPE_BASE).toString();
@@ -37,6 +37,18 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  // Servir PDFs temporales almacenados en Cache Storage por la app (antes de cualquier otra excepción)
+  if (url.pathname.includes('/__pdf__/')) {
+    event.respondWith(
+      (async () => {
+        const cached = await caches.match(event.request, { ignoreSearch: true });
+        if (cached) return cached;
+        return Response.error();
+      })()
+    );
+    return;
+  }
+
   // No cachear ni interceptar PDFs ni esquemas no estándar
   const accept = event.request.headers.get('Accept') || '';
   if (accept.includes('application/pdf') || event.request.url.startsWith('blob:') || event.request.url.startsWith('data:')) {
@@ -49,6 +61,8 @@ self.addEventListener('fetch', event => {
     event.respondWith(fetch(event.request));
     return;
   }
+
+  
 
   // Para manifest.json: usar red primero para ver cambios de atajos/íconos
   if (url.pathname.endsWith('/manifest.json') || url.pathname.endsWith('manifest.json')) {
