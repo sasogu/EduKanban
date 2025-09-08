@@ -257,18 +257,50 @@ function preferredFileName(att) {
     return base;
 }
 
+// --- Detección básica por firma (magic numbers) ---
+function detectFromBytes(bytes) {
+    const startsWith = (...sig) => sig.every((v, i) => bytes[i] === v);
+    // PDF: %PDF-
+    if (startsWith(0x25, 0x50, 0x44, 0x46, 0x2D)) return { mime: 'application/pdf', ext: 'pdf', isImage: false };
+    // PNG
+    if (startsWith(0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)) return { mime: 'image/png', ext: 'png', isImage: true };
+    // JPEG
+    if (startsWith(0xFF, 0xD8, 0xFF)) return { mime: 'image/jpeg', ext: 'jpg', isImage: true };
+    // GIF
+    if (startsWith(0x47, 0x49, 0x46, 0x38)) return { mime: 'image/gif', ext: 'gif', isImage: true };
+    // WEBP: RIFF....WEBP
+    if (startsWith(0x52, 0x49, 0x46, 0x46) && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) {
+        return { mime: 'image/webp', ext: 'webp', isImage: true };
+    }
+    return { mime: '', ext: '', isImage: false };
+}
+
+async function sniffMimeFromBlob(blob) {
+    try {
+        const buf = await blob.slice(0, 16).arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        return detectFromBytes(bytes);
+    } catch (_) { return { mime: '', ext: '', isImage: false }; }
+}
+
 async function prepareAttachmentsFromFiles(fileList) {
     const files = Array.from(fileList || []);
     const metas = [];
     for (const f of files) {
         const id = generateUUID();
         await putAttachmentBlob(id, f);
+        let detected = { mime: '', ext: '', isImage: false };
+        try { detected = await sniffMimeFromBlob(f); } catch (_) {}
+        const type = (f.type && f.type !== 'application/octet-stream') ? f.type : (detected.mime || 'application/octet-stream');
+        let name = f.name || 'archivo';
+        if (!/\.[A-Za-z0-9]+$/.test(name) && detected.ext) name = name.replace(/\.$/, '') + '.' + detected.ext;
+        const isImg = isImageType(type) || detected.isImage;
         metas.push({
             id,
-            name: f.name,
-            type: f.type || 'application/octet-stream',
+            name,
+            type,
             size: f.size || 0,
-            isImage: isImageType(f.type),
+            isImage: isImg,
             dropboxPath: null,
             uploadedAt: null,
             lastModified: new Date().toISOString()
