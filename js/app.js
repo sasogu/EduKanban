@@ -246,6 +246,34 @@ function isPdfAttachment(att) {
     } catch (_) { return false; }
 }
 
+// Intentar abrir un PDF de forma compatible (iOS/Android/desktop)
+function openPdfBlobInNewTab(blob) {
+    try {
+        const ua = navigator.userAgent || '';
+        const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        // En iOS (y algunos WebViews) los blob: PDF pueden quedar en blanco; usar data:URL
+        if (isIOS) {
+            const r = new FileReader();
+            r.onloadend = () => {
+                const dataUrl = r.result; // data:application/pdf;base64,...
+                const w = window.open('', '_blank');
+                if (w) {
+                    try { w.location.href = String(dataUrl); } catch (_) { window.location.href = String(dataUrl); }
+                } else {
+                    window.location.href = String(dataUrl);
+                }
+            };
+            try { r.readAsDataURL(blob); } catch (_) { /* fallback a blob */ window.open(URL.createObjectURL(blob), '_blank', 'noopener'); }
+            return;
+        }
+        // Desktop/Android moderno: blob: suele funcionar
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank', 'noopener');
+    } catch (_) {
+        try { window.open(URL.createObjectURL(blob), '_blank', 'noopener'); } catch (__) {}
+    }
+}
+
 function preferredFileName(att) {
     const name = (att && att.name) ? String(att.name) : '';
     if (name && /\.[A-Za-z0-9]+$/.test(name)) return name;
@@ -645,6 +673,11 @@ function renderPendingAttachments() {
                         aEl.target = '_blank';
                         aEl.rel = 'noopener noreferrer';
                         aEl.removeAttribute('download');
+                        // Fallback para navegadores que no renderizan blob: PDF correctamente
+                        if (!aEl.dataset.pdfHandler) {
+                            aEl.addEventListener('click', (e) => { try { e.preventDefault(); openPdfBlobInNewTab(blob); } catch (_) {} });
+                            aEl.dataset.pdfHandler = '1';
+                        }
                     } else {
                         aEl.download = preferredFileName(att);
                         aEl.removeAttribute('target');
@@ -908,6 +941,11 @@ function hydrateAttachmentsForCategory(tasks, rootEl) {
                     aEl.target = '_blank';
                     aEl.rel = 'noopener noreferrer';
                     aEl.removeAttribute('download');
+                    // Fallback para navegadores que no renderizan blob: PDF correctamente
+                    if (blob && !aEl.dataset.pdfHandler) {
+                        aEl.addEventListener('click', (e) => { try { e.preventDefault(); openPdfBlobInNewTab(blob); } catch (_) {} });
+                        aEl.dataset.pdfHandler = '1';
+                    }
                 } else {
                     aEl.download = preferredFileName(att);
                     aEl.removeAttribute('target');
