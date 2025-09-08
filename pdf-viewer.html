@@ -10,9 +10,21 @@
     #fallback { position: absolute; inset: 0; display: none; color: #fff; padding: 1rem; }
     embed, iframe { width: 100%; height: 100%; border: 0; }
   </style>
+  <script src="js/sw-register.js"></script>
   <script>
     (function(){
       let mountedMode = '';
+      function isTempPdfUrl(u){ try { const x = new URL(u, window.location.origin); return x.origin === window.location.origin && x.pathname.indexOf('/__pdf__/') !== -1; } catch (_) { return false; } }
+      async function toBlobUrlIfCached(u){
+        try {
+          if (!isTempPdfUrl(u) || !('caches' in window)) return '';
+          const resp = await caches.match(u, { ignoreSearch: true });
+          if (!resp) return '';
+          const blob = await resp.blob();
+          if (!blob || !blob.size) return '';
+          return URL.createObjectURL(blob);
+        } catch (_) { return ''; }
+      }
       function getParamUrl() {
         try {
           const u = new URL(window.location.href);
@@ -53,7 +65,13 @@
       window.addEventListener('message', (ev) => {
         try {
           const d = ev.data || {};
-          if (d && d.type === 'OPEN_PDF_URL' && typeof d.url === 'string') { mountWithUrl(d.url); return; }
+          if (d && d.type === 'OPEN_PDF_URL' && typeof d.url === 'string') {
+            (async () => {
+              const local = await toBlobUrlIfCached(d.url);
+              mountWithUrl(local || d.url);
+            })();
+            return;
+          }
           if (d && d.type === 'OPEN_PDF_DATA' && typeof d.dataUrl === 'string') { mountWithDataUrl(d.dataUrl); return; }
           if (d && d.type === 'OPEN_PDF_BLOB' && d.blob) {
             const url = URL.createObjectURL(d.blob);
@@ -65,7 +83,12 @@
       try { window.opener && window.opener.postMessage({ type: 'PDF_VIEWER_READY' }, '*'); } catch (_) {}
       // Si viene una URL en la query/hash, montarla directamente
       const initial = getParamUrl();
-      if (initial) { try { mountWithUrl(initial); } catch (_) {} }
+      if (initial) {
+        (async () => {
+          const local = await toBlobUrlIfCached(initial);
+          try { mountWithUrl(local || initial); } catch (_) {}
+        })();
+      }
       // Fallback si nadie nos manda nada
       setTimeout(() => {
         if (!mountedMode) {
