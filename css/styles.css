@@ -205,6 +205,15 @@ button:hover { background: #1f2937; }
   color: var(--color-muted);
   font-size: 12px;
 }
+/* Adjuntos dentro de la tarjeta */
+.attachments { margin-top: 6px; display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+.attachment-img { width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--color-border); background: #fff; display: block; }
+.attachment-file { display: inline-flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid var(--color-border); border-radius: 8px; background: #fff; color: var(--color-text); text-decoration: none; }
+.attachment-file:hover { border-color: var(--color-primary); }
+/* Botón eliminar en el modal */
+.popup-attachments .attachment-row { display:flex; align-items:center; gap:8px; }
+.popup-attachments .attachment-remove { background:#eee; color:#333; border:1px solid var(--color-border); border-radius:6px; padding:4px 8px; cursor:pointer; }
+.popup-attachments .attachment-remove:hover { background:#dc2626; color:#fff; border-color:#dc2626; }
 /* Destacar recordatorios vencidos en la vista de recordatorios */
 .category.overdue .task .reminder-meta {
   color: #dc2626; /* rojo para vencidos */
@@ -553,3 +562,15 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   font-weight: 600;
 }
+.image-lightbox {
+  background: rgba(0,0,0,0.85);
+  justify-content: center;
+  align-items: center;
+}
+.image-lightbox img {
+  max-width: 95vw;
+  max-height: 95vh;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.attachment-img { cursor: zoom-in; }

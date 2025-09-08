@@ -28,6 +28,7 @@ const LS = {
 const deletedTasks = JSON.parse(localStorage.getItem(LS.deleted) || '[]');
 const DROPBOX_APP_KEY = 'dvvtedkibz396hq';
 const DROPBOX_FILE_PATH = '/edukanban.json';
+const DROPBOX_ATTACH_DIR = '/edukanban_attachments';
 let accessToken = localStorage.getItem(LS.token);
 let localLastSync = localStorage.getItem(LS.lastSync);
 let syncInterval = null;
@@ -183,9 +184,77 @@ function migrateOldTasks() {
         categories[category].forEach(task => {
             if (!task.id) { task.id = generateUUID(); needsSave = true; }
             if (!task.lastModified) { task.lastModified = new Date().toISOString(); needsSave = true; }
+            if (!Array.isArray(task.attachments)) { task.attachments = []; needsSave = true; }
         });
     }
     if (needsSave) { console.log('🔧 Migrando tareas antiguas.'); saveCategoriesToLocalStorage(); }
+}
+
+// --- IndexedDB para adjuntos ---
+let __attDBPromise = null;
+function openAttachmentsDB() {
+    if (__attDBPromise) return __attDBPromise;
+    __attDBPromise = new Promise((resolve, reject) => {
+        const req = indexedDB.open('edukanban.attachments', 1);
+        req.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains('files')) {
+                db.createObjectStore('files');
+            }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    });
+    return __attDBPromise;
+}
+async function putAttachmentBlob(id, blob) {
+    const db = await openAttachmentsDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('files', 'readwrite');
+        tx.objectStore('files').put(blob, id);
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => reject(tx.error);
+    });
+}
+async function getAttachmentBlob(id) {
+    const db = await openAttachmentsDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('files', 'readonly');
+        const req = tx.objectStore('files').get(id);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+    });
+}
+async function deleteAttachmentBlob(id) {
+    const db = await openAttachmentsDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('files', 'readwrite');
+        tx.objectStore('files').delete(id);
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => reject(tx.error);
+    });
+}
+
+function isImageType(mime) { return typeof mime === 'string' && mime.startsWith('image/'); }
+
+async function prepareAttachmentsFromFiles(fileList) {
+    const files = Array.from(fileList || []);
+    const metas = [];
+    for (const f of files) {
+        const id = generateUUID();
+        await putAttachmentBlob(id, f);
+        metas.push({
+            id,
+            name: f.name,
+            type: f.type || 'application/octet-stream',
+            size: f.size || 0,
+            isImage: isImageType(f.type),
+            dropboxPath: null,
+            uploadedAt: null,
+            lastModified: new Date().toISOString()
+        });
+    }
+    return metas;
 }
 
 // --- LÓGICA DE MANIPULACIÓN DE TAREAS (CORREGIDA CON IDs) ---
@@ -206,7 +275,8 @@ function addTask(category, taskName, tags = [], reminderAt = null) {
         tags: tags,
         reminderAt: reminderAt, // ISO string o null
         reminderDone: false,
-        triggerScheduledAt: null
+        triggerScheduledAt: null,
+        attachments: []
     };
     categories[category].push(newTask);
     saveCategoriesToLocalStorage();
@@ -306,7 +376,8 @@ async function splitTaskByTags(taskId) {
         tags: [tg],
         reminderAt: task.reminderAt || null,
         reminderDone: false,
-        triggerScheduledAt: null
+        triggerScheduledAt: null,
+        attachments: Array.isArray(task.attachments) ? task.attachments.slice() : []
     }));
 
     // Insertar clones justo después de la tarea original para mantener el orden
@@ -356,6 +427,7 @@ function openEditTask(taskId) {
     const categorySelect = document.getElementById('popup-task-category');
     const tagsInput = document.getElementById('popup-task-tags');
     const reminderInput = document.getElementById('popup-task-reminder');
+    const attList = document.getElementById('popup-existing-attachments');
     if (!popup || !form || !taskNameInput || !categorySelect || !tagsInput) return;
 
     // Prefill
@@ -385,6 +457,11 @@ function openEditTask(taskId) {
     taskNameInput.focus();
     updateTagDatalist();
     renderTagSuggestions();
+
+    // Renderizar adjuntos existentes en el modal
+    if (attList) {
+        renderPopupAttachments(data.task);
+    }
 }
 
 function resetPopupFormMode() {
@@ -394,6 +471,46 @@ function resetPopupFormMode() {
     form.dataset.editingId = '';
     const submitBtn = form.querySelector('button[type="submit"]');
     if (submitBtn) submitBtn.textContent = (window.i18n && i18n.t) ? i18n.t('add') : 'Añadir';
+    const attList = document.getElementById('popup-existing-attachments');
+    if (attList) attList.innerHTML = '';
+}
+
+async function renderPopupAttachments(task) {
+    const container = document.getElementById('popup-existing-attachments');
+    if (!container) return;
+    container.classList.add('popup-attachments');
+    const list = Array.isArray(task.attachments) ? task.attachments : [];
+    if (!list.length) { container.innerHTML = ''; return; }
+    // Construir markup
+    container.innerHTML = list.map(att => {
+        const label = att.name || 'archivo';
+        const img = att.isImage ? `<img class="attachment-img" data-att-id="${att.id}" alt="${label}">` : '';
+        const link = att.isImage ? '' : `<a class="attachment-file" data-att-id="${att.id}" href="#" title="${label}">📎 ${label}</a>`;
+        const del = `<button type="button" class="attachment-remove" data-att-id="${att.id}">${(window.i18n&&i18n.t)?i18n.t('delete'):'Eliminar'}</button>`;
+        return `<div class="attachment-row" data-att-id="${att.id}">${img}${link}${del}</div>`;
+    }).join('');
+    // Hidratar blobs
+    for (const att of list) {
+        const imgEl = container.querySelector(`img.attachment-img[data-att-id="${att.id}"]`);
+        const aEl = container.querySelector(`a.attachment-file[data-att-id="${att.id}"]`);
+        const blob = await ensureAttachmentBlob(att);
+        if (imgEl && blob) imgEl.src = URL.createObjectURL(blob);
+        if (aEl && blob) { aEl.href = URL.createObjectURL(blob); aEl.download = att.name || 'archivo'; }
+    }
+    // Delegar eliminación
+    container.querySelectorAll('.attachment-remove').forEach(btn => {
+        if (btn.dataset.bound) return;
+        btn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const attId = btn.getAttribute('data-att-id');
+            const title = (window.i18n&&i18n.t)?i18n.t('confirm_delete_attachment'):'¿Eliminar este adjunto?';
+            const ok = await showConfirm(title, (window.i18n&&i18n.t)?i18n.t('delete'):'Eliminar', (window.i18n&&i18n.t)?i18n.t('cancel'):'Cancelar');
+            if (!ok) return;
+            await removeAttachment(task.id, attId);
+            renderPopupAttachments(task); // refrescar lista tras borrar
+        });
+        btn.dataset.bound = '1';
+    });
 }
 
 // --- RENDERIZADO EN EL DOM (SIN BOTÓN DE ELIMINAR) ---
@@ -431,6 +548,12 @@ function renderTasks() {
                         ${convertirEnlaces(task.task)}
                         ${task.tags && task.tags.length ? `<small class="tags">${task.tags.map(t => `<span class=\"tag-chip in-task\">#${t}</span>`).join(' ')}</small>` : ''}
                         ${task.reminderAt ? `<small class=\"reminder-meta\">⏰ ${new Date(task.reminderAt).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' })}</small>` : ''}
+                        ${task.attachments && task.attachments.length ? `
+                          <div class="attachments">${task.attachments.map(att => (
+                            att.isImage
+                              ? `<img class="attachment-img" alt="${att.name}" data-att-id="${att.id}" />`
+                              : `<a class="attachment-file" href="#" data-att-id="${att.id}" title="${att.name}">📎 ${att.name}</a>`
+                          )).join('')}</div>` : ''}
                     </span>
                 </div>
                 <div class="task-actions">
@@ -464,6 +587,7 @@ function renderTasks() {
             if (taskId && newCategory) moveTask(taskId, newCategory);
         });
         taskContainer.appendChild(categoryDiv);
+        hydrateAttachmentsForCategory(filteredTasks, categoryDiv);
     }
 
     // Actualiza filtros (conservando selección) y autocompletado en cada render
@@ -475,6 +599,92 @@ function renderTasks() {
 window.onDragStart = function(event, taskId) {
     event.dataTransfer.setData('text/plain', taskId);
 };
+
+async function ensureAttachmentBlob(att) {
+    let blob = await getAttachmentBlob(att.id);
+    if (!blob && accessToken && att.dropboxPath) {
+        try {
+            const res = await fetch('https://content.dropboxapi.com/2/files/download', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Dropbox-API-Arg': JSON.stringify({ path: att.dropboxPath })
+                }
+            });
+            if (res.ok) {
+                blob = await res.blob();
+                await putAttachmentBlob(att.id, blob);
+            }
+        } catch (e) { console.warn('download attachment failed', e); }
+    }
+    return blob;
+}
+
+function hydrateAttachmentsForCategory(tasks, rootEl) {
+    const map = new Map(tasks.map(t => [t.id, t]));
+    rootEl.querySelectorAll('[data-id]').forEach(async taskEl => {
+        const id = taskEl.getAttribute('data-id');
+        const t = map.get(id);
+        if (!t || !Array.isArray(t.attachments)) return;
+        for (const att of t.attachments) {
+            const imgEl = taskEl.querySelector(`img.attachment-img[data-att-id="${att.id}"]`);
+            const aEl = taskEl.querySelector(`a.attachment-file[data-att-id="${att.id}"]`);
+            if (imgEl && !imgEl.src) {
+                const blob = await ensureAttachmentBlob(att);
+                if (blob) imgEl.src = URL.createObjectURL(blob);
+                if (imgEl && !imgEl.dataset.lbBound) {
+                    imgEl.addEventListener('click', () => openImageLightbox(imgEl.src, imgEl.alt));
+                    imgEl.dataset.lbBound = '1';
+                }
+            }
+            if (aEl && aEl.getAttribute('href') === '#') {
+                const blob = await ensureAttachmentBlob(att);
+                if (blob) aEl.href = URL.createObjectURL(blob);
+                aEl.download = att.name || 'archivo';
+            }
+            // eliminación de adjuntos solo desde el modal de edición
+        }
+    });
+}
+
+async function removeAttachment(taskId, attachmentId) {
+    const data = findTask(taskId);
+    if (!data) return;
+    const { task } = data;
+    if (!Array.isArray(task.attachments)) return;
+    const idx = task.attachments.findIndex(a => a.id === attachmentId);
+    if (idx === -1) return;
+    const att = task.attachments[idx];
+    // borrar blob local
+    try { await deleteAttachmentBlob(att.id); } catch (_) {}
+    // borrar en Dropbox si procede
+    if (accessToken && att.dropboxPath) {
+        try { await deleteDropboxFile(att.dropboxPath); } catch (_) {}
+    }
+    task.attachments.splice(idx, 1);
+    task.lastModified = new Date().toISOString();
+    saveCategoriesToLocalStorage();
+    renderTasks();
+    if (accessToken) syncToDropbox(false);
+    showToast((window.i18n&&i18n.t)?i18n.t('attachment_removed'):'Adjunto eliminado');
+}
+
+function openImageLightbox(src, alt) {
+    try {
+        const box = document.getElementById('image-lightbox');
+        const img = document.getElementById('image-lightbox-img');
+        if (!box || !img) return;
+        img.src = src;
+        img.alt = alt || '';
+        box.style.display = 'flex';
+    } catch (_) {}
+}
+function closeImageLightbox() {
+    const box = document.getElementById('image-lightbox');
+    const img = document.getElementById('image-lightbox-img');
+    if (box) box.style.display = 'none';
+    if (img) img.src = '';
+}
 
 // --- UTILIDADES DE ETIQUETAS (VISIBLES GLOBALMENTE) ---
 function getAllTags() {
@@ -724,6 +934,8 @@ async function syncToDropbox(showAlert = true) {
             const metadata = await response.json();
             localLastSync = metadata.server_modified;
             localStorage.setItem(LS.lastSync, localLastSync);
+            // Subir adjuntos pendientes después del JSON
+            await uploadPendingAttachmentsToDropbox();
             if (showAlert) showToast((window.i18n && i18n.t) ? i18n.t('toast_dropbox_uploaded') : '✅ Actividades subidas a Dropbox');
             return true;
         }
@@ -809,6 +1021,63 @@ function startAutoSyncPolling() {
 }
 function stopAutoSyncPolling() {
     if (syncInterval) { clearInterval(syncInterval); syncInterval = null; console.log('🛑 Sondeo detenido.'); }
+}
+
+async function ensureDropboxFolder(path) {
+    try {
+        const res = await fetch('https://api.dropboxapi.com/2/files/create_folder_v2', {
+            method: 'POST', headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path, autorename: false })
+        });
+        if (res.ok || res.status === 409) return true; // 409: ya existe
+    } catch (e) { console.warn('ensureDropboxFolder', e); }
+    return false;
+}
+
+async function uploadPendingAttachmentsToDropbox() {
+    if (!accessToken) return;
+    await ensureDropboxFolder(DROPBOX_ATTACH_DIR);
+    for (const [cat, tasks] of Object.entries(categories)) {
+        for (const t of tasks) {
+            if (!t.attachments) continue;
+            for (const att of t.attachments) {
+                if (att.dropboxPath && att.uploadedAt) continue; // ya subido
+                const blob = await getAttachmentBlob(att.id);
+                if (!blob) continue;
+                const safeName = (att.name || att.id).replace(/[^A-Za-z0-9._-]/g, '_');
+                const path = `${DROPBOX_ATTACH_DIR}/${att.id}-${safeName}`;
+                try {
+                    const res = await fetch('https://content.dropboxapi.com/2/files/upload', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${accessToken}`,
+                            'Content-Type': 'application/octet-stream',
+                            'Dropbox-API-Arg': JSON.stringify({ path, mode: 'overwrite' })
+                        },
+                        body: blob
+                    });
+                    if (res.ok) {
+                        att.dropboxPath = path;
+                        att.uploadedAt = new Date().toISOString();
+                        t.lastModified = new Date().toISOString();
+                        saveCategoriesToLocalStorage();
+                    }
+                } catch (e) { console.warn('upload attachment', e); }
+            }
+        }
+    }
+}
+
+async function deleteDropboxFile(path) {
+    if (!accessToken || !path) return false;
+    try {
+        const res = await fetch('https://api.dropboxapi.com/2/files/delete_v2', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path })
+        });
+        return res.ok;
+    } catch (e) { console.warn('delete dropbox file', e); return false; }
 }
 
 function handleAuthCallback() {
@@ -901,7 +1170,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     window.addEventListener('click', (e) => { if (e.target == popup) popup.style.display = 'none'; });
     if (popupForm) {
-        popupForm.addEventListener('submit', function(e) {
+        popupForm.addEventListener('submit', async function(e) {
             e.preventDefault();
             let nombre = taskNameInput.value.trim();
             const categoria = categorySelect.value;
@@ -909,6 +1178,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 .split(',')
                 .map(t => t.trim())
                 .filter(t => t.length > 0);
+            const filesInput = document.getElementById('popup-task-attachments');
+            const newAttachments = await prepareAttachmentsFromFiles(filesInput?.files);
             // Recordatorio
             let reminderAt = null;
             if (reminderInput && reminderInput.value) {
@@ -937,14 +1208,27 @@ document.addEventListener('DOMContentLoaded', function() {
             const isEdit = popupForm.dataset.mode === 'edit';
             if (isEdit) {
                 const editingId = popupForm.dataset.editingId;
+                // anexar adjuntos nuevos a la tarea existente
+                const data = findTask(editingId);
+                if (data) {
+                    data.task.attachments = (data.task.attachments || []).concat(newAttachments);
+                }
                 updateTask(editingId, nombre, categoria, tags, reminderAt);
             } else {
                 addTask(categoria, nombre, tags, reminderAt);
+                // anexar adjuntos a la última tarea creada en la categoría
+                const arr = categories[categoria];
+                const t = arr[arr.length - 1];
+                t.attachments = (t.attachments || []).concat(newAttachments);
+                saveCategoriesToLocalStorage();
+                renderTasks();
+                if (accessToken) syncToDropbox(false);
             }
 
             taskNameInput.value = '';
             tagsInput.value = '';
             if (reminderInput) reminderInput.value = '';
+            if (filesInput) filesInput.value = '';
             resetPopupFormMode();
             popupForm.closest('.modal').style.display = 'none';
         });
@@ -997,6 +1281,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Iniciar el flujo de autenticación de Dropbox
     handleAuthCallback();
+
+    // Cerrar lightbox al hacer click fuera o con Escape
+    const lb = document.getElementById('image-lightbox');
+    if (lb) {
+        lb.addEventListener('click', (e)=>{ if (e.target === lb) closeImageLightbox(); });
+        document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') closeImageLightbox(); });
+    }
 
     document.getElementById('filter-tag')?.addEventListener('change', (e) => {
         try { localStorage.setItem(LS.selectedFilterTag, e.target.value || ''); } catch (_) {}

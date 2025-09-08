@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://api.dropboxapi.com https://content.dropboxapi.com; object-src 'none'; base-uri 'self'; form-action 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://api.dropboxapi.com https://content.dropboxapi.com; object-src 'none'; base-uri 'self'; form-action 'self'">
     <title>EduKanban — Gestor de Actividades</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="manifest" href="manifest.json">
@@ -14,13 +14,13 @@
     <header>
         <img src="icons/logolargo.png" alt="EduKanban" class="logo"/>
         <div class="acciones">
-            <button id="abrir-popup-tarea" type="button" class="boton-accion boton-primario" aria-label="Nueva Actividad" title="Nueva Actividad">➕</button>
-            <a href="recordatorios.html" class="boton-accion boton-primario" aria-label="Ver Recordatorios" title="Ver Recordatorios">⏰</a>
+            <button id="abrir-popup-tarea" type="button" class="boton-accion boton-primario">➕ Nueva Actividad</button>
+            <a href="recordatorios.html" class="boton-accion boton-primario">⏰ Ver Recordatorios</a>
         </div>
           <!-- Contenedor de Controles -->
     <div class="acciones">
-         <a href="archivo.html" class="boton-accion boton-primario" aria-label="Ver Archivo" title="Ver Archivo">🗄️</a>
-            <button id="open-admin" type="button" class="boton-accion" aria-label="Administración" title="Administración">⚙️</button>
+         <a href="archivo.html" class="boton-accion boton-primario">🗄️ Ver Archivo</a>
+            <button id="open-admin" type="button" class="boton-accion">⚙️ Administración</button>
             </div>
     </header>
     <main>
@@ -56,6 +56,9 @@
                 <div id="tag-suggestions" class="tag-suggestions"></div>
                 <label for="popup-task-reminder">Recordatorio (fecha y hora)</label>
                 <input type="datetime-local" id="popup-task-reminder">
+                <label for="popup-task-attachments">Adjuntos</label>
+                <input type="file" id="popup-task-attachments" multiple>
+                <div id="popup-existing-attachments" class="attachments"></div>
                 <div class="acciones-popup">
                     <button type="submit">Añadir</button>
                     <button type="button" id="cancelar-popup">Cancelar</button>
@@ -103,11 +106,16 @@
         </div>
     </div>
 
+    <!-- Visor de imagen a pantalla casi completa -->
+    <div id="image-lightbox" class="modal image-lightbox" style="display:none">
+        <img id="image-lightbox-img" alt="preview" />
+    </div>
+
     <footer>
         <script src="js/i18n.js"></script>
         <script src="js/app.js"></script>
         <script src="js/sw-register.js"></script>
-        Versió 0.0.19 — EduKanban
+        Versió 0.0.21 — EduKanban
     </footer>
 
 </body>
