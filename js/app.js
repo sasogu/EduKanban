@@ -510,33 +510,33 @@ async function renderPopupAttachments(task) {
         const del = `<button type="button" class="attachment-remove" data-att-id="${att.id}">${(window.i18n&&i18n.t)?i18n.t('delete'):'Eliminar'}</button>`;
         return `<div class="attachment-row" data-att-id="${att.id}">${img}${link}${dl}${del}</div>`;
     }).join('');
-    // Hidratar blobs
+    // Hidratar blobs/enlaces
     for (const att of list) {
         const imgEl = container.querySelector(`img.attachment-img[data-att-id="${att.id}"]`);
         const aEl = container.querySelector(`a.attachment-file[data-att-id="${att.id}"]`);
-        const blob = await ensureAttachmentBlob(att);
-        if (imgEl && blob) imgEl.src = URL.createObjectURL(blob);
-        if (aEl && blob) {
-            aEl.href = URL.createObjectURL(blob);
+        let url = null;
+        if (isPdfAttachment(att) && accessToken && att.dropboxPath) {
+            url = await getDropboxTemporaryLink(att.dropboxPath);
+        }
+        if (!url) {
+            const blob = await ensureAttachmentBlob(att);
+            if (imgEl && blob) imgEl.src = URL.createObjectURL(blob);
+            if (!url && blob) url = URL.createObjectURL(blob);
+        }
+        if (aEl && url) {
+            aEl.href = url;
             if (isPdfAttachment(att)) {
                 aEl.target = '_blank';
                 aEl.rel = 'noopener noreferrer';
                 aEl.removeAttribute('download');
-                if (!aEl.dataset.pdfBound) {
-                    aEl.addEventListener('click', (e) => {
-                        const url = aEl.href;
-                        if (url && url !== '#') { e.preventDefault(); window.open(url, '_blank', 'noopener'); }
-                    });
-                    aEl.dataset.pdfBound = '1';
-                }
             } else {
                 aEl.download = preferredFileName(att);
                 aEl.removeAttribute('target');
             }
         }
         const dlEl = container.querySelector(`a.attachment-dl[data-att-id="${att.id}"]`);
-        if (dlEl && blob) {
-            dlEl.href = URL.createObjectURL(blob);
+        if (dlEl && url) {
+            dlEl.href = url;
             dlEl.setAttribute('download', preferredFileName(att));
         }
     }
@@ -658,12 +658,29 @@ async function ensureAttachmentBlob(att) {
                 }
             });
             if (res.ok) {
-                blob = await res.blob();
+                const raw = await res.blob();
+                const desiredType = isPdfAttachment(att) ? 'application/pdf' : (att.type || raw.type || 'application/octet-stream');
+                blob = new Blob([raw], { type: desiredType });
                 await putAttachmentBlob(att.id, blob);
             }
         } catch (e) { console.warn('download attachment failed', e); }
     }
     return blob;
+}
+
+async function getDropboxTemporaryLink(path) {
+    try {
+        const res = await fetch('https://api.dropboxapi.com/2/files/get_temporary_link', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path })
+        });
+        if (res.ok) {
+            const data = await res.json();
+            return data && data.link;
+        }
+    } catch (e) { console.warn('temp link error', e); }
+    return null;
 }
 
 function hydrateAttachmentsForCategory(tasks, rootEl) {
@@ -685,28 +702,36 @@ function hydrateAttachmentsForCategory(tasks, rootEl) {
                 }
             }
             if (aEl && aEl.getAttribute('href') === '#') {
-                const blob = await ensureAttachmentBlob(att);
-                if (blob) aEl.href = URL.createObjectURL(blob);
+                if (isPdfAttachment(att) && accessToken && att.dropboxPath) {
+                    const link = await getDropboxTemporaryLink(att.dropboxPath);
+                    if (link) aEl.href = link; else {
+                        const blob = await ensureAttachmentBlob(att);
+                        if (blob) aEl.href = URL.createObjectURL(blob);
+                    }
+                } else {
+                    const blob = await ensureAttachmentBlob(att);
+                    if (blob) aEl.href = URL.createObjectURL(blob);
+                }
                 if (isPdfAttachment(att)) {
                     aEl.target = '_blank';
                     aEl.rel = 'noopener noreferrer';
                     aEl.removeAttribute('download');
-                    if (!aEl.dataset.pdfBound) {
-                        aEl.addEventListener('click', (e) => {
-                            // Asegurar apertura incluso si algún estilo/attr interfiere
-                            const url = aEl.href;
-                            if (url && url !== '#') { e.preventDefault(); window.open(url, '_blank', 'noopener'); }
-                        });
-                        aEl.dataset.pdfBound = '1';
-                    }
                 } else {
                     aEl.download = preferredFileName(att);
                     aEl.removeAttribute('target');
                 }
             }
             if (dlEl && dlEl.getAttribute('href') === '#') {
-                const blob = await ensureAttachmentBlob(att);
-                if (blob) dlEl.href = URL.createObjectURL(blob);
+                if (isPdfAttachment(att) && accessToken && att.dropboxPath) {
+                    const link = await getDropboxTemporaryLink(att.dropboxPath);
+                    if (link) dlEl.href = link; else {
+                        const blob = await ensureAttachmentBlob(att);
+                        if (blob) dlEl.href = URL.createObjectURL(blob);
+                    }
+                } else {
+                    const blob = await ensureAttachmentBlob(att);
+                    if (blob) dlEl.href = URL.createObjectURL(blob);
+                }
                 dlEl.setAttribute('download', preferredFileName(att));
             }
             // eliminación de adjuntos solo desde el modal de edición
