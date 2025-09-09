@@ -39,7 +39,7 @@ header .acciones {
     gap: 15px; /* Espacio entre los botones */
 }
 /* Evita que las reglas genéricas de .acciones alteren el header */
-header .acciones { flex-direction: row; flex-wrap: wrap; }
+header .acciones { flex-direction: row; flex-wrap: wrap; max-width: none; margin: 0; }
 /* En pantallas grandes, los botones del header no ocupan ancho completo */
 @media (min-width: 601px) {
   header .acciones .boton-accion {
@@ -484,6 +484,9 @@ input[type="text"], select, textarea {
 .grupo-botones {
     display: flex;
     flex-direction: column;
+    gap: 10px;
+}
+
 /* Paleta y variables de diseño */
 :root {
     /* Paleta base: alto contraste y sobria */
@@ -507,8 +510,6 @@ input[type="text"], select, textarea {
 
 html, body { background: var(--color-bg); color: var(--color-text); }
 body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
-    gap: 10px;
-}
 
 /* Chips de etiquetas rápidas */
 .tag-suggestions {
@@ -585,3 +586,11 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
 .reuse-item .thumb { width: 100%; height: 100px; object-fit: cover; border-radius: 6px; border: 1px solid var(--color-border); }
 .reuse-item .name { font-size: 12px; color: var(--color-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .reuse-item .actions { display:flex; justify-content: flex-end; }
+
+/* Ajustes específicos para tablets (≈600–1024px) */
+@media (min-width: 600px) and (max-width: 1024px) {
+  header { padding: 12px 18px; }
+  header .logo { height: 96px; }
+  header .acciones { gap: 12px; }
+  .boton-accion { max-width: none; }
+}
