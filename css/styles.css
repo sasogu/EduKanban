@@ -20,7 +20,7 @@ header {
 
 /* Logo en el header */
 header .logo {
-    height: 144px;
+    height: 112px;
     width: auto;
     display: block;
     object-fit: contain;
@@ -390,6 +390,7 @@ input[type="text"], select, textarea {
         gap: 10px;
         text-align: left;
     }
+    header .logo { height: 64px; }
     header h1 { margin-bottom: 6px; }
     header .acciones { 
         width: 100%; 
@@ -590,7 +591,7 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
 /* Ajustes específicos para tablets (≈600–1024px) */
 @media (min-width: 600px) and (max-width: 1024px) {
   header { padding: 12px 18px; }
-  header .logo { height: 96px; }
+  header .logo { height: 88px; }
   header .acciones { gap: 12px; }
   .boton-accion { max-width: none; }
 }
