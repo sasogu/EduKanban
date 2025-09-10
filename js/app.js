@@ -393,7 +393,8 @@ function addTask(category, taskName, tags = [], reminderAt = null) {
         reminderAt: reminderAt, // ISO string o null
         reminderDone: false,
         triggerScheduledAt: null,
-        attachments: []
+        attachments: [],
+        orderCode: '' // Orden manual A..Z
     };
     categories[category].push(newTask);
     saveCategoriesToLocalStorage();
@@ -461,6 +462,18 @@ function moveTask(taskId, newCategory) {
     }
 }
 
+// --- ORDEN MANUAL A..Z ---
+function setTaskOrder(taskId, code) {
+    const data = findTask(taskId);
+    if (!data) return;
+    const { task } = data;
+    task.orderCode = (code || '').toUpperCase();
+    task.lastModified = new Date().toISOString();
+    saveCategoriesToLocalStorage();
+    renderTasks();
+    if (accessToken) syncToDropbox(false);
+}
+
 // --- DIVIDIR TAREA POR ETIQUETAS ---
 async function splitTaskByTags(taskId) {
     const data = findTask(taskId);
@@ -494,7 +507,8 @@ async function splitTaskByTags(taskId) {
         reminderAt: task.reminderAt || null,
         reminderDone: false,
         triggerScheduledAt: null,
-        attachments: Array.isArray(task.attachments) ? task.attachments.slice() : []
+        attachments: Array.isArray(task.attachments) ? task.attachments.slice() : [],
+        orderCode: (task.orderCode || '').toUpperCase()
     }));
 
     // Insertar clones justo después de la tarea original para mantener el orden
@@ -512,6 +526,11 @@ function updateTask(taskId, newName, newCategory, newTags = [], newReminderAt = 
     const { task, category } = data;
     task.task = newName;
     task.tags = Array.isArray(newTags) ? newTags : [];
+    // Orden manual (si existe en el formulario)
+    try {
+        const orderInput = document.getElementById('popup-task-order');
+        if (orderInput) task.orderCode = (orderInput.value || '').toUpperCase();
+    } catch (_) {}
     // Actualizar recordatorio
     task.reminderAt = newReminderAt || null;
     // Si se cambia la fecha, reiniciar el estado de disparo y reprogramar
@@ -544,6 +563,7 @@ function openEditTask(taskId) {
     const categorySelect = document.getElementById('popup-task-category');
     const tagsInput = document.getElementById('popup-task-tags');
     const reminderInput = document.getElementById('popup-task-reminder');
+    const orderInput = document.getElementById('popup-task-order');
     const attList = document.getElementById('popup-existing-attachments');
     const reuseToggle = document.getElementById('popup-attach-reuse-toggle');
     const reusePanel = document.getElementById('popup-attach-reuse-panel');
@@ -565,6 +585,7 @@ function openEditTask(taskId) {
             reminderInput.value = '';
         }
     }
+    if (orderInput) orderInput.value = (data.task.orderCode || '').toUpperCase();
 
     // Switch form to edit mode
     form.dataset.mode = 'edit';
@@ -888,6 +909,34 @@ function renderTasks() {
     const catNames = (window.i18n && i18n.i18nCategoryNames) ? i18n.i18nCategoryNames() : {
       'en-preparacion':'En preparación','preparadas':'Preparadas','en-proceso':'En proceso','pendientes':'Pendientes','archivadas':'Archivadas'
     };
+    // Generador de opciones A..Z para selects
+    const buildOrderOptions = (selected) => {
+        const opts = [''].concat(Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i)));
+        const selUp = (selected || '').toUpperCase();
+        return opts.map(code => {
+            const label = code || '—';
+            const sel = (selUp === code) ? ' selected' : '';
+            const val = code;
+            return `<option value="${val}"${sel}>${label}</option>`;
+        }).join('');
+    };
+
+    // Comparador: orderCode (A..Z) luego lastModified desc
+    const cmpTasks = (a, b) => {
+        const A = (a.orderCode || '').toUpperCase();
+        const B = (b.orderCode || '').toUpperCase();
+        const aHas = A.length > 0; const bHas = B.length > 0;
+        if (aHas && !bHas) return -1;
+        if (!aHas && bHas) return 1;
+        if (aHas && bHas) {
+            if (A < B) return -1;
+            if (A > B) return 1;
+        }
+        const ta = new Date(a.lastModified || 0).getTime();
+        const tb = new Date(b.lastModified || 0).getTime();
+        return tb - ta;
+    };
+
     for (const [category, tasks] of Object.entries(categories)) {
         if (category === 'archivadas') continue;
         if (filterColumns.length && !filterColumns.includes(category)) continue;
@@ -898,6 +947,7 @@ function renderTasks() {
         let filteredTasks = filterTag
             ? tasks.filter(task => task.tags && task.tags.includes(filterTag))
             : tasks;
+        filteredTasks = filteredTasks.slice().sort(cmpTasks);
 
         let tasksHTML = filteredTasks.map(task => `
             <div class="task ${task.completed ? 'completed' : ''}" draggable="true" data-id="${task.id}">
@@ -919,6 +969,9 @@ function renderTasks() {
                     </span>
                 </div>
                 <div class="task-actions">
+                    <select class="order-select" aria-label="Orden (A–Z)" title="Orden (A–Z)" onchange="setTaskOrder('${task.id}', this.value)">
+                        ${buildOrderOptions(task.orderCode)}
+                    </select>
                     <select aria-label="${(window.i18n&&i18n.t)?i18n.t('move'):'Mover'} actividad" title="${(window.i18n&&i18n.t)?i18n.t('move'):'Mover'}" onchange="moveTask('${task.id}', this.value)">
                         <option value="" disabled selected>${(window.i18n&&i18n.t)?i18n.t('move'):'Mover'}</option>
                         ${Object.keys(catNames).filter(c => c !== category).map(c => `<option value="${c}">${catNames[c]}</option>`).join('')}
@@ -1334,10 +1387,22 @@ function mergeTasks(localCategories, remoteCategories, deletedIdsSet) {
             mergedCategories[targetCat].push(finalTask);
         }
     }
-    // Orden determinista por lastModified (más recientes primero)
-    Object.keys(mergedCategories).forEach(cat => {
-        mergedCategories[cat].sort((a, b) => new Date(b.lastModified || 0) - new Date(a.lastModified || 0));
-    });
+    // Orden determinista: orderCode (A..Z) primero, luego lastModified desc
+    const cmp = (a, b) => {
+        const A = (a.orderCode || '').toUpperCase();
+        const B = (b.orderCode || '').toUpperCase();
+        const aHas = A.length > 0; const bHas = B.length > 0;
+        if (aHas && !bHas) return -1;
+        if (!aHas && bHas) return 1;
+        if (aHas && bHas) {
+            if (A < B) return -1;
+            if (A > B) return 1;
+        }
+        const ta = new Date(a.lastModified || 0).getTime();
+        const tb = new Date(b.lastModified || 0).getTime();
+        return tb - ta;
+    };
+    Object.keys(mergedCategories).forEach(cat => { mergedCategories[cat].sort(cmp); });
     return mergedCategories;
 }
 
@@ -1601,6 +1666,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const categorySelect = document.getElementById('popup-task-category');
     const tagsInput = document.getElementById('popup-task-tags');
     const reminderInput = document.getElementById('popup-task-reminder');
+    const orderInput = document.getElementById('popup-task-order');
 
     if (abrirPopupBtn) abrirPopupBtn.addEventListener('click', () => {
         resetPopupFormMode();
@@ -1633,6 +1699,7 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             let nombre = taskNameInput.value.trim();
             const categoria = categorySelect.value;
+            const orderCode = (orderInput && orderInput.value) ? orderInput.value.toUpperCase() : '';
             let tags = tagsInput.value
                 .split(',')
                 .map(t => t.trim())
@@ -1672,6 +1739,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 const hadNewAtts = newAttachments && newAttachments.length > 0;
                 if (data) {
                     data.task.attachments = (data.task.attachments || []).concat(newAttachments);
+                    // actualizar orderCode si llegó algo en el formulario
+                    if (typeof orderCode === 'string') data.task.orderCode = orderCode;
                 }
                 updateTask(editingId, nombre, categoria, tags, reminderAt);
                 // Si se han añadido adjuntos, realizar una sincronización completa para subirlos primero
@@ -1685,6 +1754,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 const t = arr[arr.length - 1];
                 const toAttach = (newAttachments || []).concat(pendingReusedAttachments || []);
                 t.attachments = (t.attachments || []).concat(toAttach);
+                // asignar orderCode si se indicó
+                if (typeof orderCode === 'string') t.orderCode = orderCode;
                 pendingReusedAttachments = [];
                 saveCategoriesToLocalStorage();
                 renderTasks();
@@ -1701,6 +1772,7 @@ document.addEventListener('DOMContentLoaded', function() {
             taskNameInput.value = '';
             tagsInput.value = '';
             if (reminderInput) reminderInput.value = '';
+            if (orderInput) orderInput.value = '';
             if (filesInput) filesInput.value = '';
             resetPopupFormMode();
             popupForm.closest('.modal').style.display = 'none';
@@ -1819,6 +1891,8 @@ document.addEventListener('DOMContentLoaded', function() {
             e.dataTransfer.setData('text/plain', taskEl.dataset.id);
         }
     });
+
+    // No añadimos DnD de reordenación interna; el orden lo fija orderCode
 
     // Acceso rápido: si llega con ?quick=1 abrir directamente el popup de nueva tarea
     try {
