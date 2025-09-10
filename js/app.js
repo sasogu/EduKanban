@@ -837,6 +837,12 @@ function renderTasks() {
         filterColumn = localStorage.getItem(LS.visibleColumn) || '';
     }
     taskContainer.innerHTML = '';
+    // Si se muestra una sola columna, forzar layout de una columna a ancho completo
+    if (filterColumn) {
+        taskContainer.classList.add('single-column');
+    } else {
+        taskContainer.classList.remove('single-column');
+    }
 
     const catNames = (window.i18n && i18n.i18nCategoryNames) ? i18n.i18nCategoryNames() : {
       'en-preparacion':'En preparación','preparadas':'Preparadas','en-proceso':'En proceso','pendientes':'Pendientes','archivadas':'Archivadas'
@@ -1092,7 +1098,8 @@ function updateColumnFilterDropdown(currentValue = '', catNames = null) {
     });
     const showAll = (window.i18n && i18n.t) ? i18n.t('show_all') : 'Todas';
     let options = `<option value="">${showAll}</option>`;
-    const keys = Object.keys(names).filter(k => k !== 'archivadas');
+    // Orden fijo: En preparación, Preparadas, En proceso, Pendientes
+    const keys = ['en-preparacion','preparadas','en-proceso','pendientes'];
     // Conservar selección aunque el nombre cambie
     options += keys.map(k => `<option value="${k}">${names[k]}</option>`).join('');
     select.innerHTML = options;

@@ -56,6 +56,8 @@ header .acciones { flex-direction: row; flex-wrap: wrap; }
     gap: 20px;
     padding: 16px;
 }
+/* Cuando se filtra a una sola columna, ocupar todo el ancho en cualquier breakpoint */
+#task-container.single-column { grid-template-columns: 1fr !important; }
 @media (min-width: 700px) {
   #task-container { grid-template-columns: repeat(2, 1fr); }
 }
