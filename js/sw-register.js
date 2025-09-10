@@ -26,11 +26,18 @@
     const i = p.lastIndexOf('/');
     const base = i >= 0 ? p.slice(0, i + 1) : '/';
     const swUrl = base + 'service-worker.js';
+    let refreshing = false;
     navigator.serviceWorker.register(swUrl)
       .then(() => navigator.serviceWorker.ready)
       .then(() => {
         requestVersion();
-        navigator.serviceWorker.addEventListener('controllerchange', () => setTimeout(requestVersion, 300));
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          // Solicitar versión y forzar recarga una sola vez cuando cambie el SW
+          setTimeout(requestVersion, 200);
+          if (refreshing) return;
+          refreshing = true;
+          setTimeout(() => { try { window.location.reload(); } catch (_) {} }, 300);
+        });
       })
       .catch(err => console.log('ServiceWorker registro fallido:', err));
   });
