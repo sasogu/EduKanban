@@ -20,6 +20,7 @@ const LS = {
   token: 'edukanban.dropbox_access_token',
   lastSync: 'edukanban.lastSync',
   selectedFilterTag: 'edukanban.selectedFilterTag',
+  visibleColumn: 'edukanban.visibleColumn',
   notificationsEnabled: 'edukanban.notificationsEnabled',
   pendingDropboxAction: 'edukanban.pendingDropboxAction',
   lastReauthAt: 'edukanban.lastReauthAt'
@@ -820,6 +821,7 @@ async function renderPopupAttachments(task) {
 function renderTasks() {
     const taskContainer = document.getElementById('task-container');
     const filterTagSelect = document.getElementById('filter-tag');
+    const filterColumnSelect = document.getElementById('filter-column');
     const locale = (window.i18n && i18n.getLocale) ? i18n.getLocale() : 'es-ES';
     // Mantener filtro activo: tomar el valor actual o el guardado en localStorage
     let filterTag = '';
@@ -828,6 +830,12 @@ function renderTasks() {
     } else {
         filterTag = localStorage.getItem(LS.selectedFilterTag) || '';
     }
+    let filterColumn = '';
+    if (filterColumnSelect) {
+        filterColumn = filterColumnSelect.value || localStorage.getItem(LS.visibleColumn) || '';
+    } else {
+        filterColumn = localStorage.getItem(LS.visibleColumn) || '';
+    }
     taskContainer.innerHTML = '';
 
     const catNames = (window.i18n && i18n.i18nCategoryNames) ? i18n.i18nCategoryNames() : {
@@ -835,6 +843,7 @@ function renderTasks() {
     };
     for (const [category, tasks] of Object.entries(categories)) {
         if (category === 'archivadas') continue;
+        if (filterColumn && category !== filterColumn) continue;
         const categoryDiv = document.createElement('div');
         categoryDiv.className = 'category';
 
@@ -898,6 +907,7 @@ function renderTasks() {
 
     // Actualiza filtros (conservando selección) y autocompletado en cada render
     updateTagFilterDropdown(filterTag);
+    updateColumnFilterDropdown(filterColumn, catNames);
     updateTagDatalist();
 }
 
@@ -1071,6 +1081,22 @@ function updateTagFilterDropdown(currentValue = '') {
     filterTagSelect.innerHTML = optionsHtml;
     // Restaurar selección previa
     filterTagSelect.value = currentValue || '';
+}
+
+// Filtro de columnas: mostrar solo una o todas
+function updateColumnFilterDropdown(currentValue = '', catNames = null) {
+    const select = document.getElementById('filter-column');
+    if (!select) return;
+    const names = catNames || ((window.i18n && i18n.i18nCategoryNames) ? i18n.i18nCategoryNames() : {
+        'en-preparacion':'En preparación','preparadas':'Preparadas','en-proceso':'En proceso','pendientes':'Pendientes','archivadas':'Archivadas'
+    });
+    const showAll = (window.i18n && i18n.t) ? i18n.t('show_all') : 'Todas';
+    let options = `<option value="">${showAll}</option>`;
+    const keys = Object.keys(names).filter(k => k !== 'archivadas');
+    // Conservar selección aunque el nombre cambie
+    options += keys.map(k => `<option value="${k}">${names[k]}</option>`).join('');
+    select.innerHTML = options;
+    select.value = currentValue || '';
 }
 
 // Autocompletado para input de etiquetas (datalist)
@@ -1678,6 +1704,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.getElementById('filter-tag')?.addEventListener('change', (e) => {
         try { localStorage.setItem(LS.selectedFilterTag, e.target.value || ''); } catch (_) {}
+        renderTasks();
+    });
+    document.getElementById('filter-column')?.addEventListener('change', (e) => {
+        try { localStorage.setItem(LS.visibleColumn, e.target.value || ''); } catch (_) {}
         renderTasks();
     });
 
