@@ -58,6 +58,9 @@ header .acciones { flex-direction: row; flex-wrap: wrap; }
 }
 /* Cuando se filtra a una sola columna, ocupar todo el ancho en cualquier breakpoint */
 #task-container.single-column { grid-template-columns: 1fr !important; }
+/* Grupo de checkboxes de columnas */
+.filter-columns { display: inline-flex; flex-wrap: wrap; gap: 10px; margin-left: 12px; align-items: center; }
+.filter-column-actions .boton-accion { padding: 6px 10px; }
 @media (min-width: 700px) {
   #task-container { grid-template-columns: repeat(2, 1fr); }
 }

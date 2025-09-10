@@ -20,7 +20,7 @@ const LS = {
   token: 'edukanban.dropbox_access_token',
   lastSync: 'edukanban.lastSync',
   selectedFilterTag: 'edukanban.selectedFilterTag',
-  visibleColumn: 'edukanban.visibleColumn',
+  visibleColumn: 'edukanban.visibleColumn', // compat: antes guardaba un string; ahora guarda JSON array
   notificationsEnabled: 'edukanban.notificationsEnabled',
   pendingDropboxAction: 'edukanban.pendingDropboxAction',
   lastReauthAt: 'edukanban.lastReauthAt'
@@ -822,6 +822,7 @@ function renderTasks() {
     const taskContainer = document.getElementById('task-container');
     const filterTagSelect = document.getElementById('filter-tag');
     const filterColumnSelect = document.getElementById('filter-column');
+    const filterColumnGroup = document.getElementById('filter-column-group');
     const locale = (window.i18n && i18n.getLocale) ? i18n.getLocale() : 'es-ES';
     // Mantener filtro activo: tomar el valor actual o el guardado en localStorage
     let filterTag = '';
@@ -830,15 +831,52 @@ function renderTasks() {
     } else {
         filterTag = localStorage.getItem(LS.selectedFilterTag) || '';
     }
-    let filterColumn = '';
+    // Columns: ahora puede ser múltiple. Si LS guarda string antiguo, lo convertimos a array.
+    let filterColumns = [];
     if (filterColumnSelect) {
-        filterColumn = filterColumnSelect.value || localStorage.getItem(LS.visibleColumn) || '';
+        filterColumns = Array.from(filterColumnSelect.selectedOptions || [])
+            .map(o => o.value)
+            .filter(v => v);
+        if (!filterColumns.length) {
+            // Fallback a LS si el select aún no tiene selección inicial
+            const raw = localStorage.getItem(LS.visibleColumn) || '';
+            try {
+                const arr = JSON.parse(raw);
+                if (Array.isArray(arr)) filterColumns = arr.filter(v => v);
+                else if (typeof raw === 'string' && raw) filterColumns = [raw];
+            } catch (_) {
+                if (raw) filterColumns = [raw];
+            }
+        }
+    } else if (filterColumnGroup) {
+        const checked = Array.from(filterColumnGroup.querySelectorAll('input[type="checkbox"]:checked'))
+            .map(i => i.dataset.col)
+            .filter(Boolean);
+        if (checked.length) {
+            filterColumns = checked;
+        } else {
+            const raw = localStorage.getItem(LS.visibleColumn) || '';
+            try {
+                const arr = JSON.parse(raw);
+                if (Array.isArray(arr)) filterColumns = arr.filter(v => v);
+                else if (typeof raw === 'string' && raw) filterColumns = [raw];
+            } catch (_) {
+                if (raw) filterColumns = [raw];
+            }
+        }
     } else {
-        filterColumn = localStorage.getItem(LS.visibleColumn) || '';
+        const raw = localStorage.getItem(LS.visibleColumn) || '';
+        try {
+            const arr = JSON.parse(raw);
+            if (Array.isArray(arr)) filterColumns = arr.filter(v => v);
+            else if (typeof raw === 'string' && raw) filterColumns = [raw];
+        } catch (_) {
+            if (raw) filterColumns = [raw];
+        }
     }
     taskContainer.innerHTML = '';
     // Si se muestra una sola columna, forzar layout de una columna a ancho completo
-    if (filterColumn) {
+    if (filterColumns.length === 1) {
         taskContainer.classList.add('single-column');
     } else {
         taskContainer.classList.remove('single-column');
@@ -849,7 +887,7 @@ function renderTasks() {
     };
     for (const [category, tasks] of Object.entries(categories)) {
         if (category === 'archivadas') continue;
-        if (filterColumn && category !== filterColumn) continue;
+        if (filterColumns.length && !filterColumns.includes(category)) continue;
         const categoryDiv = document.createElement('div');
         categoryDiv.className = 'category';
 
@@ -913,7 +951,7 @@ function renderTasks() {
 
     // Actualiza filtros (conservando selección) y autocompletado en cada render
     updateTagFilterDropdown(filterTag);
-    updateColumnFilterDropdown(filterColumn, catNames);
+    updateColumnFilterDropdown(filterColumns, catNames);
     updateTagDatalist();
 }
 
@@ -1090,20 +1128,32 @@ function updateTagFilterDropdown(currentValue = '') {
 }
 
 // Filtro de columnas: mostrar solo una o todas
-function updateColumnFilterDropdown(currentValue = '', catNames = null) {
+function updateColumnFilterDropdown(currentValues = [], catNames = null) {
     const select = document.getElementById('filter-column');
-    if (!select) return;
+    const group = document.getElementById('filter-column-group');
+    if (!select && !group) return;
     const names = catNames || ((window.i18n && i18n.i18nCategoryNames) ? i18n.i18nCategoryNames() : {
         'en-preparacion':'En preparación','preparadas':'Preparadas','en-proceso':'En proceso','pendientes':'Pendientes','archivadas':'Archivadas'
     });
     const showAll = (window.i18n && i18n.t) ? i18n.t('show_all') : 'Todas';
-    let options = `<option value="">${showAll}</option>`;
+    const selectedSet = new Set(Array.isArray(currentValues) ? currentValues : (currentValues ? [currentValues] : []));
+    let options = `<option value=""${selectedSet.size===0 ? ' selected' : ''}>${showAll}</option>`;
     // Orden fijo: En preparación, Preparadas, En proceso, Pendientes
     const keys = ['en-preparacion','preparadas','en-proceso','pendientes'];
+    if (group) {
+        const html = keys.map(k => `
+            <label style="display:inline-flex; align-items:center; gap:6px; margin-right:10px;">
+              <input type="checkbox" data-col="${k}" ${selectedSet.has(k) ? 'checked' : ''}>
+              <span>${names[k]}</span>
+            </label>
+        `).join('');
+        group.innerHTML = html;
+        return;
+    }
     // Conservar selección aunque el nombre cambie
-    options += keys.map(k => `<option value="${k}">${names[k]}</option>`).join('');
+    options += keys.map(k => `<option value="${k}"${selectedSet.has(k) ? ' selected' : ''}>${names[k]}</option>`).join('');
     select.innerHTML = options;
-    select.value = currentValue || '';
+    // Para selects múltiples, no usar select.value; las opciones ya marcan selected
 }
 
 // Autocompletado para input de etiquetas (datalist)
@@ -1714,7 +1764,24 @@ document.addEventListener('DOMContentLoaded', function() {
         renderTasks();
     });
     document.getElementById('filter-column')?.addEventListener('change', (e) => {
-        try { localStorage.setItem(LS.visibleColumn, e.target.value || ''); } catch (_) {}
+        const sel = e.currentTarget;
+        const values = Array.from(sel.selectedOptions || []).map(o => o.value).filter(v => v);
+        try { localStorage.setItem(LS.visibleColumn, JSON.stringify(values)); } catch (_) {}
+        renderTasks();
+    });
+    document.getElementById('filter-column-apply')?.addEventListener('click', () => {
+        const group = document.getElementById('filter-column-group');
+        if (!group) return;
+        const values = Array.from(group.querySelectorAll('input[type="checkbox"]:checked'))
+            .map(i => i.dataset.col)
+            .filter(Boolean);
+        try { localStorage.setItem(LS.visibleColumn, JSON.stringify(values)); } catch (_) {}
+        renderTasks();
+    });
+    document.getElementById('filter-column-reset')?.addEventListener('click', () => {
+        const group = document.getElementById('filter-column-group');
+        if (group) Array.from(group.querySelectorAll('input[type="checkbox"]')).forEach(i => i.checked = false);
+        try { localStorage.removeItem(LS.visibleColumn); } catch (_) {}
         renderTasks();
     });
 
