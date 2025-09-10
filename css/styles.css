@@ -369,6 +369,38 @@ input[type="text"], select, textarea {
 }
 
 @media (max-width: 600px) {
+
+     /* En móvil, colocar acciones debajo del texto */
+    .task {
+        flex-wrap: wrap;
+    }
+    .task .task-actions {
+        flex-basis: 100%;
+        display: grid;
+        /* Dos filas sin desplazamiento horizontal */
+        grid-template-columns: 1fr 1fr 1fr;
+        grid-template-areas:
+            "order move move"
+            "edit  split delete";
+        grid-auto-rows: auto;
+        column-gap: 8px;
+        row-gap: 8px;
+        align-items: center;
+        margin-left: 0;
+        margin-top: 6px;
+        width: 100%;
+        overflow: visible;
+    }
+    .task .task-actions select { width: 100%; min-width: 0; }
+    .task .task-actions select.order-select { grid-area: order; }
+    .task .task-actions select:not(.order-select) { grid-area: move; }
+    .task .task-actions .edit-btn { grid-area: edit; }
+    .task .task-actions .split-btn { grid-area: split; }
+    .task .task-actions .delete-btn { grid-area: delete; }
+    .task .edit-btn, .task .delete-btn {
+        font-size: 16px;
+        padding: 8px 10px;
+    }
    
     /* En móvil, ocultar texto y dejar solo iconos */
     .task .btn-label { display: none; }
