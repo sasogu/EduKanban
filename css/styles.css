@@ -127,9 +127,9 @@ header .acciones { flex-direction: row; flex-wrap: wrap; }
   width: 100%;
   margin-left: 0;
   margin-top: 6px;
-  /* Selector + hasta 3 botones alineados en la misma fila */
+  /* Dos selects + 3 botones en una fila cuando haya espacio */
   display: grid;
-  grid-template-columns: 1fr auto auto auto;
+  grid-template-columns: 1fr auto auto auto auto; /* orden, mover, editar, dividir, eliminar */
   column-gap: 8px;
   align-items: center;
   overflow: visible;
@@ -368,29 +368,8 @@ input[type="text"], select, textarea {
     }
 }
 
-    @media (max-width: 600px) {
-    /* En móvil, colocar acciones debajo del texto */
-    .task {
-        flex-wrap: wrap;
-    }
-    .task .task-actions {
-        flex-basis: 100%;
-        display: grid;
-        grid-template-columns: 1fr auto auto;
-        column-gap: 8px;
-        align-items: center;
-        margin-left: 0;
-        margin-top: 6px;
-        width: 100%;
-    }
-    .task .task-actions select {
-        width: 100%;
-        min-width: 0;
-    }
-    .task .edit-btn, .task .delete-btn {
-        font-size: 16px;
-        padding: 8px 10px;
-    }
+@media (max-width: 600px) {
+   
     /* En móvil, ocultar texto y dejar solo iconos */
     .task .btn-label { display: none; }
     header { 
@@ -451,6 +430,14 @@ input[type="text"], select, textarea {
         width: 94%;              /* un poco más ancho en móvil */
         max-width: 560px;        /* tope razonable en móvil */
     }
+}
+
+/* En pantallas >600px mantener todas las acciones en una fila */
+@media (min-width: 601px) {
+  .task .task-actions select {
+    width: auto;
+    min-width: 140px;
+  }
 }
 
 /* Estilos para Notificaciones Toast */
