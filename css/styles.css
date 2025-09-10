@@ -368,7 +368,7 @@ input[type="text"], select, textarea {
     }
 }
 
-@media (max-width: 600px) {
+    @media (max-width: 600px) {
     /* En móvil, colocar acciones debajo del texto */
     .task {
         flex-wrap: wrap;
@@ -431,6 +431,10 @@ input[type="text"], select, textarea {
         margin-right: 12px;
     }
     #filter-tag-label { display: inline-block; margin-bottom: 6px; }
+    /* Poner controles de columnas en nueva línea en móvil */
+    #filter-column-label { display: block; margin: 10px 12px 4px 12px !important; }
+    .filter-columns { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 12px; }
+    .filter-column-actions { display: flex; gap: 8px; margin: 6px 12px 0 12px !important; }
     .boton-accion {
         font-size: 1.1em;
         margin-bottom: 18px;
