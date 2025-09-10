@@ -58,6 +58,10 @@ header .acciones { flex-direction: row; flex-wrap: wrap; }
 }
 /* Cuando se filtra a una sola columna, ocupar todo el ancho en cualquier breakpoint */
 #task-container.single-column { grid-template-columns: 1fr !important; }
+/* Cuando se filtran exactamente dos columnas, que ambas ocupen todo el ancho */
+#task-container.two-columns { grid-template-columns: repeat(2, 1fr) !important; }
+/* Cuando se filtran exactamente tres columnas, ocupar el ancho con tres tracks */
+#task-container.three-columns { grid-template-columns: repeat(3, 1fr) !important; }
 /* Grupo de checkboxes de columnas */
 .filter-columns { display: inline-flex; flex-wrap: wrap; gap: 10px; margin-left: 12px; align-items: center; }
 .filter-column-actions .boton-accion { padding: 6px 10px; }

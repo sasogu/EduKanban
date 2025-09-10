@@ -875,11 +875,14 @@ function renderTasks() {
         }
     }
     taskContainer.innerHTML = '';
-    // Si se muestra una sola columna, forzar layout de una columna a ancho completo
+    // Ajustar layout según número de columnas seleccionadas
+    taskContainer.classList.remove('single-column', 'two-columns', 'three-columns');
     if (filterColumns.length === 1) {
         taskContainer.classList.add('single-column');
-    } else {
-        taskContainer.classList.remove('single-column');
+    } else if (filterColumns.length === 2) {
+        taskContainer.classList.add('two-columns');
+    } else if (filterColumns.length === 3) {
+        taskContainer.classList.add('three-columns');
     }
 
     const catNames = (window.i18n && i18n.i18nCategoryNames) ? i18n.i18nCategoryNames() : {
