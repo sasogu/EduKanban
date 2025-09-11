@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://api.dropboxapi.com https://content.dropboxapi.com; object-src 'self' blob:; base-uri 'self'; frame-ancestors 'self'; form-action 'self'">
+    <title>Histórico de Realizados — EduKanban</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
+    <style>
+      .history-toolbar { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom: 12px; }
+      .history-meta { color: var(--color-muted); font-size: 12px; display:block; margin-top:4px; }
+      .history-count { background:#eef2f7; border:1px solid var(--color-border); color:#374151; padding:2px 6px; border-radius:6px; font-size:12px; margin-left:6px; }
+    </style>
+    </head>
+<body>
+    <header>
+        <img src="icons/logolargo.png" alt="EduKanban" class="logo"/>
+        <div class="acciones">
+            <a href="index.html" class="boton-accion boton-secundario">Volver a EduKanban</a>
+        </div>
+    </header>
+
+    <main>
+        <div class="history-toolbar">
+            <label for="history-date">Fecha:</label>
+            <input type="date" id="history-date" />
+            <label for="history-tag">Etiqueta:</label>
+            <select id="history-tag">
+                <option value="">Todas</option>
+            </select>
+            <button id="history-latest" type="button" class="boton-accion">Ir al último día con realizados</button>
+        </div>
+        <div id="history-summary" class="history-meta"></div>
+        <div id="history-container" class="task-container"></div>
+    </main>
+
+    <script src="js/i18n.js"></script>
+    <script src="js/historico.js"></script>
+    <script src="js/sw-register.js"></script>
+</body>
+</html>
+
