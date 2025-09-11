@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'edukanban-cache-';
-const CACHE_NAME = 'edukanban-cache-v0.0.59'; // Bump cache para forzar actualización
+const CACHE_NAME = 'edukanban-cache-v0.0.60'; // Bump cache para forzar actualización
 // URL base del scope del SW (funciona tanto en GitHub Pages como en localhost)
 const SCOPE_BASE = self.registration?.scope || self.location.origin + '/';
 const OFFLINE_FALLBACK_URL = new URL('index.html', SCOPE_BASE).toString();
@@ -8,12 +8,14 @@ const urlsToCache = [
   './',
   'index.html',
   'archivo.html',
+  'historico.html',
   'recordatorios.html',
   'pdf-viewer.html',
   'recordatorios.html',
   'css/styles.css',
   'js/app.js',
   'js/archivo.js',
+  'js/historico.js',
   'js/recordatorios.js',
   'js/sw-register.js',
   'js/recordatorios.js',
@@ -22,11 +24,12 @@ const urlsToCache = [
 ];
 
 self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(urlsToCache))
-      .then(() => self.skipWaiting())
-  );
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    // Forzar a la red (evitar HTTP cache) al precachear nuevos assets
+    await Promise.all(urlsToCache.map(u => cache.add(new Request(u, { cache: 'reload' }))));
+    await self.skipWaiting();
+  })());
 });
 
 // REEMPLAZA EL ANTIGUO 'fetch' LISTENER POR ESTE:
