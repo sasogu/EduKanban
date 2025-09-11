@@ -699,6 +699,24 @@ function resetPopupFormMode() {
     form.dataset.editingId = '';
     const submitBtn = form.querySelector('button[type="submit"]');
     if (submitBtn) submitBtn.textContent = (window.i18n && i18n.t) ? i18n.t('add') : 'Añadir';
+    // Limpia valores del formulario para evitar que aparezcan datos de la última edición
+    try {
+        const nameInput = document.getElementById('popup-task-name');
+        const categorySelect = document.getElementById('popup-task-category');
+        const tagsInput = document.getElementById('popup-task-tags');
+        const reminderInput = document.getElementById('popup-task-reminder');
+        const orderInput = document.getElementById('popup-task-order');
+        const filesInput = document.getElementById('popup-task-attachments');
+        if (nameInput) nameInput.value = '';
+        // Mantén la categoría seleccionada actual o resetea a la primera opción si se desea
+        // if (categorySelect) categorySelect.selectedIndex = 0;
+        if (tagsInput) tagsInput.value = '';
+        if (reminderInput) reminderInput.value = '';
+        if (orderInput) orderInput.value = '';
+        if (filesInput) filesInput.value = '';
+    } catch (_) {}
+    // Reinicia estado de reutilización de adjuntos en modo añadir
+    pendingReusedAttachments = [];
     const attList = document.getElementById('popup-existing-attachments');
     if (attList) attList.innerHTML = '';
     const reusePanel = document.getElementById('popup-attach-reuse-panel');
@@ -1890,7 +1908,12 @@ document.addEventListener('DOMContentLoaded', function() {
         resetPopupFormMode();
         popup.style.display = 'none';
     });
-    window.addEventListener('click', (e) => { if (e.target == popup) popup.style.display = 'none'; });
+    window.addEventListener('click', (e) => {
+        if (e.target == popup) {
+            resetPopupFormMode();
+            popup.style.display = 'none';
+        }
+    });
     if (popupForm) {
         popupForm.addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -2014,6 +2037,7 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             const popup = document.getElementById('popup-tarea');
             if (popup) {
+                resetPopupFormMode();
                 popup.style.display = 'flex';
                 const input = document.getElementById('popup-task-name');
                 if (input) input.focus();
