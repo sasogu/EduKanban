@@ -323,6 +323,15 @@ function isAudioAttachment(att) {
     } catch (_) { return false; }
 }
 
+function isVideoAttachment(att) {
+    try {
+        const n = (att && att.name || '').toLowerCase();
+        const t = (att && att.type || '').toLowerCase();
+        if (t.startsWith('video/')) return true;
+        return n.endsWith('.mp4') || n.endsWith('.m4v') || n.endsWith('.mov') || n.endsWith('.webm') || n.endsWith('.ogv');
+    } catch (_) { return false; }
+}
+
 // Intentar abrir un PDF de forma compatible (iOS/Android/desktop)
 function getCurrentBasePath() {
     const path = window.location.pathname || '/';
@@ -806,19 +815,25 @@ function renderPendingAttachments() {
             const label = att.name || 'archivo';
             const img = att.isImage ? `<img class="attachment-img" data-att-id="${att.id}" alt="${label}">` : '';
             const audio = (!att.isImage && isAudioAttachment(att)) ? `<span class="attachment-audio-wrap"><audio class="attachment-audio" controls data-att-id="${att.id}"></audio><button type="button" class="audio-restart" data-att-id="${att.id}" title="Inicio">⏮</button><span class="audio-speed"><button type="button" class="audio-speed-down" data-att-id="${att.id}" title="Más lento">−</button><span class="audio-speed-label" data-att-id="${att.id}">1x</span><button type="button" class="audio-speed-up" data-att-id="${att.id}" title="Más rápido">+</button></span></span>` : '';
-            const link = (!att.isImage && !isAudioAttachment(att)) ? `<a class="attachment-file" data-att-id="${att.id}" href="#" title="${label}">📎 ${label}</a>` : '';
-            const dl = (!att.isImage && !isAudioAttachment(att)) ? `<a class="attachment-dl" data-att-id="${att.id}" href="#" title="Descargar">⬇️</a>` : '';
-            return `<div class="attachment-row" data-att-id="${att.id}">${img}${audio}${link}${dl}</div>`;
+            const video = (!att.isImage && !isAudioAttachment(att) && isVideoAttachment(att)) ? `<span class="attachment-video-wrap"><video class="attachment-video" controls data-att-id="${att.id}"></video><button type="button" class="video-restart" data-att-id="${att.id}" title="Inicio">⏮</button><span class="video-speed"><button type="button" class="video-speed-down" data-att-id="${att.id}" title="Más lento">−</button><span class="video-speed-label" data-att-id="${att.id}">1x</span><button type="button" class="video-speed-up" data-att-id="${att.id}" title="Más rápido">+</button></span></span>` : '';
+            const link = (!att.isImage && !isAudioAttachment(att) && !isVideoAttachment(att)) ? `<a class="attachment-file" data-att-id="${att.id}" href="#" title="${label}">📎 ${label}</a>` : '';
+            const dl = (!att.isImage && !isAudioAttachment(att) && !isVideoAttachment(att)) ? `<a class="attachment-dl" data-att-id="${att.id}" href="#" title="Descargar">⬇️</a>` : '';
+            return `<div class="attachment-row" data-att-id="${att.id}">${img}${audio}${video}${link}${dl}</div>`;
         }).join('');
         (async () => {
             for (const att of list) {
                 const imgEl = container.querySelector(`img.attachment-img[data-att-id="${att.id}"]`);
                 const aEl = container.querySelector(`a.attachment-file[data-att-id="${att.id}"]`);
                 const audioEl = container.querySelector(`audio.attachment-audio[data-att-id="${att.id}"]`);
+                const videoEl = container.querySelector(`video.attachment-video[data-att-id="${att.id}"]`);
                 let url = null;
                 const blob = await ensureAttachmentBlob(att);
                 if (imgEl && blob) imgEl.src = URL.createObjectURL(blob);
                 if (audioEl && blob && !audioEl.src) audioEl.src = URL.createObjectURL(blob);
+                if (videoEl && blob && !videoEl.src) {
+                    videoEl.src = URL.createObjectURL(blob);
+                    try { videoEl.controls = true; } catch (_) {}
+                }
                 if (!url && blob) url = URL.createObjectURL(blob);
                 const restartBtn = container.querySelector(`button.audio-restart[data-att-id="${att.id}"]`);
                 if (restartBtn && !restartBtn.dataset.bound) {
@@ -832,6 +847,18 @@ function renderPendingAttachments() {
                     });
                     restartBtn.dataset.bound = '1';
                 }
+                const vRestartBtn = container.querySelector(`button.video-restart[data-att-id="${att.id}"]`);
+                if (vRestartBtn && !vRestartBtn.dataset.bound) {
+                    vRestartBtn.addEventListener('click', () => {
+                        const el = container.querySelector(`video.attachment-video[data-att-id="${att.id}"]`);
+                        if (el) {
+                            const wasPlaying = !el.paused;
+                            el.currentTime = 0;
+                            if (wasPlaying) { try { el.play(); } catch (_) {} }
+                        }
+                    });
+                    vRestartBtn.dataset.bound = '1';
+                }
                 // velocidad −/+
                 const speedDownBtn = container.querySelector(`button.audio-speed-down[data-att-id="${att.id}"]`);
                 const speedUpBtn = container.querySelector(`button.audio-speed-up[data-att-id="${att.id}"]`);
@@ -842,7 +869,7 @@ function renderPendingAttachments() {
                     speedDownBtn.addEventListener('click', () => {
                         const el = container.querySelector(`audio.attachment-audio[data-att-id="${att.id}"]`);
                         if (!el) return;
-                        el.playbackRate = Math.max(0.5, Math.round((el.playbackRate - 0.10) * 100) / 100);
+                        el.playbackRate = Math.max(0.25, Math.round((el.playbackRate - 0.10) * 100) / 100);
                         updateSpeedLabel();
                     });
                     speedDownBtn.dataset.bound = '1';
@@ -851,10 +878,34 @@ function renderPendingAttachments() {
                     speedUpBtn.addEventListener('click', () => {
                         const el = container.querySelector(`audio.attachment-audio[data-att-id="${att.id}"]`);
                         if (!el) return;
-                        el.playbackRate = Math.min(2.0, Math.round((el.playbackRate + 0.10) * 100) / 100);
+                        el.playbackRate = Math.min(3.0, Math.round((el.playbackRate + 0.10) * 100) / 100);
                         updateSpeedLabel();
                     });
                     speedUpBtn.dataset.bound = '1';
+                }
+                // Vídeo: velocidad −/+
+                const vSpeedDownBtn = container.querySelector(`button.video-speed-down[data-att-id="${att.id}"]`);
+                const vSpeedUpBtn = container.querySelector(`button.video-speed-up[data-att-id="${att.id}"]`);
+                const vSpeedLabel = container.querySelector(`span.video-speed-label[data-att-id="${att.id}"]`);
+                const updateVSpeedLabel = () => { try { const el = container.querySelector(`video.attachment-video[data-att-id="${att.id}"]`); if (el && vSpeedLabel) vSpeedLabel.textContent = `${(el.playbackRate || 1).toFixed(2).replace(/\.00$/, '').replace(/0$/, '')}x`; } catch(_){} };
+                if (videoEl) updateVSpeedLabel();
+                if (vSpeedDownBtn && !vSpeedDownBtn.dataset.bound) {
+                    vSpeedDownBtn.addEventListener('click', () => {
+                        const el = container.querySelector(`video.attachment-video[data-att-id="${att.id}"]`);
+                        if (!el) return;
+                        el.playbackRate = Math.max(0.25, Math.round((el.playbackRate - 0.10) * 100) / 100);
+                        updateVSpeedLabel();
+                    });
+                    vSpeedDownBtn.dataset.bound = '1';
+                }
+                if (vSpeedUpBtn && !vSpeedUpBtn.dataset.bound) {
+                    vSpeedUpBtn.addEventListener('click', () => {
+                        const el = container.querySelector(`video.attachment-video[data-att-id="${att.id}"]`);
+                        if (!el) return;
+                        el.playbackRate = Math.min(3.0, Math.round((el.playbackRate + 0.10) * 100) / 100);
+                        updateVSpeedLabel();
+                    });
+                    vSpeedUpBtn.dataset.bound = '1';
                 }
                 if (aEl && url) {
                     aEl.href = url;
@@ -926,20 +977,26 @@ async function renderPopupAttachments(task) {
         const label = att.name || 'archivo';
         const img = att.isImage ? `<img class=\"attachment-img\" data-att-id=\"${att.id}\" alt=\"${label}\">` : '';
         const audio = (!att.isImage && isAudioAttachment(att)) ? `<span class=\"attachment-audio-wrap\"><audio class=\"attachment-audio\" controls data-att-id=\"${att.id}\"></audio><button type=\"button\" class=\"audio-restart\" data-att-id=\"${att.id}\" title=\"Inicio\">⏮</button><span class=\"audio-speed\"><button type=\"button\" class=\"audio-speed-down\" data-att-id=\"${att.id}\" title=\"Más lento\">−</button><span class=\"audio-speed-label\" data-att-id=\"${att.id}\">1x</span><button type=\"button\" class=\"audio-speed-up\" data-att-id=\"${att.id}\" title=\"Más rápido\">+</button></span></span>` : '';
-        const link = (!att.isImage && !isAudioAttachment(att)) ? `<a class=\"attachment-file\" data-att-id=\"${att.id}\" href=\"#\" title=\"${label}\">📎 ${label}</a>` : '';
-        const dl = (!att.isImage && !isAudioAttachment(att)) ? `<a class=\"attachment-dl\" data-att-id=\"${att.id}\" href=\"#\" title=\"Descargar\">⬇️</a>` : '';
+        const video = (!att.isImage && !isAudioAttachment(att) && isVideoAttachment(att)) ? `<span class=\"attachment-video-wrap\"><video class=\"attachment-video\" controls data-att-id=\"${att.id}\"></video><button type=\"button\" class=\"video-restart\" data-att-id=\"${att.id}\" title=\"Inicio\">⏮</button><span class=\"video-speed\"><button type=\"button\" class=\"video-speed-down\" data-att-id=\"${att.id}\" title=\"Más lento\">−</button><span class=\"video-speed-label\" data-att-id=\"${att.id}\">1x</span><button type=\"button\" class=\"video-speed-up\" data-att-id=\"${att.id}\" title=\"Más rápido\">+</button></span></span>` : '';
+        const link = (!att.isImage && !isAudioAttachment(att) && !isVideoAttachment(att)) ? `<a class=\"attachment-file\" data-att-id=\"${att.id}\" href=\"#\" title=\"${label}\">📎 ${label}</a>` : '';
+        const dl = (!att.isImage && !isAudioAttachment(att) && !isVideoAttachment(att)) ? `<a class=\"attachment-dl\" data-att-id=\"${att.id}\" href=\"#\" title=\"Descargar\">⬇️</a>` : '';
         const del = `<button type=\"button\" class=\"attachment-remove\" data-att-id=\"${att.id}\">${(window.i18n&&i18n.t)?i18n.t('delete'):'Eliminar'}</button>`;
-        return `<div class=\"attachment-row\" data-att-id=\"${att.id}\">${img}${audio}${link}${dl}${del}</div>`;
+        return `<div class=\"attachment-row\" data-att-id=\"${att.id}\">${img}${audio}${video}${link}${dl}${del}</div>`;
     }).join('');
     // Hidratar blobs/enlaces
     for (const att of list) {
         const imgEl = container.querySelector(`img.attachment-img[data-att-id="${att.id}"]`);
         const aEl = container.querySelector(`a.attachment-file[data-att-id="${att.id}"]`);
         const audioEl = container.querySelector(`audio.attachment-audio[data-att-id="${att.id}"]`);
+        const videoEl = container.querySelector(`video.attachment-video[data-att-id="${att.id}"]`);
         let url = null;
         const blob = await ensureAttachmentBlob(att);
         if (imgEl && blob) imgEl.src = URL.createObjectURL(blob);
         if (audioEl && blob && !audioEl.src) audioEl.src = URL.createObjectURL(blob);
+        if (videoEl && blob && !videoEl.src) {
+            videoEl.src = URL.createObjectURL(blob);
+            try { videoEl.controls = true; } catch (_) {}
+        }
         if (!url && blob) url = URL.createObjectURL(blob);
         const restartBtn = container.querySelector(`button.audio-restart[data-att-id="${att.id}"]`);
         if (restartBtn && !restartBtn.dataset.bound) {
@@ -953,6 +1010,18 @@ async function renderPopupAttachments(task) {
             });
             restartBtn.dataset.bound = '1';
         }
+        const vRestartBtn = container.querySelector(`button.video-restart[data-att-id="${att.id}"]`);
+        if (vRestartBtn && !vRestartBtn.dataset.bound) {
+            vRestartBtn.addEventListener('click', () => {
+                const el = container.querySelector(`video.attachment-video[data-att-id="${att.id}"]`);
+                if (el) {
+                    const wasPlaying = !el.paused;
+                    el.currentTime = 0;
+                    if (wasPlaying) { try { el.play(); } catch (_) {} }
+                }
+            });
+            vRestartBtn.dataset.bound = '1';
+        }
         // Controles de velocidad (− / +)
         const speedDownBtn = container.querySelector(`button.audio-speed-down[data-att-id="${att.id}"]`);
         const speedUpBtn = container.querySelector(`button.audio-speed-up[data-att-id="${att.id}"]`);
@@ -963,7 +1032,7 @@ async function renderPopupAttachments(task) {
             speedDownBtn.addEventListener('click', () => {
                 const el = container.querySelector(`audio.attachment-audio[data-att-id="${att.id}"]`);
                 if (!el) return;
-                el.playbackRate = Math.max(0.5, Math.round((el.playbackRate - 0.10) * 100) / 100);
+                el.playbackRate = Math.max(0.25, Math.round((el.playbackRate - 0.10) * 100) / 100);
                 updateSpeedLabel();
             });
             speedDownBtn.dataset.bound = '1';
@@ -972,10 +1041,34 @@ async function renderPopupAttachments(task) {
             speedUpBtn.addEventListener('click', () => {
                 const el = container.querySelector(`audio.attachment-audio[data-att-id="${att.id}"]`);
                 if (!el) return;
-                el.playbackRate = Math.min(2.0, Math.round((el.playbackRate + 0.10) * 100) / 100);
+                el.playbackRate = Math.min(3.0, Math.round((el.playbackRate + 0.10) * 100) / 100);
                 updateSpeedLabel();
             });
             speedUpBtn.dataset.bound = '1';
+        }
+        // Controles de velocidad para vídeo
+        const vSpeedDownBtn = container.querySelector(`button.video-speed-down[data-att-id="${att.id}"]`);
+        const vSpeedUpBtn = container.querySelector(`button.video-speed-up[data-att-id="${att.id}"]`);
+        const vSpeedLabel = container.querySelector(`span.video-speed-label[data-att-id="${att.id}"]`);
+        const updateVSpeedLabel = () => { try { if (videoEl && vSpeedLabel) vSpeedLabel.textContent = `${(videoEl.playbackRate || 1).toFixed(2).replace(/\.00$/, '').replace(/0$/, '')}x`; } catch(_){} };
+        if (videoEl) updateVSpeedLabel();
+        if (vSpeedDownBtn && !vSpeedDownBtn.dataset.bound) {
+            vSpeedDownBtn.addEventListener('click', () => {
+                const el = container.querySelector(`video.attachment-video[data-att-id="${att.id}"]`);
+                if (!el) return;
+                el.playbackRate = Math.max(0.25, Math.round((el.playbackRate - 0.10) * 100) / 100);
+                updateVSpeedLabel();
+            });
+            vSpeedDownBtn.dataset.bound = '1';
+        }
+        if (vSpeedUpBtn && !vSpeedUpBtn.dataset.bound) {
+            vSpeedUpBtn.addEventListener('click', () => {
+                const el = container.querySelector(`video.attachment-video[data-att-id="${att.id}"]`);
+                if (!el) return;
+                el.playbackRate = Math.min(3.0, Math.round((el.playbackRate + 0.10) * 100) / 100);
+                updateVSpeedLabel();
+            });
+            vSpeedUpBtn.dataset.bound = '1';
         }
         if (aEl && url) {
             aEl.href = url;
@@ -1135,6 +1228,8 @@ function renderTasks() {
                               return `<img class=\"attachment-img\" alt=\"${att.name}\" data-att-id=\"${att.id}\" />`;
                             } else if (isAudioAttachment(att)) {
                               return `<span class=\"attachment-audio-wrap\"><audio class=\"attachment-audio\" controls data-att-id=\"${att.id}\"></audio><button type=\"button\" class=\"audio-restart\" data-att-id=\"${att.id}\" title=\"Inicio\">⏮</button><span class=\"audio-speed\"><button type=\"button\" class=\"audio-speed-down\" data-att-id=\"${att.id}\" title=\"Más lento\">−</button><span class=\"audio-speed-label\" data-att-id=\"${att.id}\">1x</span><button type=\"button\" class=\"audio-speed-up\" data-att-id=\"${att.id}\" title=\"Más rápido\">+</button></span></span>`;
+                            } else if (isVideoAttachment(att)) {
+                              return `<span class=\"attachment-video-wrap\"><video class=\"attachment-video\" controls data-att-id=\"${att.id}\"></video><button type=\"button\" class=\"video-restart\" data-att-id=\"${att.id}\" title=\"Inicio\">⏮</button><span class=\"video-speed\"><button type=\"button\" class=\"video-speed-down\" data-att-id=\"${att.id}\" title=\"Más lento\">−</button><span class=\"video-speed-label\" data-att-id=\"${att.id}\">1x</span><button type=\"button\" class=\"video-speed-up\" data-att-id=\"${att.id}\" title=\"Más rápido\">+</button></span></span>`;
                             } else {
                               const extra = isPdfAttachment(att) ? ` <a class=\\\"attachment-dl\\\" href=\\\"#\\\" data-att-id=\\\"${att.id}\\\" title=\\\"Descargar\\\">⬇️</a>` : '';
                               return `<span class=\\\"attachment-wrap\\\"><a class=\\\"attachment-file\\\" href=\\\"#\\\" data-att-id=\\\"${att.id}\\\" title=\\\"${att.name}\\\">📎 ${att.name}</a>${extra}</span>`;
@@ -1244,6 +1339,7 @@ function hydrateAttachmentsForCategory(tasks, rootEl) {
             const imgEl = taskEl.querySelector(`img.attachment-img[data-att-id="${att.id}"]`);
             const aEl = taskEl.querySelector(`a.attachment-file[data-att-id="${att.id}"]`);
             const audioEl = taskEl.querySelector(`audio.attachment-audio[data-att-id="${att.id}"]`);
+            const videoEl = taskEl.querySelector(`video.attachment-video[data-att-id="${att.id}"]`);
             const dlEl = taskEl.querySelector(`a.attachment-dl[data-att-id="${att.id}"]`);
             if (imgEl && !imgEl.src) {
                 const blob = await ensureAttachmentBlob(att);
@@ -1257,6 +1353,13 @@ function hydrateAttachmentsForCategory(tasks, rootEl) {
                 const blob = await ensureAttachmentBlob(att);
                 if (blob) audioEl.src = URL.createObjectURL(blob);
             }
+            if (videoEl && !videoEl.src) {
+                const blob = await ensureAttachmentBlob(att);
+                if (blob) {
+                    videoEl.src = URL.createObjectURL(blob);
+                    try { videoEl.controls = true; } catch (_) {}
+                }
+            }
             const restartBtn = taskEl.querySelector(`button.audio-restart[data-att-id="${att.id}"]`);
             if (restartBtn && !restartBtn.dataset.bound) {
                 restartBtn.addEventListener('click', () => {
@@ -1269,6 +1372,18 @@ function hydrateAttachmentsForCategory(tasks, rootEl) {
                 });
                 restartBtn.dataset.bound = '1';
             }
+            const vRestartBtn = taskEl.querySelector(`button.video-restart[data-att-id="${att.id}"]`);
+            if (vRestartBtn && !vRestartBtn.dataset.bound) {
+                vRestartBtn.addEventListener('click', () => {
+                    const el = taskEl.querySelector(`video.attachment-video[data-att-id="${att.id}"]`);
+                    if (el) {
+                        const wasPlaying = !el.paused;
+                        el.currentTime = 0;
+                        if (wasPlaying) { try { el.play(); } catch (_) {} }
+                    }
+                });
+                vRestartBtn.dataset.bound = '1';
+            }
             // Controles de velocidad en tarjetas
             const speedDownBtn = taskEl.querySelector(`button.audio-speed-down[data-att-id="${att.id}"]`);
             const speedUpBtn = taskEl.querySelector(`button.audio-speed-up[data-att-id="${att.id}"]`);
@@ -1279,7 +1394,7 @@ function hydrateAttachmentsForCategory(tasks, rootEl) {
                 speedDownBtn.addEventListener('click', () => {
                     const el = taskEl.querySelector(`audio.attachment-audio[data-att-id="${att.id}"]`);
                     if (!el) return;
-                    el.playbackRate = Math.max(0.5, Math.round((el.playbackRate - 0.10) * 100) / 100);
+                    el.playbackRate = Math.max(0.25, Math.round((el.playbackRate - 0.10) * 100) / 100);
                     updateSpeedLabel();
                 });
                 speedDownBtn.dataset.bound = '1';
@@ -1288,10 +1403,34 @@ function hydrateAttachmentsForCategory(tasks, rootEl) {
                 speedUpBtn.addEventListener('click', () => {
                     const el = taskEl.querySelector(`audio.attachment-audio[data-att-id="${att.id}"]`);
                     if (!el) return;
-                    el.playbackRate = Math.min(2.0, Math.round((el.playbackRate + 0.10) * 100) / 100);
+                    el.playbackRate = Math.min(3.0, Math.round((el.playbackRate + 0.10) * 100) / 100);
                     updateSpeedLabel();
                 });
                 speedUpBtn.dataset.bound = '1';
+            }
+            // Controles de velocidad en tarjetas para vídeo
+            const vSpeedDownBtn = taskEl.querySelector(`button.video-speed-down[data-att-id="${att.id}"]`);
+            const vSpeedUpBtn = taskEl.querySelector(`button.video-speed-up[data-att-id="${att.id}"]`);
+            const vSpeedLabel = taskEl.querySelector(`span.video-speed-label[data-att-id="${att.id}"]`);
+            const updateVSpeedLabel = () => { try { if (videoEl && vSpeedLabel) vSpeedLabel.textContent = `${(videoEl.playbackRate || 1).toFixed(2).replace(/\.00$/, '').replace(/0$/, '')}x`; } catch(_){} };
+            if (videoEl) updateVSpeedLabel();
+            if (vSpeedDownBtn && !vSpeedDownBtn.dataset.bound) {
+                vSpeedDownBtn.addEventListener('click', () => {
+                    const el = taskEl.querySelector(`video.attachment-video[data-att-id="${att.id}"]`);
+                    if (!el) return;
+                    el.playbackRate = Math.max(0.25, Math.round((el.playbackRate - 0.10) * 100) / 100);
+                    updateVSpeedLabel();
+                });
+                vSpeedDownBtn.dataset.bound = '1';
+            }
+            if (vSpeedUpBtn && !vSpeedUpBtn.dataset.bound) {
+                vSpeedUpBtn.addEventListener('click', () => {
+                    const el = taskEl.querySelector(`video.attachment-video[data-att-id="${att.id}"]`);
+                    if (!el) return;
+                    el.playbackRate = Math.min(3.0, Math.round((el.playbackRate + 0.10) * 100) / 100);
+                    updateVSpeedLabel();
+                });
+                vSpeedUpBtn.dataset.bound = '1';
             }
             if (aEl && aEl.getAttribute('href') === '#') {
                 const blob = await ensureAttachmentBlob(att);
