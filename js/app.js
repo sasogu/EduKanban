@@ -255,6 +255,8 @@ function migrateOldTasks() {
             if (!task.id) { task.id = generateUUID(); needsSave = true; }
             if (!task.lastModified) { task.lastModified = new Date().toISOString(); needsSave = true; }
             if (!Array.isArray(task.attachments)) { task.attachments = []; needsSave = true; }
+            // Añadir historial de realizados si no existe
+            if (!Array.isArray(task.doneHistory)) { task.doneHistory = []; needsSave = true; }
         });
     }
     if (needsSave) { console.log('🔧 Migrando tareas antiguas.'); saveCategoriesToLocalStorage(); }
@@ -479,7 +481,8 @@ function addTask(category, taskName, tags = [], reminderAt = null) {
         reminderDone: false,
         triggerScheduledAt: null,
         attachments: [],
-        orderCode: '' // Orden manual A..Z
+        orderCode: '', // Orden manual A..Z
+        doneHistory: [] // Historial de realizados
     };
     categories[category].push(newTask);
     saveCategoriesToLocalStorage();
@@ -508,22 +511,48 @@ function toggleTaskCompletion(taskId) {
     const taskData = findTask(taskId);
     if (taskData) {
         const { task } = taskData;
-        task.completed = !task.completed;
+        // Nuevo: marcar como realizado sin archivar, guardando historial
+        task.doneHistory = Array.isArray(task.doneHistory) ? task.doneHistory : [];
+        task.doneHistory.push(new Date().toISOString());
         task.lastModified = new Date().toISOString();
-        if (task.completed && taskData.category !== 'archivadas') {
-            const [movedTask] = categories[taskData.category].splice(taskData.taskIndex, 1);
-            movedTask.archivedOn = new Date().toISOString();
-            movedTask.reminderDone = true;
-            categories['archivadas'].push(movedTask);
-        } else if (!task.completed && taskData.category === 'archivadas') {
-            const [movedTask] = categories[taskData.category].splice(taskData.taskIndex, 1);
-            delete movedTask.archivedOn;
-            categories['en-preparacion'].push(movedTask);
-        }
+        task.reminderDone = true;
         saveCategoriesToLocalStorage();
         renderTasks();
+        showToast((window.i18n&&i18n.t)?i18n.t('marked_done'):'Actividad marcada como realizada');
         if (accessToken) syncToDropbox(false);
     }
+}
+
+// Alias más explícito para UI
+function markTaskDone(taskId) {
+    toggleTaskCompletion(taskId);
+}
+
+// Archivar/desarchivar mediante checkbox en la tarjeta
+function toggleTaskArchived(taskId) {
+    const data = findTask(taskId);
+    if (!data) return;
+    const { task, category, taskIndex } = data;
+    const now = new Date().toISOString();
+    if (category !== 'archivadas') {
+        // Mover a Archivadas
+        const [movedTask] = categories[category].splice(taskIndex, 1);
+        movedTask.completed = true;
+        movedTask.archivedOn = now;
+        movedTask.reminderDone = true;
+        movedTask.lastModified = now;
+        categories['archivadas'].push(movedTask);
+    } else {
+        // Desarchivar a En preparación
+        const [movedTask] = categories[category].splice(taskIndex, 1);
+        movedTask.completed = false;
+        delete movedTask.archivedOn;
+        movedTask.lastModified = now;
+        categories['en-preparacion'].push(movedTask);
+    }
+    saveCategoriesToLocalStorage();
+    renderTasks();
+    if (accessToken) syncToDropbox(false);
 }
 
 function moveTask(taskId, newCategory) {
@@ -1214,43 +1243,49 @@ function renderTasks() {
             : tasks;
         filteredTasks = filteredTasks.slice().sort(cmpTasks);
 
-        let tasksHTML = filteredTasks.map(task => `
-            <div class="task ${task.completed ? 'completed' : ''}" draggable="true" data-id="${task.id}">
-                <div class="task-main">
-                    <input type="checkbox" onchange="toggleTaskCompletion('${task.id}')" ${task.completed ? 'checked' : ''}>
+        let tasksHTML = filteredTasks.map(task => {
+            const doneCount = Array.isArray(task.doneHistory) ? task.doneHistory.length : 0;
+            const lastDone = doneCount ? new Date(task.doneHistory[doneCount - 1]).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' }) : '';
+            const doneMeta = doneCount ? `<small class=\"done-meta\">✔️ ${doneCount} ${(window.i18n&&i18n.t)?i18n.t('times'):'veces'}${lastDone ? ` • ${(window.i18n&&i18n.t)?i18n.t('last'):'Última'}: ${lastDone}` : ''}</small>` : '';
+            return `
+            <div class=\"task ${task.completed ? 'completed' : ''}\" draggable=\"true\" data-id=\"${task.id}\"> 
+                <div class=\"task-main\"> 
+                    <input type=\"checkbox\" aria-label=\"${(window.i18n&&i18n.t)?i18n.t('archive'):'Archivar'}\" title=\"${(window.i18n&&i18n.t)?i18n.t('archive'):'Archivar'}\" onchange=\"toggleTaskArchived('${task.id}')\"> 
                     <span>
                         ${convertirEnlaces(task.task)}
-                        ${task.tags && task.tags.length ? `<small class="tags">${task.tags.map(t => `<span class=\"tag-chip in-task\">#${t}</span>`).join(' ')}</small>` : ''}
-                        ${task.reminderAt ? `<small class=\"reminder-meta\">⏰ ${new Date(task.reminderAt).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' })}</small>` : ''}
+                        ${task.tags && task.tags.length ? `<small class=\\\"tags\\\">${task.tags.map(t => `<span class=\\\"tag-chip in-task\\\">#${t}</span>`).join(' ')}</small>` : ''}
+                        ${task.reminderAt ? `<small class=\\\"reminder-meta\\\">⏰ ${new Date(task.reminderAt).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' })}</small>` : ''}
+                        ${doneMeta}
                         ${task.attachments && task.attachments.length ? `
-                          <div class="attachments">${task.attachments.map(att => {
-                            if (att.isImage) {
-                              return `<img class=\"attachment-img\" alt=\"${att.name}\" data-att-id=\"${att.id}\" />`;
-                            } else if (isAudioAttachment(att)) {
-                              return `<span class=\"attachment-audio-wrap\"><audio class=\"attachment-audio\" controls data-att-id=\"${att.id}\"></audio><button type=\"button\" class=\"audio-restart\" data-att-id=\"${att.id}\" title=\"Inicio\">⏮</button><span class=\"audio-speed\"><button type=\"button\" class=\"audio-speed-down\" data-att-id=\"${att.id}\" title=\"Más lento\">−</button><span class=\"audio-speed-label\" data-att-id=\"${att.id}\">1x</span><button type=\"button\" class=\"audio-speed-up\" data-att-id=\"${att.id}\" title=\"Más rápido\">+</button></span></span>`;
-                            } else if (isVideoAttachment(att)) {
-                              return `<span class=\"attachment-video-wrap\"><video class=\"attachment-video\" controls data-att-id=\"${att.id}\"></video><button type=\"button\" class=\"video-restart\" data-att-id=\"${att.id}\" title=\"Inicio\">⏮</button><span class=\"video-speed\"><button type=\"button\" class=\"video-speed-down\" data-att-id=\"${att.id}\" title=\"Más lento\">−</button><span class=\"video-speed-label\" data-att-id=\"${att.id}\">1x</span><button type=\"button\" class=\"video-speed-up\" data-att-id=\"${att.id}\" title=\"Más rápido\">+</button></span></span>`;
-                            } else {
-                              const extra = isPdfAttachment(att) ? ` <a class=\\\"attachment-dl\\\" href=\\\"#\\\" data-att-id=\\\"${att.id}\\\" title=\\\"Descargar\\\">⬇️</a>` : '';
-                              return `<span class=\\\"attachment-wrap\\\"><a class=\\\"attachment-file\\\" href=\\\"#\\\" data-att-id=\\\"${att.id}\\\" title=\\\"${att.name}\\\">📎 ${att.name}</a>${extra}</span>`;
-                            }
+                          <div class=\\\"attachments\\\">${task.attachments.map(att => {
+                          if (att.isImage) {
+                            return `<img class=\\\"attachment-img\\\" alt=\\\"${att.name}\\\" data-att-id=\\\"${att.id}\\\" />`;
+                          } else if (isAudioAttachment(att)) {
+                            return `<span class=\\\"attachment-audio-wrap\\\"><audio class=\\\"attachment-audio\\\" controls data-att-id=\\\"${att.id}\\\"></audio><button type=\\\"button\\\" class=\\\"audio-restart\\\" data-att-id=\\\"${att.id}\\\" title=\\\"Inicio\\\">⏮</button><span class=\\\"audio-speed\\\"><button type=\\\"button\\\" class=\\\"audio-speed-down\\\" data-att-id=\\\"${att.id}\\\" title=\\\"Más lento\\\">−</button><span class=\\\"audio-speed-label\\\" data-att-id=\\\"${att.id}\\\">1x</span><button type=\\\"button\\\" class=\\\"audio-speed-up\\\" data-att-id=\\\"${att.id}\\\" title=\\\"Más rápido\\\">+</button></span></span>`;
+                          } else if (isVideoAttachment(att)) {
+                            return `<span class=\\\"attachment-video-wrap\\\"><video class=\\\"attachment-video\\\" controls data-att-id=\\\"${att.id}\\\"></video><button type=\\\"button\\\" class=\\\"video-restart\\\" data-att-id=\\\"${att.id}\\\" title=\\\"Inicio\\\">⏮</button><span class=\\\"video-speed\\\"><button type=\\\"button\\\" class=\\\"video-speed-down\\\" data-att-id=\\\"${att.id}\\\" title=\\\"Más lento\\\">−</button><span class=\\\"video-speed-label\\\" data-att-id=\\\"${att.id}\\\">1x</span><button type=\\\"button\\\" class=\\\"video-speed-up\\\" data-att-id=\\\"${att.id}\\\" title=\\\"Más rápido\\\">+</button></span></span>`;
+                          } else {
+                            const extra = isPdfAttachment(att) ? ` <a class=\\\"attachment-dl\\\" href=\\\"#\\\" data-att-id=\\\"${att.id}\\\" title=\\\"Descargar\\\">⬇️</a>` : '';
+                            return `<span class=\\\"attachment-wrap\\\"><a class=\\\"attachment-file\\\" href=\\\"#\\\" data-att-id=\\\"${att.id}\\\" title=\\\"${att.name}\\\">📎 ${att.name}</a>${extra}</span>`;
+                          }
                           }).join('')}</div>` : ''}
                     </span>
                 </div>
-                <div class="task-actions">
-                    <select class="order-select" aria-label="Orden (A–Z)" title="Orden (A–Z)" onchange="setTaskOrder('${task.id}', this.value)">
+                <div class=\"task-actions\">
+                    <button class=\"done-btn\" aria-label=\"${(window.i18n&&i18n.t)?i18n.t('mark_done'):'Marcar realizado'}\" title=\"${(window.i18n&&i18n.t)?i18n.t('mark_done'):'Marcar realizado'}\" onclick=\"markTaskDone('${task.id}')\">✔️ <span class=\"btn-label\">${(window.i18n&&i18n.t)?i18n.t('done'):'Hecho'}</span></button>
+                    <select class=\"order-select\" aria-label=\"Orden (A–Z)\" title=\"Orden (A–Z)\" onchange=\"setTaskOrder('${task.id}', this.value)\"> 
                         ${buildOrderOptions(task.orderCode)}
                     </select>
-                    <select aria-label="${(window.i18n&&i18n.t)?i18n.t('move'):'Mover'} actividad" title="${(window.i18n&&i18n.t)?i18n.t('move'):'Mover'}" onchange="moveTask('${task.id}', this.value)">
-                        <option value="" disabled selected>${(window.i18n&&i18n.t)?i18n.t('move'):'Mover'}</option>
-                        ${Object.keys(catNames).filter(c => c !== category).map(c => `<option value="${c}">${catNames[c]}</option>`).join('')}
+                    <select aria-label=\"${(window.i18n&&i18n.t)?i18n.t('move'):'Mover'} actividad\" title=\"${(window.i18n&&i18n.t)?i18n.t('move'):'Mover'}\" onchange=\"moveTask('${task.id}', this.value)\">
+                        <option value=\"\" disabled selected>${(window.i18n&&i18n.t)?i18n.t('move'):'Mover'}</option>
+                        ${Object.keys(catNames).filter(c => c !== category).map(c => `<option value=\\\"${c}\\\">${catNames[c]}</option>`).join('')}
                     </select>
-                    <button class="edit-btn" aria-label="${(window.i18n&&i18n.t)?i18n.t('edit'):'Editar'} actividad" title="${(window.i18n&&i18n.t)?i18n.t('edit'):'Editar'}" onclick="openEditTask('${task.id}')">✏️ <span class="btn-label">${(window.i18n&&i18n.t)?i18n.t('edit'):'Editar'}</span></button>
-                    ${task.tags && task.tags.length > 1 ? `<button class=\"split-btn\" aria-label=\"${(window.i18n&&i18n.t)?i18n.t('split_by_tags'):'Dividir por etiquetas'}\" title=\"${(window.i18n&&i18n.t)?i18n.t('split_by_tags'):'Dividir por etiquetas'}\" onclick=\"splitTaskByTags('${task.id}')\">🔀 <span class=\"btn-label\">${(window.i18n&&i18n.t)?i18n.t('split'):'Dividir'}</span></button>` : ''}
-                    <button class="delete-btn" aria-label="${(window.i18n&&i18n.t)?i18n.t('delete'):'Eliminar'} actividad" title="${(window.i18n&&i18n.t)?i18n.t('delete'):'Eliminar'}" onclick="removeTask('${task.id}')">🗑️ <span class="btn-label">${(window.i18n&&i18n.t)?i18n.t('delete'):'Eliminar'}</span></button>
+                    <button class=\"edit-btn\" aria-label=\"${(window.i18n&&i18n.t)?i18n.t('edit'):'Editar'} actividad\" title=\"${(window.i18n&&i18n.t)?i18n.t('edit'):'Editar'}\" onclick=\"openEditTask('${task.id}')\">✏️ <span class=\"btn-label\">${(window.i18n&&i18n.t)?i18n.t('edit'):'Editar'}</span></button>
+                    ${task.tags && task.tags.length > 1 ? `<button class=\\\"split-btn\\\" aria-label=\\\"${(window.i18n&&i18n.t)?i18n.t('split_by_tags'):'Dividir por etiquetas'}\\\" title=\\\"${(window.i18n&&i18n.t)?i18n.t('split_by_tags'):'Dividir por etiquetas'}\\\" onclick=\\\"splitTaskByTags('${task.id}')\\\">🔀 <span class=\\\"btn-label\\\">${(window.i18n&&i18n.t)?i18n.t('split'):'Dividir'}</span></button>` : ''}
+                    <button class=\"delete-btn\" aria-label=\"${(window.i18n&&i18n.t)?i18n.t('delete'):'Eliminar'} actividad\" title=\"${(window.i18n&&i18n.t)?i18n.t('delete'):'Eliminar'}\" onclick=\"removeTask('${task.id}')\">🗑️ <span class=\"btn-label\">${(window.i18n&&i18n.t)?i18n.t('delete'):'Eliminar'}</span></button>
                 </div>
-            </div>
-        `).join('');
+            </div>`;
+        }).join('');
 
         categoryDiv.innerHTML = `<h3>${catNames[category]}</h3><div class="task-list">${tasksHTML}</div>`;
         // Añadir manejadores de DnD a cada categoría renderizada

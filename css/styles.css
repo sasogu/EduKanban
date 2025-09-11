@@ -176,7 +176,8 @@ button:hover { background: #1f2937; }
 /* Botones dentro de cada tarea: estilo sutil y sin fondo sólido */
 .task .edit-btn,
 .task .delete-btn,
-.task .split-btn {
+.task .split-btn,
+.task .done-btn {
   background: transparent;
   color: var(--color-muted);
   border: none;
@@ -186,6 +187,7 @@ button:hover { background: #1f2937; }
 .task .edit-btn:hover,
 .task .split-btn:hover { color: var(--color-primary); }
 .task .delete-btn:hover { color: #dc2626; }
+.task .done-btn:hover { color: #16a34a; }
 
 .task select {
   background: #fff;
@@ -208,7 +210,8 @@ button:hover { background: #1f2937; }
 }
 /* Metadatos de recordatorio/archivo */
 .task .reminder-meta,
-.task .archived-meta {
+.task .archived-meta,
+.task .done-meta {
   display: block;
   margin-top: 4px;
   color: var(--color-muted);
