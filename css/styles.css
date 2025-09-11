@@ -129,7 +129,8 @@ header .acciones { flex-direction: row; flex-wrap: wrap; }
   margin-top: 6px;
   /* Dos selects + 3 botones en una fila cuando haya espacio */
   display: grid;
-  grid-template-columns: 1fr auto auto auto auto; /* orden, mover, editar, dividir, eliminar */
+  /* orden (flexible), mover, Hecho, editar, dividir, eliminar */
+  grid-template-columns: 1fr auto auto auto auto auto;
   column-gap: 8px;
   align-items: center;
   overflow: visible;

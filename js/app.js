@@ -1286,7 +1286,6 @@ function renderTasks() {
                     </span>
                 </div>
                 <div class="task-actions">
-                    <button class="done-btn" aria-label="${(window.i18n&&i18n.t)?i18n.t('mark_done'):'Marcar realizado'}" title="${(window.i18n&&i18n.t)?i18n.t('mark_done'):'Marcar realizado'}" onclick="markTaskDone('${task.id}')">✔️ <span class="btn-label">${(window.i18n&&i18n.t)?i18n.t('done'):'Hecho'}</span></button>
                     <select class="order-select" aria-label="Orden (A–Z)" title="Orden (A–Z)" onchange="setTaskOrder('${task.id}', this.value)">
                         ${buildOrderOptions(task.orderCode)}
                     </select>
@@ -1294,6 +1293,7 @@ function renderTasks() {
                         <option value="" disabled selected>${(window.i18n&&i18n.t)?i18n.t('move'):'Mover'}</option>
                         ${moveOptions}
                     </select>
+                    <button class="done-btn" aria-label="${(window.i18n&&i18n.t)?i18n.t('mark_done'):'Marcar realizado'}" title="${(window.i18n&&i18n.t)?i18n.t('mark_done'):'Marcar realizado'}" onclick="markTaskDone('${task.id}')">✔️ <span class="btn-label">${(window.i18n&&i18n.t)?i18n.t('done'):'Hecho'}</span></button>
                     <button class="edit-btn" aria-label="${(window.i18n&&i18n.t)?i18n.t('edit'):'Editar'} actividad" title="${(window.i18n&&i18n.t)?i18n.t('edit'):'Editar'}" onclick="openEditTask('${task.id}')">✏️ <span class="btn-label">${(window.i18n&&i18n.t)?i18n.t('edit'):'Editar'}</span></button>
                     ${task.tags && task.tags.length > 1 ? `<button class="split-btn" aria-label="${(window.i18n&&i18n.t)?i18n.t('split_by_tags'):'Dividir por etiquetas'}" title="${(window.i18n&&i18n.t)?i18n.t('split_by_tags'):'Dividir por etiquetas'}" onclick="splitTaskByTags('${task.id}')">🔀 <span class="btn-label">${(window.i18n&&i18n.t)?i18n.t('split'):'Dividir'}</span></button>` : ''}
                     <button class="delete-btn" aria-label="${(window.i18n&&i18n.t)?i18n.t('delete'):'Eliminar'} actividad" title="${(window.i18n&&i18n.t)?i18n.t('delete'):'Eliminar'}" onclick="removeTask('${task.id}')">🗑️ <span class="btn-label">${(window.i18n&&i18n.t)?i18n.t('delete'):'Eliminar'}</span></button>
