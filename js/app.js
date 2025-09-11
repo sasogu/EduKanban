@@ -112,7 +112,7 @@ function showConfirm(message, acceptLabel = 'Aceptar', cancelLabel = 'Cancelar')
 }
 
 function convertirEnlaces(texto) {
-    // Escapar HTML y luego convertir URLs en enlaces seguros
+    // Escapar HTML y luego convertir URLs en enlaces seguros o embeds de YouTube
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     const escapeHTML = (s) => s
         .replace(/&/g, '&amp;')
@@ -120,10 +120,77 @@ function convertirEnlaces(texto) {
         .replace(/>/g, '&gt;')
         .replace(/\"/g, '&quot;')
         .replace(/'/g, '&#39;');
+
     const escaped = typeof texto === 'string' ? escapeHTML(texto) : '';
+
+    const toEmbed = (rawUrl) => {
+        try {
+            // Quitar entidades HTML del texto escapado para poder parsear la URL
+            const decodedUrl = rawUrl.replace(/&amp;/g, '&');
+            const u = new URL(decodedUrl);
+            const host = u.hostname.replace(/^www\./, '').toLowerCase();
+            const isYtHost = (h) => (
+                h === 'youtube.com' || h === 'youtube-nocookie.com' || h === 'youtu.be' || h === 'music.youtube.com'
+            );
+            if (!isYtHost(host)) return null;
+
+            const validId = (s, min = 6) => /^[A-Za-z0-9_-]+$/.test(s || '') && (s || '').length >= min;
+            const parseStartSeconds = (urlObj) => {
+                try {
+                    const raw = urlObj.searchParams.get('t') || urlObj.searchParams.get('start') || '';
+                    if (!raw) return 0;
+                    if (/^\d+$/.test(raw)) return Math.max(0, parseInt(raw, 10));
+                    const m = raw.match(/(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/i);
+                    if (m) {
+                        const h = parseInt(m[1] || '0', 10) || 0;
+                        const mn = parseInt(m[2] || '0', 10) || 0;
+                        const s = parseInt(m[3] || '0', 10) || 0;
+                        return Math.max(0, h * 3600 + mn * 60 + s);
+                    }
+                    const n = parseInt(raw, 10);
+                    return isNaN(n) ? 0 : Math.max(0, n);
+                } catch { return 0; }
+            };
+
+            // IDs posibles
+            const listId = u.searchParams.get('list') || '';
+            let videoId = '';
+            if (host === 'youtu.be') {
+                videoId = (u.pathname || '/').slice(1);
+            } else {
+                if (u.pathname.startsWith('/watch')) videoId = u.searchParams.get('v') || '';
+                else if (u.pathname.startsWith('/shorts/')) videoId = u.pathname.split('/')[2] || '';
+                else if (u.pathname.startsWith('/embed/')) videoId = u.pathname.split('/')[2] || '';
+            }
+            const startSec = parseStartSeconds(u);
+
+            let embedUrl = '';
+            if (validId(listId, 10) && validId(videoId)) {
+                // Playlist con vídeo concreto (respeta tiempo)
+                embedUrl = `https://www.youtube-nocookie.com/embed/${videoId}?list=${encodeURIComponent(listId)}&rel=0&modestbranding=1${startSec ? `&start=${startSec}` : ''}`;
+            } else if (validId(listId, 10)) {
+                // Solo playlist (sin tiempo)
+                embedUrl = `https://www.youtube-nocookie.com/embed/videoseries?list=${encodeURIComponent(listId)}&rel=0&modestbranding=1`;
+            } else if (validId(videoId)) {
+                // Vídeo individual (respeta tiempo)
+                embedUrl = `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1${startSec ? `&start=${startSec}` : ''}`;
+            } else {
+                return null;
+            }
+
+            const iframe = `<div class="yt-embed"><iframe src="${embedUrl}" title="YouTube embed" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen loading="lazy"></iframe></div>`;
+            // Incluir también un enlace accesible como fallback
+            const safeHref = encodeURI(decodedUrl);
+            const link = `<div class="yt-link"><a href="${safeHref}" target="_blank" rel="noopener noreferrer">${escapeHTML(decodedUrl)}</a></div>`;
+            return iframe + link;
+        } catch (_) { return null; }
+    };
+
     return escaped.replace(urlRegex, function(url) {
-        const safeHref = encodeURI(url);
-        return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer">${escapeHTML(url)}</a>`;
+        const embed = toEmbed(url);
+        if (embed) return embed;
+        const safeHref = encodeURI(url.replace(/&amp;/g, '&'));
+        return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer">${escapeHTML(url.replace(/&amp;/g, '&'))}</a>`;
     });
 }
 
@@ -244,6 +311,15 @@ function isPdfAttachment(att) {
         const n = (att && att.name || '').toLowerCase();
         const t = (att && att.type || '').toLowerCase();
         return t.includes('pdf') || n.endsWith('.pdf');
+    } catch (_) { return false; }
+}
+
+function isAudioAttachment(att) {
+    try {
+        const n = (att && att.name || '').toLowerCase();
+        const t = (att && att.type || '').toLowerCase();
+        if (t.startsWith('audio/')) return true;
+        return n.endsWith('.mp3') || n.endsWith('.wav') || n.endsWith('.ogg') || n.endsWith('.m4a') || n.endsWith('.aac') || n.endsWith('.flac') || n.endsWith('.weba') || n.endsWith('.webm');
     } catch (_) { return false; }
 }
 
@@ -711,18 +787,57 @@ function renderPendingAttachments() {
         container.innerHTML = list.map(att => {
             const label = att.name || 'archivo';
             const img = att.isImage ? `<img class="attachment-img" data-att-id="${att.id}" alt="${label}">` : '';
-            const link = att.isImage ? '' : `<a class="attachment-file" data-att-id="${att.id}" href="#" title="${label}">📎 ${label}</a>`;
-            const dl = !att.isImage ? `<a class="attachment-dl" data-att-id="${att.id}" href="#" title="Descargar">⬇️</a>` : '';
-            return `<div class="attachment-row" data-att-id="${att.id}">${img}${link}${dl}</div>`;
+            const audio = (!att.isImage && isAudioAttachment(att)) ? `<span class="attachment-audio-wrap"><audio class="attachment-audio" controls data-att-id="${att.id}"></audio><button type="button" class="audio-restart" data-att-id="${att.id}" title="Inicio">⏮</button><span class="audio-speed"><button type="button" class="audio-speed-down" data-att-id="${att.id}" title="Más lento">−</button><span class="audio-speed-label" data-att-id="${att.id}">1x</span><button type="button" class="audio-speed-up" data-att-id="${att.id}" title="Más rápido">+</button></span></span>` : '';
+            const link = (!att.isImage && !isAudioAttachment(att)) ? `<a class="attachment-file" data-att-id="${att.id}" href="#" title="${label}">📎 ${label}</a>` : '';
+            const dl = (!att.isImage && !isAudioAttachment(att)) ? `<a class="attachment-dl" data-att-id="${att.id}" href="#" title="Descargar">⬇️</a>` : '';
+            return `<div class="attachment-row" data-att-id="${att.id}">${img}${audio}${link}${dl}</div>`;
         }).join('');
         (async () => {
             for (const att of list) {
                 const imgEl = container.querySelector(`img.attachment-img[data-att-id="${att.id}"]`);
                 const aEl = container.querySelector(`a.attachment-file[data-att-id="${att.id}"]`);
+                const audioEl = container.querySelector(`audio.attachment-audio[data-att-id="${att.id}"]`);
                 let url = null;
                 const blob = await ensureAttachmentBlob(att);
                 if (imgEl && blob) imgEl.src = URL.createObjectURL(blob);
+                if (audioEl && blob && !audioEl.src) audioEl.src = URL.createObjectURL(blob);
                 if (!url && blob) url = URL.createObjectURL(blob);
+                const restartBtn = container.querySelector(`button.audio-restart[data-att-id="${att.id}"]`);
+                if (restartBtn && !restartBtn.dataset.bound) {
+                    restartBtn.addEventListener('click', () => {
+                        const el = container.querySelector(`audio.attachment-audio[data-att-id="${att.id}"]`);
+                        if (el) {
+                            const wasPlaying = !el.paused;
+                            el.currentTime = 0;
+                            if (wasPlaying) { try { el.play(); } catch (_) {} }
+                        }
+                    });
+                    restartBtn.dataset.bound = '1';
+                }
+                // velocidad −/+
+                const speedDownBtn = container.querySelector(`button.audio-speed-down[data-att-id="${att.id}"]`);
+                const speedUpBtn = container.querySelector(`button.audio-speed-up[data-att-id="${att.id}"]`);
+                const speedLabel = container.querySelector(`span.audio-speed-label[data-att-id="${att.id}"]`);
+                const updateSpeedLabel = () => { try { if (audioEl && speedLabel) speedLabel.textContent = `${(audioEl.playbackRate || 1).toFixed(2).replace(/\.00$/, '').replace(/0$/, '')}x`; } catch(_){} };
+                if (audioEl) updateSpeedLabel();
+                if (speedDownBtn && !speedDownBtn.dataset.bound) {
+                    speedDownBtn.addEventListener('click', () => {
+                        const el = container.querySelector(`audio.attachment-audio[data-att-id="${att.id}"]`);
+                        if (!el) return;
+                        el.playbackRate = Math.max(0.5, Math.round((el.playbackRate - 0.10) * 100) / 100);
+                        updateSpeedLabel();
+                    });
+                    speedDownBtn.dataset.bound = '1';
+                }
+                if (speedUpBtn && !speedUpBtn.dataset.bound) {
+                    speedUpBtn.addEventListener('click', () => {
+                        const el = container.querySelector(`audio.attachment-audio[data-att-id="${att.id}"]`);
+                        if (!el) return;
+                        el.playbackRate = Math.min(2.0, Math.round((el.playbackRate + 0.10) * 100) / 100);
+                        updateSpeedLabel();
+                    });
+                    speedUpBtn.dataset.bound = '1';
+                }
                 if (aEl && url) {
                     aEl.href = url;
                     if (isPdfAttachment(att)) {
@@ -791,20 +906,59 @@ async function renderPopupAttachments(task) {
     // Construir markup
     container.innerHTML = list.map(att => {
         const label = att.name || 'archivo';
-        const img = att.isImage ? `<img class="attachment-img" data-att-id="${att.id}" alt="${label}">` : '';
-        const link = att.isImage ? '' : `<a class="attachment-file" data-att-id="${att.id}" href="#" title="${label}">📎 ${label}</a>`;
-        const dl = !att.isImage ? `<a class="attachment-dl" data-att-id="${att.id}" href="#" title="Descargar">⬇️</a>` : '';
-        const del = `<button type="button" class="attachment-remove" data-att-id="${att.id}">${(window.i18n&&i18n.t)?i18n.t('delete'):'Eliminar'}</button>`;
-        return `<div class="attachment-row" data-att-id="${att.id}">${img}${link}${dl}${del}</div>`;
+        const img = att.isImage ? `<img class=\"attachment-img\" data-att-id=\"${att.id}\" alt=\"${label}\">` : '';
+        const audio = (!att.isImage && isAudioAttachment(att)) ? `<span class=\"attachment-audio-wrap\"><audio class=\"attachment-audio\" controls data-att-id=\"${att.id}\"></audio><button type=\"button\" class=\"audio-restart\" data-att-id=\"${att.id}\" title=\"Inicio\">⏮</button><span class=\"audio-speed\"><button type=\"button\" class=\"audio-speed-down\" data-att-id=\"${att.id}\" title=\"Más lento\">−</button><span class=\"audio-speed-label\" data-att-id=\"${att.id}\">1x</span><button type=\"button\" class=\"audio-speed-up\" data-att-id=\"${att.id}\" title=\"Más rápido\">+</button></span></span>` : '';
+        const link = (!att.isImage && !isAudioAttachment(att)) ? `<a class=\"attachment-file\" data-att-id=\"${att.id}\" href=\"#\" title=\"${label}\">📎 ${label}</a>` : '';
+        const dl = (!att.isImage && !isAudioAttachment(att)) ? `<a class=\"attachment-dl\" data-att-id=\"${att.id}\" href=\"#\" title=\"Descargar\">⬇️</a>` : '';
+        const del = `<button type=\"button\" class=\"attachment-remove\" data-att-id=\"${att.id}\">${(window.i18n&&i18n.t)?i18n.t('delete'):'Eliminar'}</button>`;
+        return `<div class=\"attachment-row\" data-att-id=\"${att.id}\">${img}${audio}${link}${dl}${del}</div>`;
     }).join('');
     // Hidratar blobs/enlaces
     for (const att of list) {
         const imgEl = container.querySelector(`img.attachment-img[data-att-id="${att.id}"]`);
         const aEl = container.querySelector(`a.attachment-file[data-att-id="${att.id}"]`);
+        const audioEl = container.querySelector(`audio.attachment-audio[data-att-id="${att.id}"]`);
         let url = null;
         const blob = await ensureAttachmentBlob(att);
         if (imgEl && blob) imgEl.src = URL.createObjectURL(blob);
+        if (audioEl && blob && !audioEl.src) audioEl.src = URL.createObjectURL(blob);
         if (!url && blob) url = URL.createObjectURL(blob);
+        const restartBtn = container.querySelector(`button.audio-restart[data-att-id="${att.id}"]`);
+        if (restartBtn && !restartBtn.dataset.bound) {
+            restartBtn.addEventListener('click', () => {
+                const el = container.querySelector(`audio.attachment-audio[data-att-id="${att.id}"]`);
+                if (el) {
+                    const wasPlaying = !el.paused;
+                    el.currentTime = 0;
+                    if (wasPlaying) { try { el.play(); } catch (_) {} }
+                }
+            });
+            restartBtn.dataset.bound = '1';
+        }
+        // Controles de velocidad (− / +)
+        const speedDownBtn = container.querySelector(`button.audio-speed-down[data-att-id="${att.id}"]`);
+        const speedUpBtn = container.querySelector(`button.audio-speed-up[data-att-id="${att.id}"]`);
+        const speedLabel = container.querySelector(`span.audio-speed-label[data-att-id="${att.id}"]`);
+        const updateSpeedLabel = () => { try { if (audioEl && speedLabel) speedLabel.textContent = `${(audioEl.playbackRate || 1).toFixed(2).replace(/\.00$/, '').replace(/0$/, '')}x`; } catch(_){} };
+        if (audioEl) updateSpeedLabel();
+        if (speedDownBtn && !speedDownBtn.dataset.bound) {
+            speedDownBtn.addEventListener('click', () => {
+                const el = container.querySelector(`audio.attachment-audio[data-att-id="${att.id}"]`);
+                if (!el) return;
+                el.playbackRate = Math.max(0.5, Math.round((el.playbackRate - 0.10) * 100) / 100);
+                updateSpeedLabel();
+            });
+            speedDownBtn.dataset.bound = '1';
+        }
+        if (speedUpBtn && !speedUpBtn.dataset.bound) {
+            speedUpBtn.addEventListener('click', () => {
+                const el = container.querySelector(`audio.attachment-audio[data-att-id="${att.id}"]`);
+                if (!el) return;
+                el.playbackRate = Math.min(2.0, Math.round((el.playbackRate + 0.10) * 100) / 100);
+                updateSpeedLabel();
+            });
+            speedUpBtn.dataset.bound = '1';
+        }
         if (aEl && url) {
             aEl.href = url;
             if (isPdfAttachment(att)) {
@@ -960,10 +1114,12 @@ function renderTasks() {
                         ${task.attachments && task.attachments.length ? `
                           <div class="attachments">${task.attachments.map(att => {
                             if (att.isImage) {
-                              return `<img class="attachment-img" alt="${att.name}" data-att-id="${att.id}" />`;
+                              return `<img class=\"attachment-img\" alt=\"${att.name}\" data-att-id=\"${att.id}\" />`;
+                            } else if (isAudioAttachment(att)) {
+                              return `<span class=\"attachment-audio-wrap\"><audio class=\"attachment-audio\" controls data-att-id=\"${att.id}\"></audio><button type=\"button\" class=\"audio-restart\" data-att-id=\"${att.id}\" title=\"Inicio\">⏮</button><span class=\"audio-speed\"><button type=\"button\" class=\"audio-speed-down\" data-att-id=\"${att.id}\" title=\"Más lento\">−</button><span class=\"audio-speed-label\" data-att-id=\"${att.id}\">1x</span><button type=\"button\" class=\"audio-speed-up\" data-att-id=\"${att.id}\" title=\"Más rápido\">+</button></span></span>`;
                             } else {
-                              const extra = isPdfAttachment(att) ? ` <a class=\"attachment-dl\" href=\"#\" data-att-id=\"${att.id}\" title=\"Descargar\">⬇️</a>` : '';
-                              return `<span class=\"attachment-wrap\"><a class=\"attachment-file\" href=\"#\" data-att-id=\"${att.id}\" title=\"${att.name}\">📎 ${att.name}</a>${extra}</span>`;
+                              const extra = isPdfAttachment(att) ? ` <a class=\\\"attachment-dl\\\" href=\\\"#\\\" data-att-id=\\\"${att.id}\\\" title=\\\"Descargar\\\">⬇️</a>` : '';
+                              return `<span class=\\\"attachment-wrap\\\"><a class=\\\"attachment-file\\\" href=\\\"#\\\" data-att-id=\\\"${att.id}\\\" title=\\\"${att.name}\\\">📎 ${att.name}</a>${extra}</span>`;
                             }
                           }).join('')}</div>` : ''}
                     </span>
@@ -1069,6 +1225,7 @@ function hydrateAttachmentsForCategory(tasks, rootEl) {
         for (const att of t.attachments) {
             const imgEl = taskEl.querySelector(`img.attachment-img[data-att-id="${att.id}"]`);
             const aEl = taskEl.querySelector(`a.attachment-file[data-att-id="${att.id}"]`);
+            const audioEl = taskEl.querySelector(`audio.attachment-audio[data-att-id="${att.id}"]`);
             const dlEl = taskEl.querySelector(`a.attachment-dl[data-att-id="${att.id}"]`);
             if (imgEl && !imgEl.src) {
                 const blob = await ensureAttachmentBlob(att);
@@ -1077,6 +1234,46 @@ function hydrateAttachmentsForCategory(tasks, rootEl) {
                     imgEl.addEventListener('click', () => openImageLightbox(imgEl.src, imgEl.alt));
                     imgEl.dataset.lbBound = '1';
                 }
+            }
+            if (audioEl && !audioEl.src) {
+                const blob = await ensureAttachmentBlob(att);
+                if (blob) audioEl.src = URL.createObjectURL(blob);
+            }
+            const restartBtn = taskEl.querySelector(`button.audio-restart[data-att-id="${att.id}"]`);
+            if (restartBtn && !restartBtn.dataset.bound) {
+                restartBtn.addEventListener('click', () => {
+                    const el = taskEl.querySelector(`audio.attachment-audio[data-att-id="${att.id}"]`);
+                    if (el) {
+                        const wasPlaying = !el.paused;
+                        el.currentTime = 0;
+                        if (wasPlaying) { try { el.play(); } catch (_) {} }
+                    }
+                });
+                restartBtn.dataset.bound = '1';
+            }
+            // Controles de velocidad en tarjetas
+            const speedDownBtn = taskEl.querySelector(`button.audio-speed-down[data-att-id="${att.id}"]`);
+            const speedUpBtn = taskEl.querySelector(`button.audio-speed-up[data-att-id="${att.id}"]`);
+            const speedLabel = taskEl.querySelector(`span.audio-speed-label[data-att-id="${att.id}"]`);
+            const updateSpeedLabel = () => { try { if (audioEl && speedLabel) speedLabel.textContent = `${(audioEl.playbackRate || 1).toFixed(2).replace(/\.00$/, '').replace(/0$/, '')}x`; } catch(_){} };
+            if (audioEl) updateSpeedLabel();
+            if (speedDownBtn && !speedDownBtn.dataset.bound) {
+                speedDownBtn.addEventListener('click', () => {
+                    const el = taskEl.querySelector(`audio.attachment-audio[data-att-id="${att.id}"]`);
+                    if (!el) return;
+                    el.playbackRate = Math.max(0.5, Math.round((el.playbackRate - 0.10) * 100) / 100);
+                    updateSpeedLabel();
+                });
+                speedDownBtn.dataset.bound = '1';
+            }
+            if (speedUpBtn && !speedUpBtn.dataset.bound) {
+                speedUpBtn.addEventListener('click', () => {
+                    const el = taskEl.querySelector(`audio.attachment-audio[data-att-id="${att.id}"]`);
+                    if (!el) return;
+                    el.playbackRate = Math.min(2.0, Math.round((el.playbackRate + 0.10) * 100) / 100);
+                    updateSpeedLabel();
+                });
+                speedUpBtn.dataset.bound = '1';
             }
             if (aEl && aEl.getAttribute('href') === '#') {
                 const blob = await ensureAttachmentBlob(att);
