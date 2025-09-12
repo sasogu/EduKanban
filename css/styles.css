@@ -24,8 +24,8 @@ html, body { background: var(--color-bg); color: var(--color-text); }
 body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 
 header {
-    background: var(--color-header-bg);
-    color: var(--color-header-text);
+    background: var(--color-surface); /* fondo claro */
+    color: var(--color-text); /* texto oscuro para contraste */
     text-align: center;
     border-bottom: 2px solid #e8491d; /* línea roja */
 }
@@ -83,6 +83,21 @@ header .acciones { flex-direction: row; flex-wrap: wrap; }
     flex: 0 0 auto; /* tamaño según contenido */
     min-width: 44px; /* tamaño mínimo táctil */
   }
+}
+
+/* Botón principal del header con fondo claro */
+header .boton-accion.boton-primario {
+  background: #fff;
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+}
+header .boton-accion.boton-primario:hover {
+  background: #f9fafb;
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  transform: none;
+  box-shadow: 0 10px 22px rgba(0,0,0,0.18);
 }
 
 #task-container {
