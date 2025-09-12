@@ -96,22 +96,59 @@ document.addEventListener('DOMContentLoaded', function() {
     return res;
   }
 
+  // Agrupa por fecha (más reciente primero) y aplica filtro de etiqueta
+  function groupByDate(filterTag = '') {
+    const dates = collectHistoryDates();
+    dates.sort((a, b) => a.localeCompare(b));
+    dates.reverse();
+    return dates.map(ds => ({ date: ds, items: tasksDoneOnDate(ds, filterTag) }))
+                .filter(g => g.items.length > 0);
+  }
+
   function render() {
     const d = dateInput.value;
     const tag = tagSelect.value || '';
-    const items = (d ? tasksDoneOnDate(d, tag) : []);
-    container.innerHTML = '';
     const locale = (window.i18n && i18n.getLocale) ? i18n.getLocale() : 'es-ES';
+    container.innerHTML = '';
     if (!d) {
-      summaryEl.textContent = 'Selecciona una fecha para ver el histórico.';
+      const groups = groupByDate(tag);
+      if (!groups.length) {
+        summaryEl.textContent = 'No hay actividades realizadas con el filtro actual.';
+        return;
+      }
+      const totalItems = groups.reduce((acc, g) => acc + g.items.length, 0);
+      summaryEl.textContent = `${totalItems} actividades en ${groups.length} días${tag ? ' • #' + tag : ''}`;
+      groups.forEach(g => {
+        const h = document.createElement('h3');
+        h.className = 'history-date';
+        h.textContent = new Date(g.date).toLocaleDateString(locale, { dateStyle: 'full' });
+        const meta = document.createElement('div');
+        meta.className = 'history-meta';
+        meta.textContent = `${g.items.length} actividades`;
+        container.appendChild(h);
+        container.appendChild(meta);
+        g.items.forEach(({ task, count, last }) => {
+          const div = document.createElement('div');
+          div.className = 'task';
+          const tags = Array.isArray(task.tags) ? task.tags : [];
+          const lastStr = new Date(last).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+          div.innerHTML = `
+            <span>${escapeHTML(task.task)}
+              ${tags.length ? `<small class=\"tags\">${tags.map(t => `<span class=\"tag-chip in-task\">#${t}</span>`).join(' ')}</small>` : ''}
+              <small class=\"done-meta\">✔️ ${count} veces • última: ${lastStr}</small>
+            </span>
+          `;
+          container.appendChild(div);
+        });
+      });
       return;
     }
+    const items = tasksDoneOnDate(d, tag);
     if (items.length === 0) {
       summaryEl.textContent = 'No hay actividades realizadas en esa fecha con el filtro actual.';
       return;
     }
     summaryEl.textContent = `${items.length} actividades realizadas el ${new Date(d).toLocaleDateString(locale)}${tag ? ' • #' + tag : ''}`;
-    // pintar tarjetas sencillas
     items.forEach(({ task, count, last }) => {
       const div = document.createElement('div');
       div.className = 'task';
@@ -119,8 +156,8 @@ document.addEventListener('DOMContentLoaded', function() {
       const lastStr = new Date(last).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
       div.innerHTML = `
         <span>${escapeHTML(task.task)}
-          ${tags.length ? `<small class="tags">${tags.map(t => `<span class=\"tag-chip in-task\">#${t}</span>`).join(' ')}</small>` : ''}
-          <small class="done-meta">✔️ ${count} veces • última: ${lastStr}</small>
+          ${tags.length ? `<small class=\"tags\">${tags.map(t => `<span class=\"tag-chip in-task\">#${t}</span>`).join(' ')}</small>` : ''}
+          <small class=\"done-meta\">✔️ ${count} veces • última: ${lastStr}</small>
         </span>
       `;
       container.appendChild(div);
@@ -138,9 +175,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Inicialización
   const dates = collectHistoryDates();
-  // valor inicial: último día con realizados o el guardado
+  // valor inicial: usar el guardado; si no hay, mostrar todo desglosado
   const savedDate = localStorage.getItem(LS.selectedHistoryDate) || '';
-  const initialDate = savedDate || (dates.length ? dates[dates.length - 1] : '');
+  const initialDate = savedDate;
   if (initialDate) dateInput.value = initialDate;
   updateTagSelect(localStorage.getItem(LS.selectedHistoryTag) || '');
   render();
@@ -162,4 +199,3 @@ document.addEventListener('DOMContentLoaded', function() {
     render();
   });
 });
-
