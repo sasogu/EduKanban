@@ -208,6 +208,15 @@ button:hover { background: #1f2937; }
 .task .delete-btn:hover { color: #dc2626; }
 .task .done-btn:hover { color: #16a34a; }
 
+/* Botón de deshacer en histórico */
+.task .history-delete {
+  background: transparent;
+  color: var(--color-muted);
+  border: none;
+  padding: 6px 8px;
+}
+.task .history-delete:hover { color: #dc2626; }
+
 .task select {
   background: #fff;
   border: 1px solid var(--color-border);

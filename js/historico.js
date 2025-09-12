@@ -41,6 +41,10 @@ document.addEventListener('DOMContentLoaded', function() {
     return migrated;
   }
 
+  function saveAllCategories(obj) {
+    try { localStorage.setItem(LS.categories, JSON.stringify(obj)); } catch(_) {}
+  }
+
   function allTasks() {
     const cats = getAllCategories();
     return Object.values(cats).flat();
@@ -137,6 +141,7 @@ document.addEventListener('DOMContentLoaded', function() {
               ${tags.length ? `<small class=\"tags\">${tags.map(t => `<span class=\"tag-chip in-task\">#${t}</span>`).join(' ')}</small>` : ''}
               <small class=\"done-meta\">✔️ ${count} veces • última: ${lastStr}</small>
             </span>
+            <button type="button" class="history-delete" title="Eliminar un realizado de este día" onclick="window.__histDeleteOne('${task.id}','${g.date}')">↩️ Deshacer</button>
           `;
           container.appendChild(div);
         });
@@ -159,10 +164,49 @@ document.addEventListener('DOMContentLoaded', function() {
           ${tags.length ? `<small class=\"tags\">${tags.map(t => `<span class=\"tag-chip in-task\">#${t}</span>`).join(' ')}</small>` : ''}
           <small class=\"done-meta\">✔️ ${count} veces • última: ${lastStr}</small>
         </span>
+        <button type="button" class="history-delete" title="Eliminar un realizado de este día" onclick="window.__histDeleteOne('${task.id}','${d}')">↩️ Deshacer</button>
       `;
       container.appendChild(div);
     });
   }
+
+  // Elimina una marca de realizado de un día concreto (la más reciente de ese día)
+  function removeOneDoneForDate(taskId, dateStr) {
+    const cats = getAllCategories();
+    let modified = false;
+    for (const k of Object.keys(cats)) {
+      const arr = cats[k] || [];
+      const idx = arr.findIndex(t => t && t.id === taskId);
+      if (idx !== -1) {
+        const t = arr[idx];
+        const hist = Array.isArray(t.doneHistory) ? t.doneHistory : [];
+        // busca la última ocurrencia de ese día
+        for (let i = hist.length - 1; i >= 0; i--) {
+          if (localDateStr(hist[i]) === dateStr) {
+            hist.splice(i, 1);
+            t.doneHistory = hist;
+            t.lastModified = new Date().toISOString();
+            modified = true;
+            break;
+          }
+        }
+        break;
+      }
+    }
+    if (modified) saveAllCategories(cats);
+    return modified;
+  }
+
+  // Exponer manejador para botones inline
+  window.__histDeleteOne = function(taskId, dateStr) {
+    const msg = '¿Eliminar una marca de realizado de este día?';
+    if (!window.confirm(msg)) return;
+    if (removeOneDoneForDate(taskId, dateStr)) {
+      render();
+    } else {
+      try { console.warn('No se encontró marca para eliminar'); } catch(_){}
+    }
+  };
 
   function escapeHTML(s) {
     return String(s || '')
