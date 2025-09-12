@@ -10,11 +10,16 @@
 </head>
 <body>
     <header>
-        <img src="icons/logolargo.png" alt="EduKanban" class="logo"/>
-        <div class="acciones">
-            <a href="index.html" class="boton-accion boton-secundario">Volver a EduKanban</a>
-      
+        <div class="header-top">
+            <img src="icons/logolargo.png" alt="EduKanban" class="logo"/>
         </div>
+        <nav class="main-nav" role="tablist">
+            <a href="index.html" class="tab" role="tab" aria-selected="false">Tablero</a>
+            <a href="recordatorios.html" class="tab active" role="tab" aria-selected="true">Recordatorios</a>
+            <a href="archivo.html" class="tab" role="tab" aria-selected="false">Archivo</a>
+            <a href="historico.html" class="tab" role="tab" aria-selected="false">Histórico</a>
+            <a href="index.html?admin=1" class="tab" role="tab" aria-selected="false">Administración</a>
+        </nav>
     </header>
 
     <main>

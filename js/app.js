@@ -2314,6 +2314,10 @@ document.addEventListener('DOMContentLoaded', function() {
             updateTagDatalist();
             renderTagSuggestions();
         }
+        if (params.has('admin')) {
+            const adminModal = document.getElementById('admin-modal');
+            if (adminModal) adminModal.style.display = 'flex';
+        }
     } catch (_) {}
 
     // getAllTags y updateTagFilterDropdown ahora son globales

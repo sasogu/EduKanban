@@ -9,14 +9,32 @@ body {
 header {
     background: var(--color-header-bg);
     color: var(--color-header-text);
-    padding: 10px 0;
     text-align: center;
+    border-bottom: 2px solid #e8491d; /* línea roja */
+}
+
+.header-top {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 15px 25px;
-    border-bottom: 2px solid #e8491d;
 }
+
+/* Tabs navigation */
+.main-nav { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 12px; background: var(--color-surface); }
+.main-nav .tab { text-decoration: none; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--color-border); background: #fff; color: var(--color-text); font-weight: 600; }
+.main-nav .tab:hover { border-color: var(--color-primary); }
+.main-nav .tab.active { border-color: var(--color-primary); color: var(--color-primary); }
+/* Hacer que la pestaña activa "toque" el contenido (superpone la línea roja) */
+.main-nav .tab.active { border-bottom-color: #fff; margin-bottom: -2px; position: relative; z-index: 1; background: #fff; }
+@media (min-width: 900px) {
+  .main-nav { gap: 0; }
+  .main-nav .tab { border-radius: 8px 8px 0 0; border-bottom: none; margin-right: 6px; background: var(--color-surface); }
+  .main-nav .tab.active { background: #fff; }
+}
+
+/* Fondo blanco en el contenido para continuidad visual con la pestaña activa */
+main { background: #fff; }
 
 /* Logo en el header */
 header .logo {
@@ -410,7 +428,7 @@ input[type="text"], select, textarea {
    
     /* En móvil, ocultar texto y dejar solo iconos */
     .task .btn-label { display: none; }
-    header { 
+    .header-top { 
         flex-direction: column; 
         align-items: stretch; 
         gap: 10px;

@@ -12,17 +12,19 @@
 </head>
 <body>
     <header>
-        <img src="icons/logolargo.png" alt="EduKanban" class="logo"/>
-        <div class="acciones">
-            <button id="abrir-popup-tarea" type="button" class="boton-accion boton-primario">➕ Nueva Actividad</button>
-            <a href="recordatorios.html" class="boton-accion boton-primario">⏰ Ver Recordatorios</a>
-            <a href="historico.html" class="boton-accion">📅 Ver Histórico</a>
-        </div>
-          <!-- Contenedor de Controles -->
-    <div class="acciones">
-         <a href="archivo.html" class="boton-accion boton-primario">🗄️ Ver Archivo</a>
-            <button id="open-admin" type="button" class="boton-accion">⚙️ Administración</button>
+        <div class="header-top">
+            <img src="icons/logolargo.png" alt="EduKanban" class="logo"/>
+            <div class="acciones">
+                <button id="abrir-popup-tarea" type="button" class="boton-accion boton-primario">➕ Nueva Actividad</button>
             </div>
+        </div>
+        <nav class="main-nav" role="tablist">
+            <a href="index.html" class="tab active" role="tab" aria-selected="true">Tablero</a>
+            <a href="recordatorios.html" class="tab" role="tab" aria-selected="false">Recordatorios</a>
+            <a href="archivo.html" class="tab" role="tab" aria-selected="false">Archivo</a>
+            <a href="historico.html" class="tab" role="tab" aria-selected="false">Histórico</a>
+            <a href="index.html?admin=1" class="tab" role="tab" aria-selected="false">Administración</a>
+        </nav>
     </header>
     <main>
    <label id="filter-tag-label" for="filter-tag">Filtrar por etiqueta:</label>

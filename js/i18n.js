@@ -17,6 +17,8 @@
       new_activity: 'Nueva Actividad',
       view_reminders: '⏰ Ver Recordatorios',
       view_archive: '🗄️ Ver Archivo',
+      board: '📋 Tablero',
+      history: '📅 Histórico',
       connect_dropbox: 'Conectar con Dropbox',
       sync_dropbox: 'Sincronizar',
       show_all: 'Mostrar todo',
@@ -77,6 +79,8 @@
       new_activity: 'Nova activitat',
       view_reminders: '⏰ Veure recordatoris',
       view_archive: '🗄️ Veure arxiu',
+      board: '📋 Tauler',
+      history: '📅 Històric',
       connect_dropbox: 'Connectar amb Dropbox',
       sync_dropbox: 'Sincronitzar',
       show_all: 'Mostrar tot',
@@ -207,6 +211,17 @@
     if (aRem) { aRem.textContent = t('view_reminders'); aRem.title = t('view_reminders'); }
     const aArc = document.querySelector('a[href="archivo.html"]');
     if (aArc) { aArc.textContent = t('view_archive'); aArc.title = t('view_archive'); }
+    // Tabs (si existen)
+    const tabBoard = document.querySelector('nav.main-nav a.tab[href="index.html"]');
+    if (tabBoard) { tabBoard.textContent = t('board'); tabBoard.title = t('board'); }
+    const tabHist = document.querySelector('nav.main-nav a.tab[href="historico.html"]');
+    if (tabHist) { tabHist.textContent = t('history'); tabHist.title = t('history'); }
+    const tabRem = document.querySelector('nav.main-nav a.tab[href="recordatorios.html"]');
+    if (tabRem) { tabRem.textContent = t('view_reminders'); tabRem.title = t('view_reminders'); }
+    const tabArc = document.querySelector('nav.main-nav a.tab[href="archivo.html"]');
+    if (tabArc) { tabArc.textContent = t('view_archive'); tabArc.title = t('view_archive'); }
+    const tabAdmin = document.querySelector('nav.main-nav a.tab[href^="index.html?admin"]');
+    if (tabAdmin) { tabAdmin.textContent = '⚙️ ' + t('administration'); tabAdmin.title = t('administration'); }
     const btnLogin = document.getElementById('dropbox-login');
     if (btnLogin) btnLogin.textContent = t('connect_dropbox');
     const btnSync = document.getElementById('dropbox-sync');
@@ -269,7 +284,7 @@
       if (fileInput) fileInput.onchange = (e)=> { const f=e.target.files&&e.target.files[0]; if (f && window.i18n && i18n.importBackup) i18n.importBackup(f); e.target.value=''; };
     }
     // Enlaces de retorno
-    document.querySelectorAll('a[href="index.html"]').forEach(a => a.textContent = t('back_to_app'));
+    document.querySelectorAll('a[href="index.html"]').forEach(a => { if (!a.classList.contains('tab')) a.textContent = t('back_to_app'); });
   }
 
   function applyI18nAll(){
