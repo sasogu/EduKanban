@@ -2,9 +2,26 @@ body {
     font-family: Arial, sans-serif;
     margin: 0;
     padding: 0;
-    background-color: #f4f4f4;
-
 }
+
+/* Paleta y variables de diseño (tema claro) */
+:root {
+    --color-bg: #f4f4f4;
+    --color-surface: #ffffff;
+    --color-text: #111827;
+    --color-muted: #4b5563;
+    --color-border: #e5e7eb;
+    --color-header-bg: #35424a;
+    --color-header-text: #ffffff;
+    --color-primary: #2563eb;
+    --color-primary-dark: #1e40af;
+    --color-success: #16a34a;
+    --color-danger: #dc2626;
+    --color-accent: #374151;
+}
+
+html, body { background: var(--color-bg); color: var(--color-text); }
+body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 
 header {
     background: var(--color-header-bg);
@@ -34,7 +51,7 @@ header {
 }
 
 /* Fondo blanco en el contenido para continuidad visual con la pestaña activa */
-main { background: #fff; }
+main { background: var(--color-surface); }
 
 /* Logo en el header */
 header .logo {
@@ -549,29 +566,6 @@ input[type="text"], select, textarea {
 .grupo-botones {
     display: flex;
     flex-direction: column;
-/* Paleta y variables de diseño */
-:root {
-    /* Paleta base: alto contraste y sobria */
-    --color-bg: #824c4c;
-    --color-surface: #512c2c;
-    --color-text: #111827;     /* gris muy oscuro */
-    --color-muted: #4b5563;    /* gris medio */
-    --color-border: #e5e7eb;   /* borde claro */
-
-    /* Encabezado y pie */
-    --color-header-bg: #111827; /* casi negro azulado */
-    --color-header-text: #161313;
-
-    /* Acentos */
-    --color-primary: #2563eb;      /* azul accesible */
-    --color-primary-dark: #1e40af; /* hover */
-    --color-success: #16a34a;
-    --color-danger: #dc2626;
-    --color-accent: #374151;
-}
-
-html, body { background: var(--color-bg); color: var(--color-text); }
-body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
     gap: 10px;
 }
 
@@ -611,13 +605,7 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
     border-color: #ac2925;
 }
 
-/* Opcional: solo aplicar en pantallas grandes */
-@media (min-width: 900px) {
-    body {
-        max-width: 80vw;
-        margin: 2em auto;
-    }
-}
+/* Layout fluido en escritorio: el contenido ocupa todo el ancho */
 /* Indicador de reconexión Dropbox */
 #reconnect-indicator {
   position: fixed;
