@@ -966,33 +966,58 @@ function renderReusePanel(targetTaskId) {
     if (!panel) return;
     const items = collectReuseCatalog();
     if (!items.length) { panel.innerHTML = `<div>${(window.i18n&&i18n.t)?i18n.t('no_items'):'No hay elementos'}</div>`; return; }
+
+    // Controles de filtrado
+    panel.innerHTML = '';
+    const controls = document.createElement('div');
+    controls.className = 'reuse-controls';
+    const filterInput = document.createElement('input');
+    filterInput.type = 'text';
+    filterInput.placeholder = (window.i18n&&i18n.t)? (i18n.t('filter_attachments') || 'Filtrar adjuntos…') : 'Filtrar adjuntos…';
+    filterInput.setAttribute('aria-label', (window.i18n&&i18n.t)? (i18n.t('filter_attachments_label') || 'Filtrar adjuntos') : 'Filtrar adjuntos');
+    controls.appendChild(filterInput);
+    panel.appendChild(controls);
+
     const grid = document.createElement('div');
     grid.className = 'reuse-grid';
-    panel.innerHTML = '';
     panel.appendChild(grid);
-    items.forEach(item => {
-        const att = item.att;
-        const div = document.createElement('div');
-        div.className = 'reuse-item';
-        const name = document.createElement('div');
-        name.className = 'name';
-        name.textContent = att.name || '(archivo)';
-        const thumb = document.createElement(att.isImage ? 'img' : 'div');
-        if (att.isImage) { thumb.className = 'thumb'; thumb.alt = att.name || ''; }
-        else { thumb.textContent = '📎'; thumb.style.fontSize = '40px'; thumb.style.textAlign = 'center'; }
-        const actions = document.createElement('div'); actions.className = 'actions';
-        const btn = document.createElement('button'); btn.type = 'button'; btn.textContent = (window.i18n&&i18n.t)?i18n.t('add_this'):'Añadir';
-        btn.onclick = () => {
-            if (targetTaskId) addExistingAttachment(targetTaskId, item); else addExistingToPending(item);
-        };
-        actions.appendChild(btn);
-        div.appendChild(thumb); div.appendChild(name); div.appendChild(actions);
-        grid.appendChild(div);
-        // hidratar miniatura si es imagen
-        if (att.isImage) {
-            ensureAttachmentBlob(att).then(blob => { if (blob) thumb.src = URL.createObjectURL(blob); });
-        }
-    });
+
+    const renderList = (query) => {
+        const q = (query || '').toLowerCase();
+        grid.innerHTML = '';
+        items
+          .filter(it => {
+              const n = (it.att && it.att.name) ? it.att.name.toLowerCase() : '';
+              return !q || n.includes(q);
+          })
+          .forEach(item => {
+            const att = item.att;
+            const div = document.createElement('div');
+            div.className = 'reuse-item';
+            const name = document.createElement('div');
+            name.className = 'name';
+            name.textContent = att.name || '(archivo)';
+            const thumb = document.createElement(att.isImage ? 'img' : 'div');
+            if (att.isImage) { thumb.className = 'thumb'; thumb.alt = att.name || ''; }
+            else { thumb.textContent = '📎'; thumb.style.fontSize = '40px'; thumb.style.textAlign = 'center'; }
+            const actions = document.createElement('div'); actions.className = 'actions';
+            const btn = document.createElement('button'); btn.type = 'button'; btn.textContent = (window.i18n&&i18n.t)?i18n.t('add_this'):'Añadir';
+            btn.onclick = () => {
+                if (targetTaskId) addExistingAttachment(targetTaskId, item); else addExistingToPending(item);
+            };
+            actions.appendChild(btn);
+            div.appendChild(thumb); div.appendChild(name); div.appendChild(actions);
+            grid.appendChild(div);
+            // hidratar miniatura si es imagen
+            if (att.isImage) {
+                ensureAttachmentBlob(att).then(blob => { if (blob) thumb.src = URL.createObjectURL(blob); });
+            }
+          });
+    };
+
+    // Render inicial y manejador de filtro
+    renderList('');
+    filterInput.addEventListener('input', (e) => renderList(e.target.value || ''));
 }
 
 async function renderPopupAttachments(task) {

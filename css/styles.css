@@ -647,7 +647,9 @@ input[type="text"], select, textarea {
 .attachment-img { cursor: zoom-in; }
 
 /* Panel de reutilización de adjuntos en el modal */
-.reuse-panel { margin-top: 8px; border: 1px dashed var(--color-border); padding: 8px; border-radius: 8px; background: #fafafa; }
+.reuse-panel { margin-top: 8px; border: 1px dashed var(--color-border); padding: 8px; border-radius: 8px; background: #fafafa; max-height: 50vh; overflow: auto; }
+.reuse-panel .reuse-controls { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; position: sticky; top: 0; background: #fafafa; padding-top: 4px; padding-bottom: 4px; }
+.reuse-panel .reuse-controls input { flex: 1 1 auto; }
 .reuse-panel .reuse-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; }
 .reuse-item { border: 1px solid var(--color-border); background: #fff; border-radius: 8px; padding: 6px; display:flex; flex-direction: column; gap:6px; }
 .reuse-item .thumb { width: 100%; height: 100px; object-fit: cover; border-radius: 6px; border: 1px solid var(--color-border); }
