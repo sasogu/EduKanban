@@ -330,7 +330,7 @@ function isVideoAttachment(att) {
         const n = (att && att.name || '').toLowerCase();
         const t = (att && att.type || '').toLowerCase();
         if (t.startsWith('video/')) return true;
-        return n.endsWith('.mp4') || n.endsWith('.m4v') || n.endsWith('.mov') || n.endsWith('.webm') || n.endsWith('.ogv') || n.endsWith('.mkv');
+        return n.endsWith('.mp4') || n.endsWith('.m4v') || n.endsWith('.mov') || n.endsWith('.webm') || n.endsWith('.ogv');
     } catch (_) { return false; }
 }
 
@@ -405,7 +405,6 @@ function preferredFileName(att) {
     if (t.includes('jpeg') || t.includes('jpg')) return base.replace(/\.$/, '') + '.jpg';
     if (t.includes('png')) return base.replace(/\.$/, '') + '.png';
     if (t.includes('webp')) return base.replace(/\.$/, '') + '.webp';
-    if (t.includes('matroska')) return base.replace(/\.$/, '') + '.mkv';
     if (t.includes('zip')) return base.replace(/\.$/, '') + '.zip';
     return base;
 }
@@ -845,7 +844,7 @@ function renderPendingAttachments() {
             const label = att.name || 'archivo';
             const img = att.isImage ? `<img class="attachment-img" data-att-id="${att.id}" alt="${label}">` : '';
             const audio = (!att.isImage && isAudioAttachment(att)) ? `<span class="attachment-audio-wrap"><audio class="attachment-audio" controls data-att-id="${att.id}"></audio><button type="button" class="audio-restart" data-att-id="${att.id}" title="Inicio">⏮</button><span class="audio-speed"><button type="button" class="audio-speed-down" data-att-id="${att.id}" title="Más lento">−</button><span class="audio-speed-label" data-att-id="${att.id}">1x</span><button type="button" class="audio-speed-up" data-att-id="${att.id}" title="Más rápido">+</button></span></span>` : '';
-            const video = (!att.isImage && !isAudioAttachment(att) && isVideoAttachment(att)) ? `<span class="attachment-video-wrap"><video class="attachment-video" controls data-att-id="${att.id}"></video><button type="button" class="video-restart" data-att-id="${att.id}" title="Inicio">⏮</button><span class="video-speed"><button type="button" class="video-speed-down" data-att-id="${att.id}" title="Más lento">−</button><span class="video-speed-label" data-att-id="${att.id}">1x</span><button type="button" class="video-speed-up" data-att-id="${att.id}" title="Más rápido">+</button></span><a class="attachment-dl" data-att-id="${att.id}" href="#" title="Descargar">⬇️</a></span>` : '';
+            const video = (!att.isImage && !isAudioAttachment(att) && isVideoAttachment(att)) ? `<span class="attachment-video-wrap"><video class="attachment-video" controls data-att-id="${att.id}"></video><button type="button" class="video-restart" data-att-id="${att.id}" title="Inicio">⏮</button><span class="video-speed"><button type="button" class="video-speed-down" data-att-id="${att.id}" title="Más lento">−</button><span class="video-speed-label" data-att-id="${att.id}">1x</span><button type="button" class="video-speed-up" data-att-id="${att.id}" title="Más rápido">+</button></span></span>` : '';
             const link = (!att.isImage && !isAudioAttachment(att) && !isVideoAttachment(att)) ? `<a class="attachment-file" data-att-id="${att.id}" href="#" title="${label}">📎 ${label}</a>` : '';
             const dl = (!att.isImage && !isAudioAttachment(att) && !isVideoAttachment(att)) ? `<a class="attachment-dl" data-att-id="${att.id}" href="#" title="Descargar">⬇️</a>` : '';
             return `<div class="attachment-row" data-att-id="${att.id}">${img}${audio}${video}${link}${dl}</div>`;
@@ -1032,7 +1031,7 @@ async function renderPopupAttachments(task) {
         const label = att.name || 'archivo';
         const img = att.isImage ? `<img class=\"attachment-img\" data-att-id=\"${att.id}\" alt=\"${label}\">` : '';
         const audio = (!att.isImage && isAudioAttachment(att)) ? `<span class=\"attachment-audio-wrap\"><audio class=\"attachment-audio\" controls data-att-id=\"${att.id}\"></audio><button type=\"button\" class=\"audio-restart\" data-att-id=\"${att.id}\" title=\"Inicio\">⏮</button><span class=\"audio-speed\"><button type=\"button\" class=\"audio-speed-down\" data-att-id=\"${att.id}\" title=\"Más lento\">−</button><span class=\"audio-speed-label\" data-att-id=\"${att.id}\">1x</span><button type=\"button\" class=\"audio-speed-up\" data-att-id=\"${att.id}\" title=\"Más rápido\">+</button></span></span>` : '';
-            const video = (!att.isImage && !isAudioAttachment(att) && isVideoAttachment(att)) ? `<span class=\"attachment-video-wrap\"><video class=\"attachment-video\" controls data-att-id=\"${att.id}\"></video><button type=\"button\" class=\"video-restart\" data-att-id=\"${att.id}\" title=\"Inicio\">⏮</button><span class=\"video-speed\"><button type=\"button\" class=\"video-speed-down\" data-att-id=\"${att.id}\" title=\"Más lento\">−</button><span class=\"video-speed-label\" data-att-id=\"${att.id}\">1x</span><button type=\"button\" class=\"video-speed-up\" data-att-id=\"${att.id}\" title=\"Más rápido\">+</button></span><a class=\"attachment-dl\" data-att-id=\"${att.id}\" href=\"#\" title=\"Descargar\">⬇️</a></span>` : '';
+        const video = (!att.isImage && !isAudioAttachment(att) && isVideoAttachment(att)) ? `<span class=\"attachment-video-wrap\"><video class=\"attachment-video\" controls data-att-id=\"${att.id}\"></video><button type=\"button\" class=\"video-restart\" data-att-id=\"${att.id}\" title=\"Inicio\">⏮</button><span class=\"video-speed\"><button type=\"button\" class=\"video-speed-down\" data-att-id=\"${att.id}\" title=\"Más lento\">−</button><span class=\"video-speed-label\" data-att-id=\"${att.id}\">1x</span><button type=\"button\" class=\"video-speed-up\" data-att-id=\"${att.id}\" title=\"Más rápido\">+</button></span></span>` : '';
         const link = (!att.isImage && !isAudioAttachment(att) && !isVideoAttachment(att)) ? `<a class=\"attachment-file\" data-att-id=\"${att.id}\" href=\"#\" title=\"${label}\">📎 ${label}</a>` : '';
         const dl = (!att.isImage && !isAudioAttachment(att) && !isVideoAttachment(att)) ? `<a class=\"attachment-dl\" data-att-id=\"${att.id}\" href=\"#\" title=\"Descargar\">⬇️</a>` : '';
         const del = `<button type=\"button\" class=\"attachment-remove\" data-att-id=\"${att.id}\">${(window.i18n&&i18n.t)?i18n.t('delete'):'Eliminar'}</button>`;
@@ -1286,7 +1285,7 @@ function renderTasks() {
                     } else if (isAudioAttachment(att)) {
                         return '<span class="attachment-audio-wrap"><audio class="attachment-audio" controls data-att-id="'+att.id+'"></audio><button type="button" class="audio-restart" data-att-id="'+att.id+'" title="Inicio">⏮</button><span class="audio-speed"><button type="button" class="audio-speed-down" data-att-id="'+att.id+'" title="Más lento">−</button><span class="audio-speed-label" data-att-id="'+att.id+'">1x</span><button type="button" class="audio-speed-up" data-att-id="'+att.id+'" title="Más rápido">+</button></span></span>';
                     } else if (isVideoAttachment(att)) {
-                        return '<span class="attachment-video-wrap"><video class="attachment-video" controls data-att-id="'+att.id+'"></video><button type="button" class="video-restart" data-att-id="'+att.id+'" title="Inicio">⏮</button><span class="video-speed"><button type="button" class="video-speed-down" data-att-id="'+att.id+'" title="Más lento">−</button><span class="video-speed-label" data-att-id="'+att.id+'">1x</span><button type="button" class="video-speed-up" data-att-id="'+att.id+'" title="Más rápido">+</button></span><a class="attachment-dl" href="#" data-att-id="'+att.id+'" title="Descargar">⬇️</a></span>';
+                        return '<span class="attachment-video-wrap"><video class="attachment-video" controls data-att-id="'+att.id+'"></video><button type="button" class="video-restart" data-att-id="'+att.id+'" title="Inicio">⏮</button><span class="video-speed"><button type="button" class="video-speed-down" data-att-id="'+att.id+'" title="Más lento">−</button><span class="video-speed-label" data-att-id="'+att.id+'">1x</span><button type="button" class="video-speed-up" data-att-id="'+att.id+'" title="Más rápido">+</button></span></span>';
                     } else {
                         const extra = isPdfAttachment(att) ? ' <a class="attachment-dl" href="#" data-att-id="'+att.id+'" title="Descargar">⬇️</a>' : '';
                         return '<span class="attachment-wrap"><a class="attachment-file" href="#" data-att-id="'+att.id+'" title="'+(att.name||'')+'">📎 '+(att.name||'')+'</a>'+extra+'</span>';
