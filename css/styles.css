@@ -318,6 +318,25 @@ button:hover { background: #1f2937; }
 
 @media (max-width: 600px) {
   .attachment-audio { height: 28px; }
+  /* Controles más compactos en móvil */
+  .attachment-audio-wrap .audio-restart,
+  .attachment-audio-wrap .audio-speed button,
+  .attachment-video-wrap .video-restart,
+  .attachment-video-wrap .video-speed button {
+    padding: 4px 6px; /* reducir ancho */
+    font-size: 38px;
+    min-height: 30px;
+    min-width: 32px; /* evitar botones muy anchos */
+    width: auto;
+    white-space: nowrap;
+  }
+  .attachment-audio-wrap .audio-speed-label,
+  .attachment-video-wrap .video-speed-label {
+    font-size: 12px;
+    min-width: 28px;
+  }
+  .video-controls,
+  .audio-controls { gap: 8px; }
 }
 
 /* En el modal de adjuntos, dejar que el audio se estire también */
