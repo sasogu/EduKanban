@@ -1,5 +1,5 @@
 // =================================================================================
-// GESTOR DE TAREAS - VERSIÓN FINAL REFACTORIZADA
+// GESTOR DE TAREAS -- VERSIÓN FINAL REFACTORIZADA
 // =================================================================================
 
 // --- ESTADO GLOBAL DE LA APLICACIÓN ---
