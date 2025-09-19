@@ -1670,6 +1670,48 @@ function renderTasks() {
         hydrateAttachmentsForCategory(filteredTasks, categoryDiv);
     }
 
+    // Columna virtual: Histórico (se muestra solo si está seleccionada explícitamente)
+    const wantsHistorico = Array.isArray(filterColumns) && filterColumns.includes('historico');
+    if (wantsHistorico) {
+        const histDiv = document.createElement('div');
+        histDiv.className = 'category';
+        const histTitle = (window.i18n && i18n.t) ? i18n.t('history') : 'Histórico';
+        histDiv.innerHTML = `<h3>${histTitle}</h3><div class="task-list"></div>`;
+        const listEl = histDiv.querySelector('.task-list');
+        const groups = collectHistoryGroupsLimited();
+        if (!groups.length) {
+            const empty = document.createElement('div');
+            empty.className = 'task';
+            empty.innerHTML = `<span>${(window.i18n&&i18n.t)?(i18n.t('no_history')||'No hay histórico disponible.'):'No hay histórico disponible.'}</span>`;
+            listEl.appendChild(empty);
+        } else {
+            groups.forEach(g => {
+                const h = document.createElement('h4');
+                h.textContent = g.dateHuman;
+                h.style.margin = '8px 0 6px';
+                listEl.appendChild(h);
+                g.items.forEach(it => {
+                    const div = document.createElement('div');
+                    div.className = 'task';
+                    const tags = (it.task.tags||[]);
+                    div.innerHTML = `
+                        <span>${convertirEnlaces(it.task.task)}
+                          ${tags.length ? `<small class=\"tags\">${tags.map(t => '<span class=\"tag-chip in-task\">#'+t+'</span>').join(' ')}</small>` : ''}
+                          <small class=\"done-meta\">✔️ ${it.count} ${(window.i18n&&i18n.t)?i18n.t('times'):'veces'} • ${it.lastHuman}</small>
+                        </span>
+                    `;
+                    listEl.appendChild(div);
+                });
+            });
+            const more = document.createElement('div');
+            more.style.marginTop = '8px';
+            const histLabel = (window.i18n && i18n.t) ? i18n.t('history') : 'Histórico';
+            more.innerHTML = `<a href="historico.html" class="attachment-file" style="display:inline-block">${histLabel} →</a>`;
+            listEl.appendChild(more);
+        }
+        taskContainer.appendChild(histDiv);
+    }
+
     // Actualiza filtros (conservando selección) y autocompletado en cada render
     updateTagFilterDropdown(filterTag);
     updateColumnFilterDropdown(filterColumns, catNames);
@@ -2154,14 +2196,22 @@ function updateColumnFilterDropdown(currentValues = [], catNames = null) {
     const select = document.getElementById('filter-column');
     const group = document.getElementById('filter-column-group');
     if (!select && !group) return;
-    const names = catNames || ((window.i18n && i18n.i18nCategoryNames) ? i18n.i18nCategoryNames() : {
-        'en-preparacion':'En preparación','preparadas':'Preparadas','en-proceso':'En proceso','pendientes':'Pendientes','archivadas':'Archivadas'
-    });
+    const names = Object.assign(
+        {
+            'en-preparacion':'En preparación',
+            'preparadas':'Preparadas',
+            'en-proceso':'En proceso',
+            'pendientes':'Pendientes',
+            'archivadas':'Archivadas'
+        },
+        (catNames || ((window.i18n && i18n.i18nCategoryNames) ? i18n.i18nCategoryNames() : {})),
+        { 'historico': (window.i18n && i18n.t) ? i18n.t('history') : 'Histórico' }
+    );
     const showAll = (window.i18n && i18n.t) ? i18n.t('show_all') : 'Todas';
     const selectedSet = new Set(Array.isArray(currentValues) ? currentValues : (currentValues ? [currentValues] : []));
     let options = `<option value=""${selectedSet.size===0 ? ' selected' : ''}>${showAll}</option>`;
-    // Orden fijo: En preparación, Preparadas, En proceso, Pendientes
-    const keys = ['en-preparacion','preparadas','en-proceso','pendientes'];
+    // Orden fijo: En preparación, Preparadas, En proceso, Pendientes, Histórico (virtual)
+    const keys = ['en-preparacion','preparadas','en-proceso','pendientes','historico'];
     if (group) {
         const html = keys.map(k => `
             <label style="display:inline-flex; align-items:center; gap:6px; margin-right:10px;">
@@ -2184,6 +2234,52 @@ function updateTagDatalist() {
     if (!datalist) return;
     const tags = getAllTags();
     datalist.innerHTML = tags.map(t => `<option value="${t}"></option>`).join('');
+}
+
+// --- HISTÓRICO EN TABLERO (columna virtual) ---
+function __localDateStr(iso) {
+    try { const d = new Date(iso); if (isNaN(d)) return ''; const pad=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; } catch(_) { return ''; }
+}
+function collectHistoryGroupsLimited(maxDays = 7, maxPerDay = 10) {
+    try {
+        const byDate = new Map();
+        for (const tasks of Object.values(categories)) {
+            for (const t of tasks) {
+                const hist = Array.isArray(t.doneHistory) ? t.doneHistory : [];
+                for (const ts of hist) {
+                    const ds = __localDateStr(ts);
+                    if (!ds) continue;
+                    if (!byDate.has(ds)) byDate.set(ds, new Map());
+                    const perTask = byDate.get(ds);
+                    const arr = perTask.get(t.id) || [];
+                    arr.push(ts);
+                    perTask.set(t.id, arr);
+                }
+            }
+        }
+        const dates = Array.from(byDate.keys()).sort().reverse().slice(0, Math.max(1, maxDays));
+        const locale = (window.i18n && i18n.getLocale) ? i18n.getLocale() : 'es-ES';
+        const out = [];
+        for (const ds of dates) {
+            const perTask = byDate.get(ds);
+            const items = [];
+            perTask.forEach((arr, taskId) => {
+                let found = null;
+                for (const tasks of Object.values(categories)) {
+                    const t = tasks.find(x => x.id === taskId);
+                    if (t) { found = t; break; }
+                }
+                if (!found) return;
+                const sorted = arr.slice().sort((a,b)=> new Date(b) - new Date(a));
+                const last = sorted[0];
+                const lastHuman = new Date(last).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+                items.push({ task: found, count: arr.length, last, lastHuman });
+            });
+            items.sort((a,b)=> new Date(b.last) - new Date(a.last));
+            out.push({ date: ds, dateHuman: new Date(ds).toLocaleDateString(locale, { dateStyle: 'full' }), items: items.slice(0, Math.max(1, maxPerDay)) });
+        }
+        return out;
+    } catch (e) { console.warn('collectHistoryGroupsLimited error', e); return []; }
 }
 
 // Chips de sugerencias bajo el input de etiquetas
