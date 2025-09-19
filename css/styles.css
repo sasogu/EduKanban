@@ -341,6 +341,16 @@ button:hover { background: #1f2937; }
   border-color: #10b981;
 }
 
+/* Punto A/B marcados visualmente */
+.attachment-audio-wrap .audio-ab-a.marked,
+.attachment-audio-wrap .audio-ab-b.marked,
+.attachment-video-wrap .video-ab-a.marked,
+.attachment-video-wrap .video-ab-b.marked {
+  background: var(--color-accent);
+  color: #fff;
+  border-color: var(--color-accent);
+}
+
 /* En la cuadrícula de adjuntos de las tarjetas, que el audio ocupe todo el ancho */
 .attachments > .attachment-audio-wrap { grid-column: 1 / -1; }
 .attachments > .attachment-video-wrap { grid-column: 1 / -1; }
