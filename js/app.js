@@ -966,11 +966,13 @@ function renderPendingAttachments() {
                         if (aSetBtn) {
                             const marked = Number.isFinite(st.a);
                             aSetBtn.classList.toggle('marked', marked);
+                            aSetBtn.setAttribute('aria-pressed', marked ? 'true' : 'false');
                             aSetBtn.title = marked ? `Punto A (${fmt(st.a)})` : 'Marcar punto A';
                         }
                         if (bSetBtn) {
                             const marked = Number.isFinite(st.b);
                             bSetBtn.classList.toggle('marked', marked);
+                            bSetBtn.setAttribute('aria-pressed', marked ? 'true' : 'false');
                             bSetBtn.title = marked ? `Punto B (${fmt(st.b)})` : 'Marcar punto B';
                         }
                     };
@@ -1089,11 +1091,13 @@ function renderPendingAttachments() {
                         if (vaSetBtn) {
                             const marked = Number.isFinite(st.a);
                             vaSetBtn.classList.toggle('marked', marked);
+                            vaSetBtn.setAttribute('aria-pressed', marked ? 'true' : 'false');
                             vaSetBtn.title = marked ? `Punto A (${fmt(st.a)})` : 'Marcar punto A';
                         }
                         if (vbSetBtn) {
                             const marked = Number.isFinite(st.b);
                             vbSetBtn.classList.toggle('marked', marked);
+                            vbSetBtn.setAttribute('aria-pressed', marked ? 'true' : 'false');
                             vbSetBtn.title = marked ? `Punto B (${fmt(st.b)})` : 'Marcar punto B';
                         }
                     };
@@ -1915,22 +1919,22 @@ function hydrateAttachmentsForCategory(tasks, rootEl) {
                     }
                     applyAB();
                 });
-                if (aSetBtn) aSetBtn.addEventListener('click', () => {
-                    const t = audioEl.currentTime || 0;
+                    if (aSetBtn) aSetBtn.addEventListener('click', () => {
+                        const t = audioEl.currentTime || 0;
                     const st = getMediaABPref(att.id);
                     let b = st.b;
                     if (Number.isFinite(b) && b <= t) b = Number.isFinite(audioEl.duration) ? audioEl.duration : (t + 0.1);
-                    setMediaABPref(att.id, { a: t, b });
-                    applyAB();
-                });
-                if (bSetBtn) bSetBtn.addEventListener('click', () => {
-                    const t = audioEl.currentTime || 0;
+                        setMediaABPref(att.id, { a: t, b });
+                        applyAB();
+                    });
+                    if (bSetBtn) bSetBtn.addEventListener('click', () => {
+                        const t = audioEl.currentTime || 0;
                     const st = getMediaABPref(att.id);
                     let a = st.a;
                     if (!Number.isFinite(a) || a >= t) a = Math.max(0, (t - 0.1));
-                    setMediaABPref(att.id, { a, b: t });
-                    applyAB();
-                });
+                        setMediaABPref(att.id, { a, b: t });
+                        applyAB();
+                    });
                 if (abClearBtn) abClearBtn.addEventListener('click', () => {
                     setMediaABPref(att.id, { a: null, b: null, enabled: false });
                     applyAB();
@@ -2018,22 +2022,22 @@ function hydrateAttachmentsForCategory(tasks, rootEl) {
                     }
                     applyABv();
                 });
-                if (vaSetBtn) vaSetBtn.addEventListener('click', () => {
-                    const t = videoEl.currentTime || 0;
+                    if (vaSetBtn) vaSetBtn.addEventListener('click', () => {
+                        const t = videoEl.currentTime || 0;
                     const st = getMediaABPref(att.id);
                     let b = st.b;
                     if (Number.isFinite(b) && b <= t) b = Number.isFinite(videoEl.duration) ? videoEl.duration : (t + 0.1);
-                    setMediaABPref(att.id, { a: t, b });
-                    applyABv();
-                });
-                if (vbSetBtn) vbSetBtn.addEventListener('click', () => {
-                    const t = videoEl.currentTime || 0;
+                        setMediaABPref(att.id, { a: t, b });
+                        applyABv();
+                    });
+                    if (vbSetBtn) vbSetBtn.addEventListener('click', () => {
+                        const t = videoEl.currentTime || 0;
                     const st = getMediaABPref(att.id);
                     let a = st.a;
                     if (!Number.isFinite(a) || a >= t) a = Math.max(0, (t - 0.1));
-                    setMediaABPref(att.id, { a, b: t });
-                    applyABv();
-                });
+                        setMediaABPref(att.id, { a, b: t });
+                        applyABv();
+                    });
                 if (vabClearBtn) vabClearBtn.addEventListener('click', () => {
                     setMediaABPref(att.id, { a: null, b: null, enabled: false });
                     applyABv();
