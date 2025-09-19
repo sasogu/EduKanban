@@ -287,6 +287,7 @@ button:hover { background: #1f2937; }
 .attachment-dl { display: inline-block; padding: 4px 6px; border: 1px solid var(--color-border); border-radius: 6px; background: #fff; text-decoration: none; color: var(--color-text); }
 .attachment-dl:hover { border-color: var(--color-primary); }
 
+<<<<<<< HEAD
 /* Audio attachments: keep controls on one line */
 .attachment-audio-wrap { display: flex; flex-direction: column; align-items: stretch; gap: 6px; flex-wrap: nowrap; white-space: normal; width: 100%; max-width: 100%; }
 .attachment-video-wrap { display: flex; flex-direction: column; align-items: stretch; gap: 6px; width: 100%; max-width: 100%; }
@@ -294,10 +295,19 @@ button:hover { background: #1f2937; }
 .attachment-video { flex: 1 1 auto; width: 100%; max-width: 100%; height: auto; }
 .video-controls { display: flex; align-items: center; gap: 12px; justify-content: flex-start; }
 .audio-controls { display: flex; align-items: center; gap: 12px; justify-content: flex-start; }
+=======
+/* Audio/Video attachments: controls below the player */
+.attachment-audio-wrap, .attachment-video-wrap { display: flex; flex-direction: column; align-items: stretch; gap: 6px; width: 100%; max-width: 100%; }
+.attachment-audio { width: 100%; max-width: 100%; height: 32px; }
+.attachment-video { width: 100%; max-width: 100%; height: auto; }
+.media-controls { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+>>>>>>> aed62fe (controles audios)
 .attachment-audio-wrap .audio-restart,
 .attachment-audio-wrap .audio-speed button,
+.attachment-audio-wrap .audio-loop-toggle,
 .attachment-video-wrap .video-restart,
-.attachment-video-wrap .video-speed button {
+.attachment-video-wrap .video-speed button,
+.attachment-video-wrap .video-loop-toggle {
   background: #fff; color: var(--color-text);
   border: 1px solid var(--color-border);
   border-radius: 8px;
@@ -310,6 +320,26 @@ button:hover { background: #1f2937; }
 .attachment-video-wrap .video-speed { display: inline-flex; align-items: center; gap: 4px; }
 .attachment-audio-wrap .audio-speed-label,
 .attachment-video-wrap .video-speed-label { font-size: 14px; min-width: 36px; text-align: center; color: var(--color-muted); }
+
+/* Estado activo del bucle */
+.attachment-audio-wrap .audio-loop-toggle.active,
+.attachment-audio-wrap .audio-loop-toggle[aria-pressed="true"],
+.attachment-video-wrap .video-loop-toggle.active,
+.attachment-video-wrap .video-loop-toggle[aria-pressed="true"] {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+/* Estado activo del A–B */
+.attachment-audio-wrap .audio-ab-toggle.active,
+.attachment-audio-wrap .audio-ab-toggle[aria-pressed="true"],
+.attachment-video-wrap .video-ab-toggle.active,
+.attachment-video-wrap .video-ab-toggle[aria-pressed="true"] {
+  background: #10b981; /* verde distinto para diferenciar */
+  color: #fff;
+  border-color: #10b981;
+}
 
 /* En la cuadrícula de adjuntos de las tarjetas, que el audio ocupe todo el ancho */
 .attachments > .attachment-audio-wrap { grid-column: 1 / -1; }

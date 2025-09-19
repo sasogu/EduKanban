@@ -23,7 +23,9 @@ const LS = {
   visibleColumn: 'edukanban.visibleColumn', // compat: antes guardaba un string; ahora guarda JSON array
   notificationsEnabled: 'edukanban.notificationsEnabled',
   pendingDropboxAction: 'edukanban.pendingDropboxAction',
-  lastReauthAt: 'edukanban.lastReauthAt'
+  lastReauthAt: 'edukanban.lastReauthAt',
+  mediaLoop: 'edukanban.mediaLoop',
+  mediaLoopAB: 'edukanban.mediaLoopAB'
 };
 
 const deletedTasks = JSON.parse(localStorage.getItem(LS.deleted) || '[]');
@@ -35,6 +37,45 @@ let localLastSync = localStorage.getItem(LS.lastSync);
 let syncInterval = null;
 // Flujo de redirect dinámico; constante obsoleta tras rebranding
 const DROPBOX_REDIRECT_URI = 'about:blank';
+
+// Preferencias locales de bucle por adjunto (no se sincronizan)
+let __mediaLoopPrefs = {};
+try { __mediaLoopPrefs = JSON.parse(localStorage.getItem(LS.mediaLoop) || '{}') || {}; } catch (_) { __mediaLoopPrefs = {}; }
+function getMediaLoopPref(attId) {
+    try { return !!__mediaLoopPrefs[attId]; } catch (_) { return false; }
+}
+function setMediaLoopPref(attId, value) {
+    try {
+        __mediaLoopPrefs[attId] = !!value;
+        localStorage.setItem(LS.mediaLoop, JSON.stringify(__mediaLoopPrefs));
+    } catch (_) {}
+}
+
+// Preferencias locales de bucle A–B por adjunto
+let __mediaABPrefs = {};
+try { __mediaABPrefs = JSON.parse(localStorage.getItem(LS.mediaLoopAB) || '{}') || {}; } catch (_) { __mediaABPrefs = {}; }
+function getMediaABPref(attId) {
+    try {
+        const v = __mediaABPrefs[attId] || {};
+        const a = Number.isFinite(v.a) ? Number(v.a) : null;
+        const b = Number.isFinite(v.b) ? Number(v.b) : null;
+        const enabled = !!v.enabled;
+        return { a, b, enabled };
+    } catch (_) { return { a: null, b: null, enabled: false }; }
+}
+function setMediaABPref(attId, patch) {
+    try {
+        const cur = getMediaABPref(attId);
+        const next = {
+            a: (patch && ('a' in patch)) ? (Number.isFinite(patch.a) ? Number(patch.a) : null) : cur.a,
+            b: (patch && ('b' in patch)) ? (Number.isFinite(patch.b) ? Number(patch.b) : null) : cur.b,
+            enabled: (patch && ('enabled' in patch)) ? !!patch.enabled : cur.enabled
+        };
+        __mediaABPrefs[attId] = next;
+        localStorage.setItem(LS.mediaLoopAB, JSON.stringify(__mediaABPrefs));
+        return next;
+    } catch (_) { return getMediaABPref(attId); }
+}
 
 // --- FUNCIONES DE UTILIDAD ---
 function generateUUID() { return crypto.randomUUID(); }
@@ -843,8 +884,13 @@ function renderPendingAttachments() {
         container.innerHTML = list.map(att => {
             const label = att.name || 'archivo';
             const img = att.isImage ? `<img class="attachment-img" data-att-id="${att.id}" alt="${label}">` : '';
+<<<<<<< HEAD
             const audio = (!att.isImage && isAudioAttachment(att)) ? `<span class=\"attachment-audio-wrap\"><audio class=\"attachment-audio\" controls data-att-id=\"${att.id}\"></audio><div class=\"audio-controls\"><button type=\"button\" class=\"audio-restart\" data-att-id=\"${att.id}\" title=\"Inicio\">⏮</button><span class=\"audio-speed\"><button type=\"button\" class=\"audio-speed-down\" data-att-id=\"${att.id}\" title=\"Más lento\">−</button><span class=\"audio-speed-label\" data-att-id=\"${att.id}\">1x</span><button type=\"button\" class=\"audio-speed-up\" data-att-id=\"${att.id}\" title=\"Más rápido\">+</button></span></div></span>` : '';
             const video = (!att.isImage && !isAudioAttachment(att) && isVideoAttachment(att)) ? `<span class="attachment-video-wrap"><video class="attachment-video" controls data-att-id="${att.id}"></video><div class="video-controls"><button type="button" class="video-restart" data-att-id="${att.id}" title="Inicio">⏮</button><span class="video-speed"><button type="button" class="video-speed-down" data-att-id="${att.id}" title="Más lento">−</button><span class="video-speed-label" data-att-id="${att.id}">1x</span><button type="button" class="video-speed-up" data-att-id="${att.id}" title="Más rápido">+</button></span></div></span>` : '';
+=======
+            const audio = (!att.isImage && isAudioAttachment(att)) ? `<div class="attachment-audio-wrap"><audio class="attachment-audio" controls data-att-id="${att.id}"></audio><div class="media-controls"><button type="button" class="audio-restart" data-att-id="${att.id}" title="Inicio">⏮</button><button type="button" class="audio-loop-toggle" data-att-id="${att.id}" aria-pressed="false" title="Bucle">🔁</button><span class="audio-speed"><button type="button" class="audio-speed-down" data-att-id="${att.id}" title="Más lento">−</button><span class="audio-speed-label" data-att-id="${att.id}">1x</span><button type="button" class="audio-speed-up" data-att-id="${att.id}" title="Más rápido">+</button></span><span class="ab-controls"><button type="button" class="audio-ab-a" data-att-id="${att.id}" title="Marcar punto A">A</button><button type="button" class="audio-ab-b" data-att-id="${att.id}" title="Marcar punto B">B</button><button type="button" class="audio-ab-toggle" data-att-id="${att.id}" aria-pressed="false" title="Bucle A–B">A–B</button><button type="button" class="audio-ab-clear" data-att-id="${att.id}" title="Limpiar A–B">✖</button></span></div></div>` : '';
+            const video = (!att.isImage && !isAudioAttachment(att) && isVideoAttachment(att)) ? `<div class="attachment-video-wrap"><video class="attachment-video" controls data-att-id="${att.id}"></video><div class="media-controls"><button type="button" class="video-restart" data-att-id="${att.id}" title="Inicio">⏮</button><button type="button" class="video-loop-toggle" data-att-id="${att.id}" aria-pressed="false" title="Bucle">🔁</button><span class="video-speed"><button type="button" class="video-speed-down" data-att-id="${att.id}" title="Más lento">−</button><span class="video-speed-label" data-att-id="${att.id}">1x</span><button type="button" class="video-speed-up" data-att-id="${att.id}" title="Más rápido">+</button></span><span class="ab-controls"><button type="button" class="video-ab-a" data-att-id="${att.id}" title="Marcar punto A">A</button><button type="button" class="video-ab-b" data-att-id="${att.id}" title="Marcar punto B">B</button><button type="button" class="video-ab-toggle" data-att-id="${att.id}" aria-pressed="false" title="Bucle A–B">A–B</button><button type="button" class="video-ab-clear" data-att-id="${att.id}" title="Limpiar A–B">✖</button></span></div></div>` : '';
+>>>>>>> aed62fe (controles audios)
             const link = (!att.isImage && !isAudioAttachment(att) && !isVideoAttachment(att)) ? `<a class="attachment-file" data-att-id="${att.id}" href="#" title="${label}">📎 ${label}</a>` : '';
             const dl = (!att.isImage && !isAudioAttachment(att) && !isVideoAttachment(att)) ? `<a class="attachment-dl" data-att-id="${att.id}" href="#" title="Descargar">⬇️</a>` : '';
             return `<div class="attachment-row" data-att-id="${att.id}">${img}${audio}${video}${link}${dl}</div>`;
@@ -876,6 +922,99 @@ function renderPendingAttachments() {
                     });
                     restartBtn.dataset.bound = '1';
                 }
+                // Toggle bucle audio
+                const aLoopBtn = container.querySelector(`button.audio-loop-toggle[data-att-id="${att.id}"]`);
+                if (aLoopBtn && audioEl && !aLoopBtn.dataset.bound) {
+                    const apply = () => {
+                        const on = getMediaLoopPref(att.id);
+                        audioEl.loop = !!on;
+                        if (on) audioEl.setAttribute('loop', ''); else audioEl.removeAttribute('loop');
+                        aLoopBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+                        aLoopBtn.classList.toggle('active', !!on);
+                    };
+                    if (!audioEl.dataset.loopBound) {
+                        audioEl.addEventListener('ended', () => {
+                            if (getMediaLoopPref(att.id)) {
+                                try { audioEl.currentTime = 0; audioEl.play().catch(()=>{}); } catch(_) {}
+                            }
+                        });
+                        audioEl.dataset.loopBound = '1';
+                    }
+                    apply();
+                    aLoopBtn.addEventListener('click', () => {
+                        const next = !getMediaLoopPref(att.id);
+                        setMediaLoopPref(att.id, next);
+                        apply();
+                        if (next && (audioEl.ended || (audioEl.duration && audioEl.currentTime >= audioEl.duration - 0.05))) {
+                            try { audioEl.currentTime = 0; audioEl.play().catch(()=>{}); } catch(_) {}
+                        }
+                    });
+                    aLoopBtn.dataset.bound = '1';
+                }
+                // Bucle A–B audio
+                const aSetBtn = container.querySelector(`button.audio-ab-a[data-att-id="${att.id}"]`);
+                const bSetBtn = container.querySelector(`button.audio-ab-b[data-att-id="${att.id}"]`);
+                const abToggleBtn = container.querySelector(`button.audio-ab-toggle[data-att-id="${att.id}"]`);
+                const abClearBtn = container.querySelector(`button.audio-ab-clear[data-att-id="${att.id}"]`);
+                if (audioEl && abToggleBtn && !abToggleBtn.dataset.bound) {
+                    const applyAB = () => {
+                        const st = getMediaABPref(att.id);
+                        abToggleBtn.setAttribute('aria-pressed', st.enabled ? 'true' : 'false');
+                        abToggleBtn.classList.toggle('active', !!st.enabled);
+                        if (st.enabled) { audioEl.removeAttribute('loop'); audioEl.loop = false; }
+                    };
+                    if (!audioEl.dataset.abBound) {
+                        audioEl.addEventListener('timeupdate', () => {
+                            const st = getMediaABPref(att.id);
+                            if (!st.enabled || !(Number.isFinite(st.a) && Number.isFinite(st.b)) || st.b <= st.a) return;
+                            const t = audioEl.currentTime || 0;
+                            if (t >= st.b - 0.03) {
+                                try { audioEl.currentTime = st.a; if (!audioEl.paused) audioEl.play().catch(()=>{}); } catch(_) {}
+                            } else if (t < st.a - 0.03) {
+                                try { audioEl.currentTime = st.a; } catch(_) {}
+                            }
+                        });
+                        audioEl.dataset.abBound = '1';
+                    }
+                    applyAB();
+                    abToggleBtn.addEventListener('click', () => {
+                        const st = getMediaABPref(att.id);
+                        let { a, b } = st;
+                        if (!Number.isFinite(a)) a = 0;
+                        if (!Number.isFinite(b)) b = Number.isFinite(audioEl.duration) ? audioEl.duration : (a + 1);
+                        if (b <= a) b = a + 0.1;
+                        setMediaABPref(att.id, { a, b, enabled: !st.enabled });
+                        // Desactivar bucle simple al activar A–B
+                        if (!st.enabled) {
+                            setMediaLoopPref(att.id, false);
+                            const btn = container.querySelector(`button.audio-loop-toggle[data-att-id="${att.id}"]`);
+                            if (btn) { btn.setAttribute('aria-pressed', 'false'); btn.classList.remove('active'); }
+                            audioEl.removeAttribute('loop'); audioEl.loop = false;
+                        }
+                        applyAB();
+                    });
+                    if (aSetBtn) aSetBtn.addEventListener('click', () => {
+                        const t = audioEl.currentTime || 0;
+                        const st = getMediaABPref(att.id);
+                        let b = st.b;
+                        if (Number.isFinite(b) && b <= t) {
+                            b = Number.isFinite(audioEl.duration) ? audioEl.duration : (t + 0.1);
+                        }
+                        setMediaABPref(att.id, { a: t, b });
+                    });
+                    if (bSetBtn) bSetBtn.addEventListener('click', () => {
+                        const t = audioEl.currentTime || 0;
+                        const st = getMediaABPref(att.id);
+                        let a = st.a;
+                        if (!Number.isFinite(a) || a >= t) a = Math.max(0, (t - 0.1));
+                        setMediaABPref(att.id, { a, b: t });
+                    });
+                    if (abClearBtn) abClearBtn.addEventListener('click', () => {
+                        setMediaABPref(att.id, { a: null, b: null, enabled: false });
+                        applyAB();
+                    });
+                    abToggleBtn.dataset.bound = '1';
+                }
                 const vRestartBtn = container.querySelector(`button.video-restart[data-att-id="${att.id}"]`);
                 if (vRestartBtn && !vRestartBtn.dataset.bound) {
                     vRestartBtn.addEventListener('click', () => {
@@ -887,6 +1026,96 @@ function renderPendingAttachments() {
                         }
                     });
                     vRestartBtn.dataset.bound = '1';
+                }
+                // Toggle bucle vídeo
+                const vLoopBtn = container.querySelector(`button.video-loop-toggle[data-att-id="${att.id}"]`);
+                if (vLoopBtn && videoEl && !vLoopBtn.dataset.bound) {
+                    const apply = () => {
+                        const on = getMediaLoopPref(att.id);
+                        videoEl.loop = !!on;
+                        if (on) videoEl.setAttribute('loop', ''); else videoEl.removeAttribute('loop');
+                        vLoopBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+                        vLoopBtn.classList.toggle('active', !!on);
+                    };
+                    if (!videoEl.dataset.loopBound) {
+                        videoEl.addEventListener('ended', () => {
+                            if (getMediaLoopPref(att.id)) {
+                                try { videoEl.currentTime = 0; videoEl.play().catch(()=>{}); } catch(_) {}
+                            }
+                        });
+                        videoEl.dataset.loopBound = '1';
+                    }
+                    apply();
+                    vLoopBtn.addEventListener('click', () => {
+                        const next = !getMediaLoopPref(att.id);
+                        setMediaLoopPref(att.id, next);
+                        apply();
+                        if (next && (videoEl.ended || (videoEl.duration && videoEl.currentTime >= videoEl.duration - 0.05))) {
+                            try { videoEl.currentTime = 0; videoEl.play().catch(()=>{}); } catch(_) {}
+                        }
+                    });
+                    vLoopBtn.dataset.bound = '1';
+                }
+                // Bucle A–B vídeo
+                const vaSetBtn = container.querySelector(`button.video-ab-a[data-att-id="${att.id}"]`);
+                const vbSetBtn = container.querySelector(`button.video-ab-b[data-att-id="${att.id}"]`);
+                const vabToggleBtn = container.querySelector(`button.video-ab-toggle[data-att-id="${att.id}"]`);
+                const vabClearBtn = container.querySelector(`button.video-ab-clear[data-att-id="${att.id}"]`);
+                if (videoEl && vabToggleBtn && !vabToggleBtn.dataset.bound) {
+                    const applyABv = () => {
+                        const st = getMediaABPref(att.id);
+                        vabToggleBtn.setAttribute('aria-pressed', st.enabled ? 'true' : 'false');
+                        vabToggleBtn.classList.toggle('active', !!st.enabled);
+                        if (st.enabled) { videoEl.removeAttribute('loop'); videoEl.loop = false; }
+                    };
+                    if (!videoEl.dataset.abBound) {
+                        videoEl.addEventListener('timeupdate', () => {
+                            const st = getMediaABPref(att.id);
+                            if (!st.enabled || !(Number.isFinite(st.a) && Number.isFinite(st.b)) || st.b <= st.a) return;
+                            const t = videoEl.currentTime || 0;
+                            if (t >= st.b - 0.03) {
+                                try { videoEl.currentTime = st.a; if (!videoEl.paused) videoEl.play().catch(()=>{}); } catch(_) {}
+                            } else if (t < st.a - 0.03) {
+                                try { videoEl.currentTime = st.a; } catch(_) {}
+                            }
+                        });
+                        videoEl.dataset.abBound = '1';
+                    }
+                    applyABv();
+                    vabToggleBtn.addEventListener('click', () => {
+                        const st = getMediaABPref(att.id);
+                        let { a, b } = st;
+                        if (!Number.isFinite(a)) a = 0;
+                        if (!Number.isFinite(b)) b = Number.isFinite(videoEl.duration) ? videoEl.duration : (a + 1);
+                        if (b <= a) b = a + 0.1;
+                        setMediaABPref(att.id, { a, b, enabled: !st.enabled });
+                        if (!st.enabled) {
+                            setMediaLoopPref(att.id, false);
+                            const btn = container.querySelector(`button.video-loop-toggle[data-att-id="${att.id}"]`);
+                            if (btn) { btn.setAttribute('aria-pressed', 'false'); btn.classList.remove('active'); }
+                            videoEl.removeAttribute('loop'); videoEl.loop = false;
+                        }
+                        applyABv();
+                    });
+                    if (vaSetBtn) vaSetBtn.addEventListener('click', () => {
+                        const t = videoEl.currentTime || 0;
+                        const st = getMediaABPref(att.id);
+                        let b = st.b;
+                        if (Number.isFinite(b) && b <= t) b = Number.isFinite(videoEl.duration) ? videoEl.duration : (t + 0.1);
+                        setMediaABPref(att.id, { a: t, b });
+                    });
+                    if (vbSetBtn) vbSetBtn.addEventListener('click', () => {
+                        const t = videoEl.currentTime || 0;
+                        const st = getMediaABPref(att.id);
+                        let a = st.a;
+                        if (!Number.isFinite(a) || a >= t) a = Math.max(0, (t - 0.1));
+                        setMediaABPref(att.id, { a, b: t });
+                    });
+                    if (vabClearBtn) vabClearBtn.addEventListener('click', () => {
+                        setMediaABPref(att.id, { a: null, b: null, enabled: false });
+                        applyABv();
+                    });
+                    vabToggleBtn.dataset.bound = '1';
                 }
                 // velocidad −/+
                 const speedDownBtn = container.querySelector(`button.audio-speed-down[data-att-id="${att.id}"]`);
@@ -1030,8 +1259,13 @@ async function renderPopupAttachments(task) {
     container.innerHTML = list.map(att => {
         const label = att.name || 'archivo';
         const img = att.isImage ? `<img class=\"attachment-img\" data-att-id=\"${att.id}\" alt=\"${label}\">` : '';
+<<<<<<< HEAD
         const audio = (!att.isImage && isAudioAttachment(att)) ? `<span class=\"attachment-audio-wrap\"><audio class=\"attachment-audio\" controls data-att-id=\"${att.id}\"></audio><div class=\"audio-controls\"><button type=\"button\" class=\"audio-restart\" data-att-id=\"${att.id}\" title=\"Inicio\">⏮</button><span class=\"audio-speed\"><button type=\"button\" class=\"audio-speed-down\" data-att-id=\"${att.id}\" title=\"Más lento\">−</button><span class=\"audio-speed-label\" data-att-id=\"${att.id}\">1x</span><button type=\"button\" class=\"audio-speed-up\" data-att-id=\"${att.id}\" title=\"Más rápido\">+</button></span></div></span>` : '';
         const video = (!att.isImage && !isAudioAttachment(att) && isVideoAttachment(att)) ? `<span class=\"attachment-video-wrap\"><video class=\"attachment-video\" controls data-att-id=\"${att.id}\"></video><div class=\"video-controls\"><button type=\"button\" class=\"video-restart\" data-att-id=\"${att.id}\" title=\"Inicio\">⏮</button><span class=\"video-speed\"><button type=\"button\" class=\"video-speed-down\" data-att-id=\"${att.id}\" title=\"Más lento\">−</button><span class=\"video-speed-label\" data-att-id=\"${att.id}\">1x</span><button type=\"button\" class=\"video-speed-up\" data-att-id=\"${att.id}\" title=\"Más rápido\">+</button></span></div></span>` : '';
+=======
+        const audio = (!att.isImage && isAudioAttachment(att)) ? `<div class=\"attachment-audio-wrap\"><audio class=\"attachment-audio\" controls data-att-id=\"${att.id}\"></audio><div class=\"media-controls\"><button type=\"button\" class=\"audio-restart\" data-att-id=\"${att.id}\" title=\"Inicio\">⏮</button><button type=\"button\" class=\"audio-loop-toggle\" data-att-id=\"${att.id}\" aria-pressed=\"false\" title=\"Bucle\">🔁</button><span class=\"audio-speed\"><button type=\"button\" class=\"audio-speed-down\" data-att-id=\"${att.id}\" title=\"Más lento\">−</button><span class=\"audio-speed-label\" data-att-id=\"${att.id}\">1x</span><button type=\"button\" class=\"audio-speed-up\" data-att-id=\"${att.id}\" title=\"Más rápido\">+</button></span><span class=\"ab-controls\"><button type=\"button\" class=\"audio-ab-a\" data-att-id=\"${att.id}\" title=\"Marcar punto A\">A</button><button type=\"button\" class=\"audio-ab-b\" data-att-id=\"${att.id}\" title=\"Marcar punto B\">B</button><button type=\"button\" class=\"audio-ab-toggle\" data-att-id=\"${att.id}\" aria-pressed=\"false\" title=\"Bucle A–B\">A–B</button><button type=\"button\" class=\"audio-ab-clear\" data-att-id=\"${att.id}\" title=\"Limpiar A–B\">✖</button></span></div></div>` : '';
+        const video = (!att.isImage && !isAudioAttachment(att) && isVideoAttachment(att)) ? `<div class=\"attachment-video-wrap\"><video class=\"attachment-video\" controls data-att-id=\"${att.id}\"></video><div class=\"media-controls\"><button type=\"button\" class=\"video-restart\" data-att-id=\"${att.id}\" title=\"Inicio\">⏮</button><button type=\"button\" class=\"video-loop-toggle\" data-att-id=\"${att.id}\" aria-pressed=\"false\" title=\"Bucle\">🔁</button><span class=\"video-speed\"><button type=\"button\" class=\"video-speed-down\" data-att-id=\"${att.id}\" title=\"Más lento\">−</button><span class=\"video-speed-label\" data-att-id=\"${att.id}\">1x</span><button type=\"button\" class=\"video-speed-up\" data-att-id=\"${att.id}\" title=\"Más rápido\">+</button></span><span class=\"ab-controls\"><button type=\"button\" class=\"video-ab-a\" data-att-id=\"${att.id}\" title=\"Marcar punto A\">A</button><button type=\"button\" class=\"video-ab-b\" data-att-id=\"${att.id}\" title=\"Marcar punto B\">B</button><button type=\"button\" class=\"video-ab-toggle\" data-att-id=\"${att.id}\" aria-pressed=\"false\" title=\"Bucle A–B\">A–B</button><button type=\"button\" class=\"video-ab-clear\" data-att-id=\"${att.id}\" title=\"Limpiar A–B\">✖</button></span></div></div>` : '';
+>>>>>>> aed62fe (controles audios)
         const link = (!att.isImage && !isAudioAttachment(att) && !isVideoAttachment(att)) ? `<a class=\"attachment-file\" data-att-id=\"${att.id}\" href=\"#\" title=\"${label}\">📎 ${label}</a>` : '';
         const dl = (!att.isImage && !isAudioAttachment(att) && !isVideoAttachment(att)) ? `<a class=\"attachment-dl\" data-att-id=\"${att.id}\" href=\"#\" title=\"Descargar\">⬇️</a>` : '';
         const del = `<button type=\"button\" class=\"attachment-remove\" data-att-id=\"${att.id}\">${(window.i18n&&i18n.t)?i18n.t('delete'):'Eliminar'}</button>`;
@@ -1064,6 +1298,35 @@ async function renderPopupAttachments(task) {
             });
             restartBtn.dataset.bound = '1';
         }
+        // Toggle bucle audio
+        const aLoopBtn = container.querySelector(`button.audio-loop-toggle[data-att-id="${att.id}"]`);
+        if (aLoopBtn && audioEl && !aLoopBtn.dataset.bound) {
+            const apply = () => {
+                const on = getMediaLoopPref(att.id);
+                audioEl.loop = !!on;
+                if (on) audioEl.setAttribute('loop', ''); else audioEl.removeAttribute('loop');
+                aLoopBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+                aLoopBtn.classList.toggle('active', !!on);
+            };
+            if (!audioEl.dataset.loopBound) {
+                audioEl.addEventListener('ended', () => {
+                    if (getMediaLoopPref(att.id)) {
+                        try { audioEl.currentTime = 0; audioEl.play().catch(()=>{}); } catch(_) {}
+                    }
+                });
+                audioEl.dataset.loopBound = '1';
+            }
+            apply();
+            aLoopBtn.addEventListener('click', () => {
+                const next = !getMediaLoopPref(att.id);
+                setMediaLoopPref(att.id, next);
+                apply();
+                if (next && (audioEl.ended || (audioEl.duration && audioEl.currentTime >= audioEl.duration - 0.05))) {
+                    try { audioEl.currentTime = 0; audioEl.play().catch(()=>{}); } catch(_) {}
+                }
+            });
+            aLoopBtn.dataset.bound = '1';
+        }
         const vRestartBtn = container.querySelector(`button.video-restart[data-att-id="${att.id}"]`);
         if (vRestartBtn && !vRestartBtn.dataset.bound) {
             vRestartBtn.addEventListener('click', () => {
@@ -1075,6 +1338,35 @@ async function renderPopupAttachments(task) {
                 }
             });
             vRestartBtn.dataset.bound = '1';
+        }
+        // Toggle bucle vídeo
+        const vLoopBtn = container.querySelector(`button.video-loop-toggle[data-att-id="${att.id}"]`);
+        if (vLoopBtn && videoEl && !vLoopBtn.dataset.bound) {
+            const apply = () => {
+                const on = getMediaLoopPref(att.id);
+                videoEl.loop = !!on;
+                if (on) videoEl.setAttribute('loop', ''); else videoEl.removeAttribute('loop');
+                vLoopBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+                vLoopBtn.classList.toggle('active', !!on);
+            };
+            if (!videoEl.dataset.loopBound) {
+                videoEl.addEventListener('ended', () => {
+                    if (getMediaLoopPref(att.id)) {
+                        try { videoEl.currentTime = 0; videoEl.play().catch(()=>{}); } catch(_) {}
+                    }
+                });
+                videoEl.dataset.loopBound = '1';
+            }
+            apply();
+            vLoopBtn.addEventListener('click', () => {
+                const next = !getMediaLoopPref(att.id);
+                setMediaLoopPref(att.id, next);
+                apply();
+                if (next && (videoEl.ended || (videoEl.duration && videoEl.currentTime >= videoEl.duration - 0.05))) {
+                    try { videoEl.currentTime = 0; videoEl.play().catch(()=>{}); } catch(_) {}
+                }
+            });
+            vLoopBtn.dataset.bound = '1';
         }
         // Controles de velocidad (− / +)
         const speedDownBtn = container.querySelector(`button.audio-speed-down[data-att-id="${att.id}"]`);
@@ -1283,9 +1575,15 @@ function renderTasks() {
                     if (att.isImage) {
                         return '<img class="attachment-img" alt="'+(att.name||'')+'" data-att-id="'+att.id+'" />';
                     } else if (isAudioAttachment(att)) {
+<<<<<<< HEAD
                         return '<span class="attachment-audio-wrap"><audio class="attachment-audio" controls data-att-id="'+att.id+'"></audio><div class="audio-controls"><button type="button" class="audio-restart" data-att-id="'+att.id+'" title="Inicio">⏮</button><span class="audio-speed"><button type="button" class="audio-speed-down" data-att-id="'+att.id+'" title="Más lento">−</button><span class="audio-speed-label" data-att-id="'+att.id+'">1x</span><button type="button" class="audio-speed-up" data-att-id="'+att.id+'" title="Más rápido">+</button></span></div></span>';
                     } else if (isVideoAttachment(att)) {
                         return '<span class="attachment-video-wrap"><video class="attachment-video" controls data-att-id="'+att.id+'"></video><div class="video-controls"><button type="button" class="video-restart" data-att-id="'+att.id+'" title="Inicio">⏮</button><span class="video-speed"><button type="button" class="video-speed-down" data-att-id="'+att.id+'" title="Más lento">−</button><span class="video-speed-label" data-att-id="'+att.id+'">1x</span><button type="button" class="video-speed-up" data-att-id="'+att.id+'" title="Más rápido">+</button></span></div></span>';
+=======
+                        return '<div class="attachment-audio-wrap"><audio class="attachment-audio" controls data-att-id="'+att.id+'"></audio><div class="media-controls"><button type="button" class="audio-restart" data-att-id="'+att.id+'" title="Inicio">⏮</button><button type="button" class="audio-loop-toggle" data-att-id="'+att.id+'" aria-pressed="false" title="Bucle">🔁</button><span class="audio-speed"><button type="button" class="audio-speed-down" data-att-id="'+att.id+'" title="Más lento">−</button><span class="audio-speed-label" data-att-id="'+att.id+'">1x</span><button type="button" class="audio-speed-up" data-att-id="'+att.id+'" title="Más rápido">+</button></span><span class="ab-controls"><button type="button" class="audio-ab-a" data-att-id="'+att.id+'" title="Marcar punto A">A</button><button type="button" class="audio-ab-b" data-att-id="'+att.id+'" title="Marcar punto B">B</button><button type="button" class="audio-ab-toggle" data-att-id="'+att.id+'" aria-pressed="false" title="Bucle A–B">A–B</button><button type="button" class="audio-ab-clear" data-att-id="'+att.id+'" title="Limpiar A–B">✖</button></span></div></div>';
+                    } else if (isVideoAttachment(att)) {
+                        return '<div class="attachment-video-wrap"><video class="attachment-video" controls data-att-id="'+att.id+'"></video><div class="media-controls"><button type="button" class="video-restart" data-att-id="'+att.id+'" title="Inicio">⏮</button><button type="button" class="video-loop-toggle" data-att-id="'+att.id+'" aria-pressed="false" title="Bucle">🔁</button><span class="video-speed"><button type="button" class="video-speed-down" data-att-id="'+att.id+'" title="Más lento">−</button><span class="video-speed-label" data-att-id="'+att.id+'">1x</span><button type="button" class="video-speed-up" data-att-id="'+att.id+'" title="Más rápido">+</button></span><span class="ab-controls"><button type="button" class="video-ab-a" data-att-id="'+att.id+'" title="Marcar punto A">A</button><button type="button" class="video-ab-b" data-att-id="'+att.id+'" title="Marcar punto B">B</button><button type="button" class="video-ab-toggle" data-att-id="'+att.id+'" aria-pressed="false" title="Bucle A–B">A–B</button><button type="button" class="video-ab-clear" data-att-id="'+att.id+'" title="Limpiar A–B">✖</button></span></div></div>';
+>>>>>>> aed62fe (controles audios)
                     } else {
                         const extra = isPdfAttachment(att) ? ' <a class="attachment-dl" href="#" data-att-id="'+att.id+'" title="Descargar">⬇️</a>' : '';
                         return '<span class="attachment-wrap"><a class="attachment-file" href="#" data-att-id="'+att.id+'" title="'+(att.name||'')+'">📎 '+(att.name||'')+'</a>'+extra+'</span>';
@@ -1446,6 +1744,35 @@ function hydrateAttachmentsForCategory(tasks, rootEl) {
                 });
                 restartBtn.dataset.bound = '1';
             }
+            // Toggle bucle audio en tarjeta
+            const aLoopBtn = taskEl.querySelector(`button.audio-loop-toggle[data-att-id="${att.id}"]`);
+            if (aLoopBtn && audioEl && !aLoopBtn.dataset.bound) {
+                const apply = () => {
+                    const on = getMediaLoopPref(att.id);
+                    audioEl.loop = !!on;
+                    if (on) audioEl.setAttribute('loop', ''); else audioEl.removeAttribute('loop');
+                    aLoopBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+                    aLoopBtn.classList.toggle('active', !!on);
+                };
+                if (!audioEl.dataset.loopBound) {
+                    audioEl.addEventListener('ended', () => {
+                        if (getMediaLoopPref(att.id)) {
+                            try { audioEl.currentTime = 0; audioEl.play().catch(()=>{}); } catch(_) {}
+                        }
+                    });
+                    audioEl.dataset.loopBound = '1';
+                }
+                apply();
+                aLoopBtn.addEventListener('click', () => {
+                    const next = !getMediaLoopPref(att.id);
+                    setMediaLoopPref(att.id, next);
+                    apply();
+                    if (next && (audioEl.ended || (audioEl.duration && audioEl.currentTime >= audioEl.duration - 0.05))) {
+                        try { audioEl.currentTime = 0; audioEl.play().catch(()=>{}); } catch(_) {}
+                    }
+                });
+                aLoopBtn.dataset.bound = '1';
+            }
             const vRestartBtn = taskEl.querySelector(`button.video-restart[data-att-id="${att.id}"]`);
             if (vRestartBtn && !vRestartBtn.dataset.bound) {
                 vRestartBtn.addEventListener('click', () => {
@@ -1457,6 +1784,35 @@ function hydrateAttachmentsForCategory(tasks, rootEl) {
                     }
                 });
                 vRestartBtn.dataset.bound = '1';
+            }
+            // Toggle bucle vídeo en tarjeta
+            const vLoopBtn = taskEl.querySelector(`button.video-loop-toggle[data-att-id="${att.id}"]`);
+            if (vLoopBtn && videoEl && !vLoopBtn.dataset.bound) {
+                const apply = () => {
+                    const on = getMediaLoopPref(att.id);
+                    videoEl.loop = !!on;
+                    if (on) videoEl.setAttribute('loop', ''); else videoEl.removeAttribute('loop');
+                    vLoopBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+                    vLoopBtn.classList.toggle('active', !!on);
+                };
+                if (!videoEl.dataset.loopBound) {
+                    videoEl.addEventListener('ended', () => {
+                        if (getMediaLoopPref(att.id)) {
+                            try { videoEl.currentTime = 0; videoEl.play().catch(()=>{}); } catch(_) {}
+                        }
+                    });
+                    videoEl.dataset.loopBound = '1';
+                }
+                apply();
+                vLoopBtn.addEventListener('click', () => {
+                    const next = !getMediaLoopPref(att.id);
+                    setMediaLoopPref(att.id, next);
+                    apply();
+                    if (next && (videoEl.ended || (videoEl.duration && videoEl.currentTime >= videoEl.duration - 0.05))) {
+                        try { videoEl.currentTime = 0; videoEl.play().catch(()=>{}); } catch(_) {}
+                    }
+                });
+                vLoopBtn.dataset.bound = '1';
             }
             // Controles de velocidad en tarjetas
             const speedDownBtn = taskEl.querySelector(`button.audio-speed-down[data-att-id="${att.id}"]`);
@@ -1482,6 +1838,67 @@ function hydrateAttachmentsForCategory(tasks, rootEl) {
                 });
                 speedUpBtn.dataset.bound = '1';
             }
+            // Bucle A–B audio (en tarjeta)
+            const aSetBtn = taskEl.querySelector(`button.audio-ab-a[data-att-id="${att.id}"]`);
+            const bSetBtn = taskEl.querySelector(`button.audio-ab-b[data-att-id="${att.id}"]`);
+            const abToggleBtn = taskEl.querySelector(`button.audio-ab-toggle[data-att-id="${att.id}"]`);
+            const abClearBtn = taskEl.querySelector(`button.audio-ab-clear[data-att-id="${att.id}"]`);
+            if (audioEl && abToggleBtn && !abToggleBtn.dataset.bound) {
+                const applyAB = () => {
+                    const st = getMediaABPref(att.id);
+                    abToggleBtn.setAttribute('aria-pressed', st.enabled ? 'true' : 'false');
+                    abToggleBtn.classList.toggle('active', !!st.enabled);
+                    if (st.enabled) { audioEl.removeAttribute('loop'); audioEl.loop = false; }
+                };
+                if (!audioEl.dataset.abBound) {
+                    audioEl.addEventListener('timeupdate', () => {
+                        const st = getMediaABPref(att.id);
+                        if (!st.enabled || !(Number.isFinite(st.a) && Number.isFinite(st.b)) || st.b <= st.a) return;
+                        const t = audioEl.currentTime || 0;
+                        if (t >= st.b - 0.03) {
+                            try { audioEl.currentTime = st.a; if (!audioEl.paused) audioEl.play().catch(()=>{}); } catch(_) {}
+                        } else if (t < st.a - 0.03) {
+                            try { audioEl.currentTime = st.a; } catch(_) {}
+                        }
+                    });
+                    audioEl.dataset.abBound = '1';
+                }
+                applyAB();
+                abToggleBtn.addEventListener('click', () => {
+                    const st = getMediaABPref(att.id);
+                    let { a, b } = st;
+                    if (!Number.isFinite(a)) a = 0;
+                    if (!Number.isFinite(b)) b = Number.isFinite(audioEl.duration) ? audioEl.duration : (a + 1);
+                    if (b <= a) b = a + 0.1;
+                    setMediaABPref(att.id, { a, b, enabled: !st.enabled });
+                    if (!st.enabled) {
+                        setMediaLoopPref(att.id, false);
+                        const btn = taskEl.querySelector(`button.audio-loop-toggle[data-att-id="${att.id}"]`);
+                        if (btn) { btn.setAttribute('aria-pressed', 'false'); btn.classList.remove('active'); }
+                        audioEl.removeAttribute('loop'); audioEl.loop = false;
+                    }
+                    applyAB();
+                });
+                if (aSetBtn) aSetBtn.addEventListener('click', () => {
+                    const t = audioEl.currentTime || 0;
+                    const st = getMediaABPref(att.id);
+                    let b = st.b;
+                    if (Number.isFinite(b) && b <= t) b = Number.isFinite(audioEl.duration) ? audioEl.duration : (t + 0.1);
+                    setMediaABPref(att.id, { a: t, b });
+                });
+                if (bSetBtn) bSetBtn.addEventListener('click', () => {
+                    const t = audioEl.currentTime || 0;
+                    const st = getMediaABPref(att.id);
+                    let a = st.a;
+                    if (!Number.isFinite(a) || a >= t) a = Math.max(0, (t - 0.1));
+                    setMediaABPref(att.id, { a, b: t });
+                });
+                if (abClearBtn) abClearBtn.addEventListener('click', () => {
+                    setMediaABPref(att.id, { a: null, b: null, enabled: false });
+                    applyAB();
+                });
+                abToggleBtn.dataset.bound = '1';
+            }
             // Controles de velocidad en tarjetas para vídeo
             const vSpeedDownBtn = taskEl.querySelector(`button.video-speed-down[data-att-id="${att.id}"]`);
             const vSpeedUpBtn = taskEl.querySelector(`button.video-speed-up[data-att-id="${att.id}"]`);
@@ -1505,6 +1922,67 @@ function hydrateAttachmentsForCategory(tasks, rootEl) {
                     updateVSpeedLabel();
                 });
                 vSpeedUpBtn.dataset.bound = '1';
+            }
+            // Bucle A–B vídeo (en tarjeta)
+            const vaSetBtn = taskEl.querySelector(`button.video-ab-a[data-att-id="${att.id}"]`);
+            const vbSetBtn = taskEl.querySelector(`button.video-ab-b[data-att-id="${att.id}"]`);
+            const vabToggleBtn = taskEl.querySelector(`button.video-ab-toggle[data-att-id="${att.id}"]`);
+            const vabClearBtn = taskEl.querySelector(`button.video-ab-clear[data-att-id="${att.id}"]`);
+            if (videoEl && vabToggleBtn && !vabToggleBtn.dataset.bound) {
+                const applyABv = () => {
+                    const st = getMediaABPref(att.id);
+                    vabToggleBtn.setAttribute('aria-pressed', st.enabled ? 'true' : 'false');
+                    vabToggleBtn.classList.toggle('active', !!st.enabled);
+                    if (st.enabled) { videoEl.removeAttribute('loop'); videoEl.loop = false; }
+                };
+                if (!videoEl.dataset.abBound) {
+                    videoEl.addEventListener('timeupdate', () => {
+                        const st = getMediaABPref(att.id);
+                        if (!st.enabled || !(Number.isFinite(st.a) && Number.isFinite(st.b)) || st.b <= st.a) return;
+                        const t = videoEl.currentTime || 0;
+                        if (t >= st.b - 0.03) {
+                            try { videoEl.currentTime = st.a; if (!videoEl.paused) videoEl.play().catch(()=>{}); } catch(_) {}
+                        } else if (t < st.a - 0.03) {
+                            try { videoEl.currentTime = st.a; } catch(_) {}
+                        }
+                    });
+                    videoEl.dataset.abBound = '1';
+                }
+                applyABv();
+                vabToggleBtn.addEventListener('click', () => {
+                    const st = getMediaABPref(att.id);
+                    let { a, b } = st;
+                    if (!Number.isFinite(a)) a = 0;
+                    if (!Number.isFinite(b)) b = Number.isFinite(videoEl.duration) ? videoEl.duration : (a + 1);
+                    if (b <= a) b = a + 0.1;
+                    setMediaABPref(att.id, { a, b, enabled: !st.enabled });
+                    if (!st.enabled) {
+                        setMediaLoopPref(att.id, false);
+                        const btn = taskEl.querySelector(`button.video-loop-toggle[data-att-id="${att.id}"]`);
+                        if (btn) { btn.setAttribute('aria-pressed', 'false'); btn.classList.remove('active'); }
+                        videoEl.removeAttribute('loop'); videoEl.loop = false;
+                    }
+                    applyABv();
+                });
+                if (vaSetBtn) vaSetBtn.addEventListener('click', () => {
+                    const t = videoEl.currentTime || 0;
+                    const st = getMediaABPref(att.id);
+                    let b = st.b;
+                    if (Number.isFinite(b) && b <= t) b = Number.isFinite(videoEl.duration) ? videoEl.duration : (t + 0.1);
+                    setMediaABPref(att.id, { a: t, b });
+                });
+                if (vbSetBtn) vbSetBtn.addEventListener('click', () => {
+                    const t = videoEl.currentTime || 0;
+                    const st = getMediaABPref(att.id);
+                    let a = st.a;
+                    if (!Number.isFinite(a) || a >= t) a = Math.max(0, (t - 0.1));
+                    setMediaABPref(att.id, { a, b: t });
+                });
+                if (vabClearBtn) vabClearBtn.addEventListener('click', () => {
+                    setMediaABPref(att.id, { a: null, b: null, enabled: false });
+                    applyABv();
+                });
+                vabToggleBtn.dataset.bound = '1';
             }
             if (aEl && aEl.getAttribute('href') === '#') {
                 const blob = await ensureAttachmentBlob(att);
