@@ -1678,7 +1678,7 @@ function renderTasks() {
         const histTitle = (window.i18n && i18n.t) ? i18n.t('history') : 'Histórico';
         histDiv.innerHTML = `<h3>${histTitle}</h3><div class="task-list"></div>`;
         const listEl = histDiv.querySelector('.task-list');
-        const groups = collectHistoryGroupsLimited();
+        const groups = collectHistoryGroupsLimited(filterTag);
         if (!groups.length) {
             const empty = document.createElement('div');
             empty.className = 'task';
@@ -2240,11 +2240,12 @@ function updateTagDatalist() {
 function __localDateStr(iso) {
     try { const d = new Date(iso); if (isNaN(d)) return ''; const pad=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; } catch(_) { return ''; }
 }
-function collectHistoryGroupsLimited(maxDays = 7, maxPerDay = 10) {
+function collectHistoryGroupsLimited(filterTag = '', maxDays = 7, maxPerDay = 10) {
     try {
         const byDate = new Map();
         for (const tasks of Object.values(categories)) {
             for (const t of tasks) {
+                if (filterTag && (!Array.isArray(t.tags) || !t.tags.includes(filterTag))) continue;
                 const hist = Array.isArray(t.doneHistory) ? t.doneHistory : [];
                 for (const ts of hist) {
                     const ds = __localDateStr(ts);
