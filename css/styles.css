@@ -434,6 +434,63 @@ footer {
     gap: 10px;
 }
 
+.atajos-modal-content {
+    background: #ffffff;
+    color: var(--color-text);
+}
+
+.keyboard-shortcuts {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.keyboard-shortcuts li {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 12px 16px;
+    background: var(--color-surface);
+}
+
+.shortcut-keys {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+
+.shortcut-keys kbd {
+    background: var(--color-header-bg);
+    color: var(--color-header-text);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    min-width: 28px;
+    text-align: center;
+    box-shadow: 0 2px 0 rgba(0,0,0,0.15);
+}
+
+.shortcut-plus {
+    font-weight: 600;
+    color: var(--color-muted);
+}
+
+.shortcut-desc {
+    margin: 0;
+    flex: 1;
+    line-height: 1.4;
+}
+
+#atajos-modal .acciones-popup {
+    margin-top: 20px;
+}
+
 /* Texto del modal de confirmación */
 .confirm-message {
   color: var(--color-text);

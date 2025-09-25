@@ -16,6 +16,7 @@
             <img src="icons/logolargo.png" alt="EduKanban" class="logo"/>
             <div class="acciones">
                 <button id="abrir-popup-tarea" type="button" class="boton-accion boton-primario">➕ Nueva Actividad</button>
+                <button id="abrir-atajos" type="button" class="boton-accion" aria-haspopup="dialog" aria-controls="atajos-modal">⌨️ Atajos de teclado</button>
             </div>
         </div>
         <nav class="main-nav" role="tablist">
@@ -143,6 +144,61 @@
             </div>
             <div class="acciones-popup">
                 <button type="button" id="admin-close">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de atajos de teclado -->
+    <div id="atajos-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="atajos-titulo">
+        <div class="modal-content atajos-modal-content">
+            <h2 id="atajos-titulo">Atajos de teclado</h2>
+            <p>Puedes consultar estos atajos cuando quieras acelerar tu trabajo.</p>
+            <ul class="keyboard-shortcuts">
+                <li>
+                    <div class="shortcut-keys">
+                        <kbd>Alt</kbd>
+                        <span class="shortcut-plus">+</span>
+                        <kbd>N</kbd>
+                    </div>
+                    <p class="shortcut-desc">Abrir el formulario para crear una nueva actividad.</p>
+                </li>
+                <li>
+                    <div class="shortcut-keys">
+                        <kbd>Alt</kbd>
+                        <span class="shortcut-plus">+</span>
+                        <kbd>↑</kbd>
+                    </div>
+                    <p class="shortcut-desc">Subir en 0,10&times; la velocidad del último audio o vídeo activo.</p>
+                </li>
+                <li>
+                    <div class="shortcut-keys">
+                        <kbd>Alt</kbd>
+                        <span class="shortcut-plus">+</span>
+                        <kbd>↓</kbd>
+                    </div>
+                    <p class="shortcut-desc">Bajar en 0,10&times; la velocidad del último audio o vídeo activo.</p>
+                </li>
+                <li>
+                    <div class="shortcut-keys">
+                        <kbd>.</kbd>
+                    </div>
+                    <p class="shortcut-desc">Con el audio o vídeo enfocado, subir la velocidad en 0,10&times;.</p>
+                </li>
+                <li>
+                    <div class="shortcut-keys">
+                        <kbd>,</kbd>
+                    </div>
+                    <p class="shortcut-desc">Con el audio o vídeo enfocado, bajar la velocidad en 0,10&times;.</p>
+                </li>
+                <li>
+                    <div class="shortcut-keys">
+                        <kbd>Esc</kbd>
+                    </div>
+                    <p class="shortcut-desc">Cerrar modales abiertos (nueva tarea, atajos, visor de imágenes, confirmaciones).</p>
+                </li>
+            </ul>
+            <div class="acciones-popup">
+                <button type="button" id="atajos-cerrar" class="boton-accion">Cerrar</button>
             </div>
         </div>
     </div>

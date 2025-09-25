@@ -2730,6 +2730,22 @@ document.addEventListener('DOMContentLoaded', function() {
     const tagsInput = document.getElementById('popup-task-tags');
     const reminderInput = document.getElementById('popup-task-reminder');
     const orderInput = document.getElementById('popup-task-order');
+    const shortcutsBtn = document.getElementById('abrir-atajos');
+    const shortcutsModal = document.getElementById('atajos-modal');
+    const shortcutsCloseBtn = document.getElementById('atajos-cerrar');
+
+    const closeShortcutsModal = () => {
+        if (!shortcutsModal) return;
+        shortcutsModal.style.display = 'none';
+        if (shortcutsBtn) shortcutsBtn.focus();
+    };
+
+    const openShortcutsModal = () => {
+        if (!shortcutsModal) return;
+        shortcutsModal.style.display = 'flex';
+        const focusTarget = shortcutsCloseBtn || shortcutsModal.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+        if (focusTarget) focusTarget.focus();
+    };
 
     if (abrirPopupBtn) abrirPopupBtn.addEventListener('click', () => {
         resetPopupFormMode();
@@ -2762,6 +2778,13 @@ document.addEventListener('DOMContentLoaded', function() {
             popup.style.display = 'none';
         }
     });
+    if (shortcutsBtn) shortcutsBtn.addEventListener('click', openShortcutsModal);
+    if (shortcutsCloseBtn) shortcutsCloseBtn.addEventListener('click', closeShortcutsModal);
+    if (shortcutsModal) {
+        shortcutsModal.addEventListener('click', (e) => {
+            if (e.target === shortcutsModal) closeShortcutsModal();
+        });
+    }
     if (popupForm) {
         popupForm.addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -2890,6 +2913,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 const input = document.getElementById('popup-task-name');
                 if (input) input.focus();
             }
+        }
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        let handled = false;
+        if (shortcutsModal && shortcutsModal.style.display === 'flex') {
+            closeShortcutsModal();
+            handled = true;
+        }
+        if (popup && popup.style.display === 'flex') {
+            resetPopupFormMode();
+            popup.style.display = 'none';
+            handled = true;
+        }
+        if (handled) {
+            e.preventDefault();
         }
     });
 
