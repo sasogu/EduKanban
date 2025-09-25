@@ -8,6 +8,364 @@ document.addEventListener('DOMContentLoaded', function() {
     const archiveContainer = document.getElementById('archive-container');
     const filterSelect = document.getElementById('archive-filter-tag');
 
+    let __attDBPromise = null;
+    const activeObjectUrls = new Set();
+
+    function trackObjectUrl(url) {
+        if (url) activeObjectUrls.add(url);
+    }
+
+    function cleanupObjectUrls() {
+        activeObjectUrls.forEach(url => {
+            try { URL.revokeObjectURL(url); } catch (_) {}
+        });
+        activeObjectUrls.clear();
+    }
+
+    function escapeAttr(str) {
+        return String(str || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&#39;');
+    }
+
+    function isImageType(mime) {
+        return typeof mime === 'string' && mime.startsWith('image/');
+    }
+
+    function isPdfAttachment(att) {
+        try {
+            const name = (att && att.name || '').toLowerCase();
+            const type = (att && att.type || '').toLowerCase();
+            return type.includes('pdf') || name.endsWith('.pdf');
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function isImageAttachment(att) {
+        try {
+            if (att && att.isImage) return true;
+            const type = (att && att.type) ? att.type.toLowerCase() : '';
+            const name = (att && att.name) ? att.name.toLowerCase() : '';
+            return isImageType(type) || /\.(png|jpe?g|gif|bmp|webp|svg)$/.test(name);
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function isAudioAttachment(att) {
+        try {
+            const name = (att && att.name || '').toLowerCase();
+            const type = (att && att.type || '').toLowerCase();
+            if (type.startsWith('audio/')) return true;
+            return ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac', '.weba', '.webm'].some(ext => name.endsWith(ext));
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function isVideoAttachment(att) {
+        try {
+            const name = (att && att.name || '').toLowerCase();
+            const type = (att && att.type || '').toLowerCase();
+            if (type.startsWith('video/')) return true;
+            return ['.mp4', '.m4v', '.mov', '.webm', '.ogv'].some(ext => name.endsWith(ext));
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function openAttachmentsDB() {
+        if (__attDBPromise) return __attDBPromise;
+        __attDBPromise = new Promise((resolve, reject) => {
+            const req = indexedDB.open('edukanban.attachments', 1);
+            req.onupgradeneeded = (event) => {
+                const db = event.target.result;
+                if (!db.objectStoreNames.contains('files')) {
+                    db.createObjectStore('files');
+                }
+            };
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+        return __attDBPromise;
+    }
+
+    async function putAttachmentBlob(id, blob) {
+        try {
+            const db = await openAttachmentsDB();
+            return await new Promise((resolve, reject) => {
+                const tx = db.transaction('files', 'readwrite');
+                tx.objectStore('files').put(blob, id);
+                tx.oncomplete = () => resolve(true);
+                tx.onerror = () => reject(tx.error);
+            });
+        } catch (err) {
+            console.warn('putAttachmentBlob', err);
+            return false;
+        }
+    }
+
+    async function getAttachmentBlob(id) {
+        try {
+            const db = await openAttachmentsDB();
+            return await new Promise((resolve, reject) => {
+                const tx = db.transaction('files', 'readonly');
+                const req = tx.objectStore('files').get(id);
+                req.onsuccess = () => resolve(req.result || null);
+                req.onerror = () => reject(req.error);
+            });
+        } catch (err) {
+            console.warn('getAttachmentBlob', err);
+            return null;
+        }
+    }
+
+    function getCurrentBasePath() {
+        const path = window.location.pathname || '/';
+        const idx = path.lastIndexOf('/');
+        return idx >= 0 ? path.slice(0, idx + 1) : '/';
+    }
+
+    async function registerTempPdfUrl(blob) {
+        try {
+            if (!('caches' in window)) return '';
+            const token = (Math.random().toString(36).slice(2)) + Date.now();
+            const basePath = getCurrentBasePath();
+            const relPath = basePath + '__pdf__/' + token + '.pdf';
+            const absUrl = new URL(relPath, window.location.origin).toString();
+            const headers = new Headers({ 'Content-Type': 'application/pdf', 'Cache-Control': 'no-store' });
+            const resp = new Response(blob, { status: 200, headers });
+            const cache = await caches.open('edukanban-runtime');
+            await cache.put(absUrl, resp);
+            return absUrl;
+        } catch (_) {
+            return '';
+        }
+    }
+
+    async function ensureAttachmentBlob(att) {
+        if (!att || !att.id) return null;
+        try {
+            let blob = await getAttachmentBlob(att.id);
+            if (blob && isPdfAttachment(att) && blob.type !== 'application/pdf') {
+                blob = new Blob([blob], { type: 'application/pdf' });
+                await putAttachmentBlob(att.id, blob);
+            }
+            if (blob) return blob;
+        } catch (err) {
+            console.warn('ensureAttachmentBlob cache', err);
+        }
+
+        if (!att.dropboxPath) return null;
+        const token = localStorage.getItem(LS.token);
+        if (!token) return null;
+        try {
+            const res = await fetch('https://content.dropboxapi.com/2/files/download', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Dropbox-API-Arg': JSON.stringify({ path: att.dropboxPath })
+                }
+            });
+            if (!res.ok) return null;
+            const raw = await res.blob();
+            const desiredType = isPdfAttachment(att) ? 'application/pdf' : (att.type || raw.type || 'application/octet-stream');
+            const blob = new Blob([raw], { type: desiredType });
+            await putAttachmentBlob(att.id, blob);
+            return blob;
+        } catch (err) {
+            console.warn('ensureAttachmentBlob fetch', err);
+            return null;
+        }
+    }
+
+    async function getDropboxTemporaryLink(path) {
+        const token = localStorage.getItem(LS.token);
+        if (!token || !path) return null;
+        try {
+            const res = await fetch('https://api.dropboxapi.com/2/files/get_temporary_link', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ path })
+            });
+            if (!res.ok) return null;
+            const data = await res.json();
+            return data && data.link;
+        } catch (err) {
+            console.warn('temporary link error', err);
+            return null;
+        }
+    }
+
+    async function getAttachmentUrl(att) {
+        const blob = await ensureAttachmentBlob(att);
+        if (blob) {
+            const url = URL.createObjectURL(blob);
+            trackObjectUrl(url);
+            return { url, blob };
+        }
+        const remoteUrl = await getDropboxTemporaryLink(att.dropboxPath);
+        return remoteUrl ? { url: remoteUrl, blob: null } : { url: '', blob: null };
+    }
+
+    async function openPdfAttachment(att) {
+        const result = await getAttachmentUrl(att);
+        if (!result.url) return;
+        if (result.blob) {
+            const viewerHref = new URL(getCurrentBasePath() + 'pdf-viewer.html', window.location.origin).toString();
+            const popup = window.open(viewerHref, '_blank');
+            const blobUrl = result.url;
+            if (popup) {
+                const trySend = () => { try { popup.postMessage({ type: 'OPEN_PDF_URL', url: blobUrl }, '*'); } catch (_) {} };
+                setTimeout(trySend, 200);
+                setTimeout(trySend, 1000);
+            } else {
+                window.open(blobUrl, '_blank');
+            }
+            if (result.blob) {
+                registerTempPdfUrl(result.blob).then((httpUrl) => {
+                    if (httpUrl && popup) {
+                        try { popup.postMessage({ type: 'OPEN_PDF_URL', url: httpUrl }, '*'); } catch (_) {}
+                    }
+                });
+            }
+            return;
+        }
+        window.open(result.url, '_blank');
+    }
+
+    function renderAttachmentsHtml(task) {
+        const attachments = Array.isArray(task.attachments) ? task.attachments : [];
+        if (!attachments.length) return '';
+        const items = attachments.map(att => {
+            const attId = escapeAttr(att.id || '');
+            const safeName = escapeAttr(att.name || 'archivo');
+            if (isImageAttachment(att)) {
+                return `<img class="attachment-img" data-att-id="${attId}" alt="${safeName}">`;
+            }
+            if (isAudioAttachment(att)) {
+                return `<div class="attachment-audio-wrap"><audio class="attachment-audio" data-att-id="${attId}" controls preload="metadata"></audio></div>`;
+            }
+            if (isVideoAttachment(att)) {
+                return `<div class="attachment-video-wrap"><video class="attachment-video" data-att-id="${attId}" controls preload="metadata"></video></div>`;
+            }
+            const extra = isPdfAttachment(att) ? ` <a class="attachment-dl" data-att-id="${attId}" href="#" title="Descargar">⬇️</a>` : '';
+            return `<span class="attachment-wrap"><a class="attachment-file" data-att-id="${attId}" href="#" title="${safeName}">📎 ${safeName}</a>${extra}</span>`;
+        });
+        return `<div class="attachments">${items.join('')}</div>`;
+    }
+
+    async function hydrateArchivedAttachments(taskEl, task) {
+        const attachments = Array.isArray(task.attachments) ? task.attachments : [];
+        if (!attachments.length) return;
+        for (const att of attachments) {
+            const selectorId = att.id ? att.id.replace(/"/g, '\\"') : '';
+            const idSel = `[data-att-id="${selectorId}"]`;
+            const imgEl = taskEl.querySelector(`img.attachment-img${idSel}`);
+            const audioEl = taskEl.querySelector(`audio.attachment-audio${idSel}`);
+            const videoEl = taskEl.querySelector(`video.attachment-video${idSel}`);
+            const fileEl = taskEl.querySelector(`a.attachment-file${idSel}`);
+            const dlEl = taskEl.querySelector(`a.attachment-dl${idSel}`);
+
+            if (!imgEl && !audioEl && !videoEl && !fileEl && !dlEl) continue;
+
+            const { url, blob } = await getAttachmentUrl(att);
+            const unavailableMsg = 'Adjunto no disponible';
+
+            if (imgEl) {
+                if (url) {
+                    imgEl.src = url;
+                    imgEl.style.cursor = 'zoom-in';
+                    if (!imgEl.dataset.bound) {
+                        imgEl.addEventListener('click', () => window.open(url, '_blank'));
+                        imgEl.dataset.bound = '1';
+                    }
+                } else {
+                    const span = document.createElement('span');
+                    span.textContent = unavailableMsg;
+                    imgEl.replaceWith(span);
+                }
+            }
+
+            if (audioEl) {
+                if (url) {
+                    audioEl.src = url;
+                    audioEl.preload = 'metadata';
+                } else {
+                    const span = document.createElement('span');
+                    span.textContent = 'Audio no disponible';
+                    if (audioEl.parentElement) audioEl.parentElement.replaceWith(span);
+                }
+            }
+
+            if (videoEl) {
+                if (url) {
+                    videoEl.src = url;
+                    videoEl.preload = 'metadata';
+                } else {
+                    const span = document.createElement('span');
+                    span.textContent = 'Vídeo no disponible';
+                    if (videoEl.parentElement) videoEl.parentElement.replaceWith(span);
+                }
+            }
+
+            if (fileEl) {
+                if (url) {
+                    fileEl.href = url;
+                    fileEl.target = '_blank';
+                    if (blob) {
+                        fileEl.download = att.name || 'archivo';
+                    }
+                } else {
+                    fileEl.removeAttribute('href');
+                    fileEl.classList.add('disabled');
+                    fileEl.title = unavailableMsg + ' sin conexión';
+                }
+                if (!fileEl.dataset.bound) {
+                    if (isPdfAttachment(att)) {
+                        fileEl.addEventListener('click', async (e) => {
+                            e.preventDefault();
+                            await openPdfAttachment(att);
+                        });
+                    }
+                    fileEl.dataset.bound = '1';
+                }
+            }
+
+            if (dlEl) {
+                if (url) {
+                    dlEl.href = url;
+                    dlEl.target = '_blank';
+                    if (blob) dlEl.download = att.name || 'archivo';
+                } else {
+                    dlEl.removeAttribute('href');
+                    dlEl.classList.add('disabled');
+                    dlEl.title = unavailableMsg + ' sin conexión';
+                }
+                if (!dlEl.dataset.bound && isPdfAttachment(att)) {
+                    dlEl.addEventListener('click', async (e) => {
+                        e.preventDefault();
+                        const result = await getAttachmentUrl(att);
+                        if (!result.url) return;
+                        const a = document.createElement('a');
+                        a.href = result.url;
+                        if (result.blob) {
+                            a.download = att.name || 'archivo.pdf';
+                        } else {
+                            a.target = '_blank';
+                        }
+                        a.click();
+                    });
+                    dlEl.dataset.bound = '1';
+                }
+            }
+        }
+    }
+
+    window.addEventListener('beforeunload', cleanupObjectUrls);
+
     function convertirEnlaces(texto) {
         const urlRegex = /(https?:\/\/[^\s]+)/g;
         return texto.replace(urlRegex, function(url) {
@@ -80,6 +438,7 @@ document.addEventListener('DOMContentLoaded', function() {
             view = view.filter(t => Array.isArray(t.tags) && t.tags.includes(currentFilter));
         }
 
+        cleanupObjectUrls();
         archiveContainer.innerHTML = '';
 
         if (view.length === 0) {
@@ -94,16 +453,19 @@ document.addEventListener('DOMContentLoaded', function() {
             taskDiv.className = 'task';
             const unarchiveTxt = (window.i18n&&i18n.t)?i18n.t('unarchive'):'Desarchivar';
             const deletePermTxt = (window.i18n&&i18n.t)?i18n.t('delete_permanently'):'Eliminar Permanentemente';
+            const attachmentsHtml = renderAttachmentsHtml(taskObj);
             taskDiv.innerHTML = `
                 <input type="checkbox" ${taskObj.completed ? 'checked' : ''} disabled>
                 <span class="${taskObj.completed ? 'completed' : ''}">${convertirEnlaces(taskObj.task)}
                     ${taskObj.tags && taskObj.tags.length ? `<small class="tags">${taskObj.tags.map(t => `<span class=\"tag-chip in-task\">#${t}</span>`).join(' ')}</small>` : ''}
+                    ${attachmentsHtml}
                 </span>
                 <small class="archived-meta">Archivada: ${formatArchivedDate(taskObj)}</small>
                 <button onclick="unarchiveTask('${taskObj.id}')">${unarchiveTxt}</button>
                 <button onclick="deletePermanently('${taskObj.id}')">${deletePermTxt}</button>
             `;
             archiveContainer.appendChild(taskDiv);
+            hydrateArchivedAttachments(taskDiv, taskObj);
         });
 
         // Actualizar dropdown tras render
