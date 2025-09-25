@@ -1678,7 +1678,7 @@ function renderTasks() {
         const histTitle = (window.i18n && i18n.t) ? i18n.t('history') : 'Histórico';
         histDiv.innerHTML = `<h3>${histTitle}</h3><div class="task-list"></div>`;
         const listEl = histDiv.querySelector('.task-list');
-        const groups = collectHistoryGroupsLimited(filterTag);
+        const groups = collectHistoryGroupsLimited(filterTag, 4); // tablero: mostrar solo 4 días recientes
         if (!groups.length) {
             const empty = document.createElement('div');
             empty.className = 'task';
