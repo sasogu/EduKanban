@@ -293,6 +293,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (url) {
                     audioEl.src = url;
                     audioEl.preload = 'metadata';
+                    audioEl.controls = true;
+                    audioEl.style.display = 'block';
+                    try { audioEl.load(); } catch (_) {}
                 } else {
                     const span = document.createElement('span');
                     span.textContent = 'Audio no disponible';
@@ -304,6 +307,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (url) {
                     videoEl.src = url;
                     videoEl.preload = 'metadata';
+                    videoEl.controls = true;
+                    videoEl.style.display = 'block';
+                    try { videoEl.load(); } catch (_) {}
                 } else {
                     const span = document.createElement('span');
                     span.textContent = 'Vídeo no disponible';
