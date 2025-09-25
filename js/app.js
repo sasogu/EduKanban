@@ -3000,6 +3000,87 @@ document.addEventListener('DOMContentLoaded', function() {
     if (openAdmin && adminModal) openAdmin.addEventListener('click', ()=> { adminModal.style.display = 'flex'; });
     if (closeAdmin && adminModal) closeAdmin.addEventListener('click', ()=> { adminModal.style.display = 'none'; });
     if (adminModal) adminModal.addEventListener('click', (e)=>{ if (e.target === adminModal) adminModal.style.display = 'none'; });
+
+    // ==========================
+    // Atajos de velocidad media
+    // ==========================
+    // Mantener referencia al último <audio>/<video> activo (clic/foco)
+    let lastActiveMediaEl = null;
+    const setLastActiveMedia = (el) => { try { if (el && (el.tagName === 'AUDIO' || el.tagName === 'VIDEO')) lastActiveMediaEl = el; } catch (_) {} };
+    document.addEventListener('focusin', (e) => {
+        const t = e.target;
+        if (t && (t.tagName === 'AUDIO' || t.tagName === 'VIDEO')) setLastActiveMedia(t);
+    }, true);
+    document.addEventListener('pointerdown', (e) => {
+        const t = (e.target && (e.target.closest ? e.target.closest('audio,video') : null)) || null;
+        if (t) setLastActiveMedia(t);
+    }, true);
+
+    // Actualiza todas las etiquetas de velocidad visibles para un medio
+    const updateMediaSpeedLabels = (mediaEl) => {
+        try {
+            if (!mediaEl) return;
+            const rate = (mediaEl.playbackRate || 1);
+            const label = `${rate.toFixed(2).replace(/\.00$/, '').replace(/0$/, '')}x`;
+            const attId = mediaEl.getAttribute('data-att-id') || '';
+            if (!attId) return;
+            if (mediaEl.tagName === 'AUDIO') {
+                document.querySelectorAll(`span.audio-speed-label[data-att-id="${attId}"]`).forEach(el => el.textContent = label);
+            } else if (mediaEl.tagName === 'VIDEO') {
+                document.querySelectorAll(`span.video-speed-label[data-att-id="${attId}"]`).forEach(el => el.textContent = label);
+            }
+        } catch (_) {}
+    };
+
+    // Cambia la velocidad con paso de 0.10 (clamp 0.25–3.0)
+    const nudgePlaybackRate = (mediaEl, delta) => {
+        try {
+            if (!mediaEl) return;
+            const next = Math.max(0.25, Math.min(3.0, Math.round((mediaEl.playbackRate + delta) * 100) / 100));
+            mediaEl.playbackRate = next;
+            updateMediaSpeedLabels(mediaEl);
+        } catch (_) {}
+    };
+
+    // Atajos:
+    // - Alt+ArrowUp / Alt+ArrowDown: sube/baja 0.10 para el último medio activo
+    // - Cuando un <audio>/<video> tiene el foco: '.' sube y ',' baja 0.10
+    document.addEventListener('keydown', (e) => {
+        const activeTag = (document.activeElement && document.activeElement.tagName || '').toLowerCase();
+        const isTypingTarget = activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select' || (document.activeElement && document.activeElement.isContentEditable);
+
+        // Determinar medio objetivo
+        let targetMedia = null;
+        if (document.activeElement && (document.activeElement.tagName === 'AUDIO' || document.activeElement.tagName === 'VIDEO')) {
+            targetMedia = document.activeElement;
+        } else {
+            targetMedia = lastActiveMediaEl;
+        }
+        // Si no hay medio activo, salir para no interferir
+        if (!targetMedia) return;
+
+        // Atajos globales con Alt: no actuar cuando el usuario escribe en inputs
+        if (e.altKey && !isTypingTarget) {
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                nudgePlaybackRate(targetMedia, +0.10);
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                nudgePlaybackRate(targetMedia, -0.10);
+            }
+        }
+
+        // Atajos locales cuando el medio tiene el foco: '.' y ','
+        if (document.activeElement === targetMedia && !e.altKey && !e.ctrlKey && !e.metaKey) {
+            if (e.key === '.') {
+                e.preventDefault();
+                nudgePlaybackRate(targetMedia, +0.10);
+            } else if (e.key === ',') {
+                e.preventDefault();
+                nudgePlaybackRate(targetMedia, -0.10);
+            }
+        }
+    });
 });
 
 // Muestra un popup con recordatorios vencidos al abrir
