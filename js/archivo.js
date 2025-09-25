@@ -274,6 +274,38 @@ document.addEventListener('DOMContentLoaded', function() {
             const { url, blob } = await getAttachmentUrl(att);
             const unavailableMsg = 'Adjunto no disponible';
 
+            const ensureMediaSrc = (mediaEl, type, mediaUrl, hasBlob) => {
+                if (!mediaEl || !mediaUrl) return;
+                mediaEl.pause?.();
+                if (!hasBlob) {
+                    try { mediaEl.crossOrigin = mediaEl.crossOrigin || 'anonymous'; } catch (_) {}
+                    try { mediaEl.setAttribute('crossorigin', 'anonymous'); } catch (_) {}
+                }
+                mediaEl.removeAttribute('src');
+                mediaEl.innerHTML = '';
+                if (att && att.type) {
+                    try {
+                        const srcEl = document.createElement('source');
+                        srcEl.src = mediaUrl;
+                        srcEl.type = att.type;
+                        if (!hasBlob) srcEl.setAttribute('crossorigin', 'anonymous');
+                        mediaEl.appendChild(srcEl);
+                    } catch (_) {}
+                    mediaEl.setAttribute('data-mime', att.type);
+                }
+                mediaEl.src = mediaUrl;
+                mediaEl.controls = true;
+                mediaEl.preload = 'metadata';
+                mediaEl.style.display = 'block';
+                try { mediaEl.load(); } catch (_) {}
+                if (!mediaEl.dataset.errBound) {
+                    mediaEl.addEventListener('error', () => {
+                        console.warn('Archivo media load error', att && att.id, mediaEl.error);
+                    }, { once: true });
+                    mediaEl.dataset.errBound = '1';
+                }
+            };
+
             if (imgEl) {
                 if (url) {
                     imgEl.src = url;
@@ -291,11 +323,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (audioEl) {
                 if (url) {
-                    audioEl.src = url;
-                    audioEl.preload = 'metadata';
-                    audioEl.controls = true;
-                    audioEl.style.display = 'block';
-                    try { audioEl.load(); } catch (_) {}
+                    ensureMediaSrc(audioEl, 'audio', url, !!blob);
                 } else {
                     const span = document.createElement('span');
                     span.textContent = 'Audio no disponible';
@@ -305,11 +333,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (videoEl) {
                 if (url) {
-                    videoEl.src = url;
-                    videoEl.preload = 'metadata';
-                    videoEl.controls = true;
-                    videoEl.style.display = 'block';
-                    try { videoEl.load(); } catch (_) {}
+                    ensureMediaSrc(videoEl, 'video', url, !!blob);
+                    try { videoEl.setAttribute('playsinline', ''); } catch (_) {}
                 } else {
                     const span = document.createElement('span');
                     span.textContent = 'Vídeo no disponible';
