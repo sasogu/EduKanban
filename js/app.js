@@ -11,6 +11,16 @@ const categories = {
     "archivadas": []
 };
 
+const DEFAULT_CATEGORY_NAMES = {
+    "en-preparacion": "En preparación",
+    "preparadas": "Preparadas",
+    "en-proceso": "En proceso",
+    "pendientes": "Pendientes",
+    "archivadas": "Archivadas"
+};
+
+const CATEGORY_KEYS = ["en-preparacion", "preparadas", "en-proceso", "pendientes", "archivadas"];
+
 // category names dependen del idioma (ver i18n.i18nCategoryNames)
 
 // Claves de almacenamiento local específicas de EduKanban
@@ -25,7 +35,8 @@ const LS = {
   pendingDropboxAction: 'edukanban.pendingDropboxAction',
   lastReauthAt: 'edukanban.lastReauthAt',
   mediaLoop: 'edukanban.mediaLoop',
-  mediaLoopAB: 'edukanban.mediaLoopAB'
+  mediaLoopAB: 'edukanban.mediaLoopAB',
+  categoryNames: 'edukanban.categoryNameOverrides'
 };
 
 const deletedTasks = JSON.parse(localStorage.getItem(LS.deleted) || '[]');
@@ -236,17 +247,109 @@ function convertirEnlaces(texto) {
 }
 
 // --- GESTIÓN DE DATOS LOCALES ---
-function getCategoryNames() {
-    if (window.i18n && typeof i18n.i18nCategoryNames === 'function') {
-        return i18n.i18nCategoryNames();
+function sanitizeCategoryName(value) {
+    if (typeof value !== 'string') return '';
+    return value.replace(/\s+/g, ' ').trim().slice(0, 80);
+}
+
+function getLocalCategoryNameOverrides() {
+    try {
+        const raw = localStorage.getItem(LS.categoryNames);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        const out = {};
+        CATEGORY_KEYS.forEach(key => {
+            const val = sanitizeCategoryName(parsed && parsed[key]);
+            if (val) out[key] = val;
+        });
+        return out;
+    } catch (_) {
+        return {};
     }
-    return {
-        'en-preparacion': 'En preparación',
-        'preparadas': 'Preparadas',
-        'en-proceso': 'En proceso',
-        'pendientes': 'Pendientes',
-        'archivadas': 'Archivadas'
+}
+
+function getCategoryNames() {
+    const base = Object.assign({}, DEFAULT_CATEGORY_NAMES);
+    if (window.i18n && typeof i18n.getEffectiveCategoryNames === 'function') {
+        return Object.assign(base, i18n.getEffectiveCategoryNames());
+    }
+    return Object.assign(base, getLocalCategoryNameOverrides());
+}
+
+function setCategoryNameOverride(key, value) {
+    if (!CATEGORY_KEYS.includes(key)) return;
+    const sanitized = sanitizeCategoryName(value);
+    if (window.i18n && typeof i18n.setCategoryNameOverrides === 'function') {
+        const payload = {}; payload[key] = sanitized;
+        i18n.setCategoryNameOverrides(payload);
+    } else {
+        const current = getLocalCategoryNameOverrides();
+        if (sanitized) current[key] = sanitized;
+        else delete current[key];
+        try {
+            if (Object.keys(current).length) localStorage.setItem(LS.categoryNames, JSON.stringify(current));
+            else localStorage.removeItem(LS.categoryNames);
+        } catch (_) {}
+    }
+    renderTasks();
+}
+
+function resetCategoryNameOverrides() {
+    if (window.i18n && typeof i18n.resetCategoryNameOverrides === 'function') {
+        i18n.resetCategoryNameOverrides();
+    } else {
+        try { localStorage.removeItem(LS.categoryNames); } catch (_) {}
+    }
+    renderTasks();
+}
+
+function setupCategoryNameAdminControls() {
+    const group = document.getElementById('category-names-group');
+    if (!group) return null;
+    const inputs = Array.from(group.querySelectorAll('input[data-category-key]'));
+    const resetBtn = document.getElementById('category-names-reset');
+    const lastApplied = new Map();
+
+    const applyValues = () => {
+        const names = getCategoryNames();
+        inputs.forEach(input => {
+            const key = input.dataset.categoryKey;
+            if (!key) return;
+            const value = names[key] || DEFAULT_CATEGORY_NAMES[key] || '';
+            input.value = value;
+            lastApplied.set(key, sanitizeCategoryName(value));
+        });
     };
+
+    applyValues();
+
+    inputs.forEach(input => {
+        const key = input.dataset.categoryKey;
+        if (!key) return;
+        const applyChange = () => {
+            const trimmed = sanitizeCategoryName(input.value);
+            if (trimmed === lastApplied.get(key)) return;
+            lastApplied.set(key, trimmed);
+            setCategoryNameOverride(key, trimmed);
+            const latest = getCategoryNames();
+            if (latest[key]) input.value = latest[key];
+        };
+        input.addEventListener('input', applyChange);
+        input.addEventListener('change', applyChange);
+        input.addEventListener('blur', () => {
+            const names = getCategoryNames();
+            if (names[key]) input.value = names[key];
+        });
+    });
+
+    if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+            resetCategoryNameOverrides();
+            applyValues();
+        });
+    }
+
+    return { applyValues };
 }
 
 function saveCategoriesToLocalStorage() { localStorage.setItem(LS.categories, JSON.stringify(categories)); }
@@ -1547,9 +1650,7 @@ function renderTasks() {
         taskContainer.classList.add('three-columns');
     }
 
-    const catNames = (window.i18n && i18n.i18nCategoryNames) ? i18n.i18nCategoryNames() : {
-      'en-preparacion':'En preparación','preparadas':'Preparadas','en-proceso':'En proceso','pendientes':'Pendientes','archivadas':'Archivadas'
-    };
+    const catNames = getCategoryNames();
     // Generador de opciones A..Z para selects
     const buildOrderOptions = (selected) => {
         const opts = [''].concat(Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i)));
@@ -1715,6 +1816,7 @@ function renderTasks() {
     // Actualiza filtros (conservando selección) y autocompletado en cada render
     updateTagFilterDropdown(filterTag);
     updateColumnFilterDropdown(filterColumns, catNames);
+    refreshCategorySelectOptions(catNames);
     updateTagDatalist();
 }
 
@@ -2197,14 +2299,9 @@ function updateColumnFilterDropdown(currentValues = [], catNames = null) {
     const group = document.getElementById('filter-column-group');
     if (!select && !group) return;
     const names = Object.assign(
-        {
-            'en-preparacion':'En preparación',
-            'preparadas':'Preparadas',
-            'en-proceso':'En proceso',
-            'pendientes':'Pendientes',
-            'archivadas':'Archivadas'
-        },
-        (catNames || ((window.i18n && i18n.i18nCategoryNames) ? i18n.i18nCategoryNames() : {})),
+        {},
+        DEFAULT_CATEGORY_NAMES,
+        (catNames || ((window.i18n && i18n.getEffectiveCategoryNames) ? i18n.getEffectiveCategoryNames() : {})),
         { 'historico': (window.i18n && i18n.t) ? i18n.t('history') : 'Histórico' }
     );
     const showAll = (window.i18n && i18n.t) ? i18n.t('show_all') : 'Todas';
@@ -2234,6 +2331,18 @@ function updateTagDatalist() {
     if (!datalist) return;
     const tags = getAllTags();
     datalist.innerHTML = tags.map(t => `<option value="${t}"></option>`).join('');
+}
+
+function refreshCategorySelectOptions(names = null) {
+    const select = document.getElementById('popup-task-category');
+    if (!select) return;
+    const current = select.value;
+    const catNames = names || getCategoryNames();
+    Array.from(select.options).forEach(opt => {
+        const key = opt && opt.value;
+        if (key && catNames[key]) opt.textContent = catNames[key];
+    });
+    if (current) select.value = current;
 }
 
 // --- HISTÓRICO EN TABLERO (columna virtual) ---
@@ -2733,6 +2842,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const shortcutsBtn = document.getElementById('abrir-atajos');
     const shortcutsModal = document.getElementById('atajos-modal');
     const shortcutsCloseBtn = document.getElementById('atajos-cerrar');
+    const categoryNameAdmin = setupCategoryNameAdminControls();
+    if (categoryNameAdmin && categoryNameAdmin.applyValues) {
+        window.__updateCategoryNameInputs = () => categoryNameAdmin.applyValues();
+    }
 
     const closeShortcutsModal = () => {
         if (!shortcutsModal) return;
@@ -3017,6 +3130,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (params.has('admin')) {
             const adminModal = document.getElementById('admin-modal');
             if (adminModal) adminModal.style.display = 'flex';
+            if (categoryNameAdmin && categoryNameAdmin.applyValues) categoryNameAdmin.applyValues();
         }
     } catch (_) {}
 
@@ -3037,7 +3151,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const adminModal = document.getElementById('admin-modal');
     const openAdmin = document.getElementById('open-admin');
     const closeAdmin = document.getElementById('admin-close');
-    if (openAdmin && adminModal) openAdmin.addEventListener('click', ()=> { adminModal.style.display = 'flex'; });
+    if (openAdmin && adminModal) openAdmin.addEventListener('click', ()=> {
+        adminModal.style.display = 'flex';
+        if (categoryNameAdmin && categoryNameAdmin.applyValues) categoryNameAdmin.applyValues();
+    });
     if (closeAdmin && adminModal) closeAdmin.addEventListener('click', ()=> { adminModal.style.display = 'none'; });
     if (adminModal) adminModal.addEventListener('click', (e)=>{ if (e.target === adminModal) adminModal.style.display = 'none'; });
 

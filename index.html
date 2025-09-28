@@ -16,7 +16,7 @@
             <img src="icons/logolargo.png" alt="EduKanban" class="logo"/>
             <div class="acciones">
                 <button id="abrir-popup-tarea" type="button" class="boton-accion boton-primario">➕ Nueva Actividad</button>
-                <button id="abrir-atajos" type="button" class="boton-accion" aria-haspopup="dialog" aria-controls="atajos-modal">⌨️ Atajos de teclado</button>
+                <button id="open-admin" type="button" class="boton-accion" aria-haspopup="dialog" aria-controls="admin-modal">⚙️ Administración</button>
             </div>
         </div>
         <nav class="main-nav" role="tablist">
@@ -24,7 +24,6 @@
             <a href="recordatorios.html" class="tab" role="tab" aria-selected="false">Recordatorios</a>
             <a href="archivo.html" class="tab" role="tab" aria-selected="false">Archivo</a>
             <a href="historico.html" class="tab" role="tab" aria-selected="false">Histórico</a>
-            <a href="index.html?admin=1" class="tab" role="tab" aria-selected="false">Administración</a>
         </nav>
     </header>
     <main>
@@ -131,6 +130,18 @@
                     <option value="val">Valencià</option>
                 </select>
             </div>
+            <div class="grupo-botones" id="category-names-group">
+                <h3>Nombres de columnas</h3>
+                <label for="category-name-en-preparacion">En preparación</label>
+                <input type="text" id="category-name-en-preparacion" data-category-key="en-preparacion" maxlength="80" />
+                <label for="category-name-preparadas">Preparadas</label>
+                <input type="text" id="category-name-preparadas" data-category-key="preparadas" maxlength="80" />
+                <label for="category-name-en-proceso">En proceso</label>
+                <input type="text" id="category-name-en-proceso" data-category-key="en-proceso" maxlength="80" />
+                <label for="category-name-pendientes">Pendientes</label>
+                <input type="text" id="category-name-pendientes" data-category-key="pendientes" maxlength="80" />
+                <button type="button" id="category-names-reset" class="boton-accion">Restaurar nombres por defecto</button>
+            </div>
             <div class="grupo-botones" id="sync-group-modal">
                 <h3>Sincronización</h3>
                 <button id="dropbox-login" type="button" class="boton-accion">Conectar con Dropbox</button>
@@ -141,6 +152,10 @@
                 <button id="backup-export" type="button" class="boton-accion">📤 Exportar copia</button>
                 <button id="backup-import" type="button" class="boton-accion">📥 Importar copia</button>
                 <input id="backup-file-input" type="file" accept="application/json" style="display:none" />
+            </div>
+            <div class="grupo-botones" id="shortcuts-group">
+                <h3>Atajos de teclado</h3>
+                <button id="abrir-atajos" type="button" class="boton-accion" aria-haspopup="dialog" aria-controls="atajos-modal">⌨️ Ver atajos</button>
             </div>
             <div class="acciones-popup">
                 <button type="button" id="admin-close">Guardar</button>

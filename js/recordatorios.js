@@ -5,6 +5,35 @@ document.addEventListener('DOMContentLoaded', function() {
         token: 'edukanban.dropbox_access_token'
     };
     const container = document.getElementById('reminder-container');
+    const CATEGORY_OVERRIDES_KEY = 'edukanban.categoryNameOverrides';
+    const DEFAULT_CATEGORY_NAMES = (window.i18n && i18n.DEFAULT_CATEGORY_NAMES) ? i18n.DEFAULT_CATEGORY_NAMES : {
+        'en-preparacion': 'En preparación',
+        'preparadas': 'Preparadas',
+        'en-proceso': 'En proceso',
+        'pendientes': 'Pendientes',
+        'archivadas': 'Archivadas'
+    };
+
+    function sanitizeName(value) {
+        if (typeof value !== 'string') return '';
+        return value.replace(/\s+/g, ' ').trim().slice(0, 80);
+    }
+
+    function getLocalOverrides() {
+        try {
+            const raw = localStorage.getItem(CATEGORY_OVERRIDES_KEY);
+            if (!raw) return {};
+            const parsed = JSON.parse(raw);
+            const out = {};
+            Object.keys(DEFAULT_CATEGORY_NAMES).forEach(key => {
+                const val = sanitizeName(parsed && parsed[key]);
+                if (val) out[key] = val;
+            });
+            return out;
+        } catch (_) {
+            return {};
+        }
+    }
 
     function convertirEnlaces(texto) {
         const urlRegex = /(https?:\/\/[^\s]+)/g;
@@ -42,13 +71,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const raw = JSON.parse(localStorage.getItem(LS.categories) || '{}');
         const all = migrateObj(raw);
         try { localStorage.setItem(LS.categories, JSON.stringify(all)); } catch(_) {}
-        const categoryNames = (window.i18n && i18n.i18nCategoryNames) ? i18n.i18nCategoryNames() : {
-            'en-preparacion': 'En preparación',
-            'preparadas': 'Preparadas',
-            'en-proceso': 'En proceso',
-            'pendientes': 'Pendientes',
-            'archivadas': 'Archivadas'
-        };
+        const categoryNames = (window.i18n && typeof i18n.getEffectiveCategoryNames === 'function')
+            ? i18n.getEffectiveCategoryNames()
+            : Object.assign({}, DEFAULT_CATEGORY_NAMES, getLocalOverrides());
         const items = [];
         for (const [cat, list] of Object.entries(all)) {
             if (!Array.isArray(list)) continue;

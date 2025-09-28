@@ -1,5 +1,15 @@
 // i18n minimal para EduKanban (ES / Valencià)
 (function(){
+  const CATEGORY_OVERRIDES_KEY = 'edukanban.categoryNameOverrides';
+  const DEFAULT_CATEGORY_NAMES = {
+    'en-preparacion': 'En preparación',
+    'preparadas': 'Preparadas',
+    'en-proceso': 'En proceso',
+    'pendientes': 'Pendientes',
+    'archivadas': 'Archivadas'
+  };
+  const CATEGORY_KEYS = Object.keys(DEFAULT_CATEGORY_NAMES);
+
   const TRANSLATIONS = {
     es: {
       language: 'Idioma',
@@ -64,6 +74,8 @@
       cat_en_proceso: 'En proceso',
       cat_pendientes: 'Pendientes',
       cat_archivadas: 'Archivadas',
+      column_names: 'Nombres de columnas',
+      reset_column_names: 'Restaurar nombres por defecto',
     },
     val: {
       language: 'Idioma',
@@ -128,8 +140,46 @@
       cat_en_proceso: 'En procés',
       cat_pendientes: 'Pendents',
       cat_archivadas: 'Arxivades',
+      column_names: 'Noms de columnes',
+      reset_column_names: 'Restablir noms per defecte',
     }
   };
+
+  function sanitizeCategoryName(value) {
+    if (typeof value !== 'string') return '';
+    return value.replace(/\s+/g, ' ').trim().slice(0, 80);
+  }
+
+  function readCategoryOverrides() {
+    try {
+      const raw = localStorage.getItem(CATEGORY_OVERRIDES_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      const out = {};
+      CATEGORY_KEYS.forEach(key => {
+        const val = sanitizeCategoryName(parsed && parsed[key]);
+        if (val) out[key] = val;
+      });
+      return out;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function writeCategoryOverrides(overrides) {
+    try {
+      const clean = {};
+      CATEGORY_KEYS.forEach(key => {
+        const val = sanitizeCategoryName(overrides && overrides[key]);
+        if (val) clean[key] = val;
+      });
+      if (Object.keys(clean).length === 0) {
+        localStorage.removeItem(CATEGORY_OVERRIDES_KEY);
+      } else {
+        localStorage.setItem(CATEGORY_OVERRIDES_KEY, JSON.stringify(clean));
+      }
+    } catch (_) {}
+  }
 
   function getLang(){
     const l = localStorage.getItem('edukanban.lang');
@@ -152,7 +202,7 @@
     if (typeof v === 'function') return v(params && params.title);
     return v || key;
   }
-  function i18nCategoryNames(){
+  function getTranslatedCategoryNames(){
     return {
       'en-preparacion': t('cat_en_preparacion'),
       'preparadas': t('cat_preparadas'),
@@ -160,6 +210,32 @@
       'pendientes': t('cat_pendientes'),
       'archivadas': t('cat_archivadas')
     };
+  }
+
+  function getCategoryNameOverrides(){
+    return readCategoryOverrides();
+  }
+
+  function setCategoryNameOverrides(partial){
+    const current = readCategoryOverrides();
+    const next = Object.assign({}, current, partial);
+    // Eliminar claves con valor vacío para volver al valor por defecto / idioma
+    Object.keys(next).forEach(key => {
+      if (!sanitizeCategoryName(next[key])) delete next[key];
+    });
+    writeCategoryOverrides(next);
+  }
+
+  function resetCategoryNameOverrides(){
+    writeCategoryOverrides({});
+  }
+
+  function getEffectiveCategoryNames(){
+    return Object.assign({}, DEFAULT_CATEGORY_NAMES, getTranslatedCategoryNames(), getCategoryNameOverrides());
+  }
+
+  function i18nCategoryNames(){
+    return getEffectiveCategoryNames();
   }
 
 
@@ -202,6 +278,13 @@
       sel.onchange = () => { setLang(sel.value); applyI18nAll(); };
       const label = document.querySelector('#lang-group h3');
       if (label) label.textContent = t('language');
+    }
+    const colGroupLabel = document.querySelector('#category-names-group h3');
+    if (colGroupLabel) colGroupLabel.textContent = t('column_names');
+    const resetBtn = document.getElementById('category-names-reset');
+    if (resetBtn) resetBtn.textContent = t('reset_column_names');
+    if (typeof window.__updateCategoryNameInputs === 'function') {
+      window.__updateCategoryNameInputs();
     }
     // Cabecera de sincronización
     const syncLabel = document.querySelector('#sync-group h3');
@@ -253,8 +336,8 @@
     if (filterLbl) filterLbl.textContent = t('filter_by_tag');
     // Selector de categorías en el modal: traducir etiquetas
     const catSelect = document.getElementById('popup-task-category');
-    if (catSelect && typeof i18nCategoryNames === 'function') {
-      const names = i18nCategoryNames();
+    if (catSelect && typeof getEffectiveCategoryNames === 'function') {
+      const names = getEffectiveCategoryNames();
       Array.from(catSelect.options).forEach(opt => {
         const key = opt && opt.value;
         if (key && names[key]) opt.textContent = names[key];
@@ -303,5 +386,21 @@
   }
 
   // Exponer API global
-  window.i18n = { t, getLang, setLang, getLocale, i18nCategoryNames, applyI18nAll, exportBackup, importBackup };
+  window.i18n = {
+    t,
+    getLang,
+    setLang,
+    getLocale,
+    i18nCategoryNames,
+    applyI18nAll,
+    exportBackup,
+    importBackup,
+    getTranslatedCategoryNames,
+    getCategoryNameOverrides,
+    setCategoryNameOverrides,
+    resetCategoryNameOverrides,
+    getEffectiveCategoryNames,
+    DEFAULT_CATEGORY_NAMES,
+    CATEGORY_KEYS
+  };
 })();
