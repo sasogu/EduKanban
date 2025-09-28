@@ -35,8 +35,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const username = (parsed.username || '').trim();
             const folder = (parsed.folder || '').trim();
             const password = decodeBase64ToUtf8(parsed.password || '');
+            const resolvedBaseUrl = (parsed.resolvedBaseUrl || '').trim();
             if (!baseUrl || !username || !password) return null;
-            return { baseUrl, username, password, folder };
+            return { baseUrl, username, password, folder, resolvedBaseUrl: resolvedBaseUrl || null };
         } catch (err) {
             console.warn('loadNextcloudConfig', err);
             return null;
@@ -67,10 +68,22 @@ document.addEventListener('DOMContentLoaded', function() {
         return String(path || '').split('/').map(part => part.trim()).filter(Boolean);
     }
 
+    function getResolvedNextcloudBase(conf) {
+        if (!conf) return '';
+        const explicit = conf.resolvedBaseUrl && conf.resolvedBaseUrl.trim();
+        if (explicit) return explicit.replace(/\/+$/, '');
+        const base = (conf.baseUrl || '').trim().replace(/\/+$/, '');
+        if (!base) return '';
+        if (/remote\.php\/dav/i.test(base)) return base;
+        if (conf.username) {
+            return `${base}/remote.php/dav/files/${encodeURIComponent(conf.username)}`;
+        }
+        return base;
+    }
+
     function buildNextcloudUrl(conf, segments = []) {
-        if (!conf || !conf.baseUrl || !conf.username) return '';
-        const base = conf.baseUrl.replace(/\/+$/, '');
-        const basePath = `${base}/remote.php/dav/files/${encodeURIComponent(conf.username)}`;
+        const basePath = getResolvedNextcloudBase(conf);
+        if (!basePath) return '';
         const extra = [];
         (Array.isArray(segments) ? segments : [segments]).forEach(seg => {
             const pieces = Array.isArray(seg) ? seg : String(seg).split('/');

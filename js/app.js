@@ -92,7 +92,8 @@ function loadNextcloudConfig() {
             username,
             password,
             folder,
-            savedAt: parsed.savedAt || null
+            savedAt: parsed.savedAt || null,
+            resolvedBaseUrl: parsed.resolvedBaseUrl || null
         };
     } catch (_) {
         return null;
@@ -109,11 +110,12 @@ function persistNextcloudConfig(config) {
         baseUrl,
         username,
         folder,
+        resolvedBaseUrl: config.resolvedBaseUrl || null,
         password: encodeUtf8ToBase64(password),
         savedAt: new Date().toISOString()
     };
     try { localStorage.setItem(LS.nextcloudConfig, JSON.stringify(payload)); } catch (_) {}
-    nextcloudConfig = { baseUrl, username, folder, password, savedAt: payload.savedAt };
+    nextcloudConfig = { baseUrl, username, folder, password, resolvedBaseUrl: config.resolvedBaseUrl || null, savedAt: payload.savedAt };
 }
 
 function clearNextcloudConfig() {
@@ -157,20 +159,19 @@ function buildNextcloudRelativePath(...parts) {
 }
 
 function buildNextcloudUrl(conf, ...segments) {
-    if (!conf || !conf.baseUrl || !conf.username) return '';
-    const base = conf.baseUrl.replace(/\/+$/, '');
-    const userSegment = encodeURIComponent(conf.username);
+    const base = getResolvedNextcloudBase(conf);
+    if (!base) return '';
     const extra = [];
     segments.forEach(seg => {
         if (!seg) return;
         const parts = Array.isArray(seg) ? seg : String(seg).split('/');
         parts.forEach(part => {
             const trimmed = String(part || '').trim();
-            if (trimmed) extra.push(encodeURIComponent(trimmed));
+            if (trimmed) extra.push(encodeURIComponent(trimmed.replace(/\/+$/, '').replace(/^\/+/, '')));
         });
     });
     const suffix = extra.length ? '/' + extra.join('/') : '';
-    return `${base}/remote.php/dav/files/${userSegment}${suffix}`;
+    return `${base}${suffix}`;
 }
 
 function makeNextcloudAuthHeader(conf) {
@@ -198,6 +199,20 @@ function setNextcloudStatus(message, tone = 'info') {
     if (tone === 'success') statusEl.classList.add('status-success');
     else if (tone === 'error') statusEl.classList.add('status-error');
     else if (tone === 'warning') statusEl.classList.add('status-warning');
+}
+
+function getResolvedNextcloudBase(conf) {
+    if (!conf) return '';
+    const explicit = conf.resolvedBaseUrl && conf.resolvedBaseUrl.trim();
+    if (explicit) return explicit.replace(/\/+$/, '');
+    const base = (conf.baseUrl || '').trim().replace(/\/+$/, '');
+    if (!base) return '';
+    if (/remote\.php\/dav/i.test(base)) return base;
+    if (conf.username) {
+        const userSegment = encodeURIComponent(conf.username);
+        return `${base}/remote.php/dav/files/${userSegment}`;
+    }
+    return base;
 }
 
 function updateNextcloudFormFromConfig(options = {}) {
@@ -3139,25 +3154,48 @@ async function downloadNextcloudAttachment(relativePath) {
 }
 
 async function testNextcloudConnection(conf) {
-    if (!conf || !conf.baseUrl || !conf.username) return false;
-    const url = buildNextcloudUrl(conf);
-    const body = '<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/></d:prop></d:propfind>';
-    try {
-        const res = await fetch(url, {
-            method: 'PROPFIND',
-            headers: {
-                'Authorization': makeNextcloudAuthHeader(conf),
-                'Depth': '0',
-                'Content-Type': 'application/xml; charset=utf-8'
-            },
-            body
-        });
-        if (res.status === 401 || res.status === 403) return false;
-        return res.ok || res.status === 207;
-    } catch (e) {
-        console.warn('testNextcloudConnection', e);
-        return false;
+    if (!conf || !conf.baseUrl || !conf.username) return { ok: false, error: 'invalid-input' };
+    const base = (conf.baseUrl || '').trim().replace(/\/+$/, '');
+    if (!base) return { ok: false, error: 'invalid-input' };
+    const auth = makeNextcloudAuthHeader(conf);
+    const userSegment = encodeURIComponent(conf.username);
+    const candidates = [];
+    if (/remote\.php\/dav/i.test(base)) {
+        candidates.push(base);
+        if (!base.endsWith(`/${userSegment}`)) candidates.push(`${base}/${userSegment}`);
+    } else {
+        candidates.push(`${base}/remote.php/dav/files/${userSegment}`);
+        candidates.push(`${base}/${userSegment}`);
+        candidates.push(base);
     }
+    const body = '<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/></d:prop></d:propfind>';
+    let unauthorized = false;
+    for (const candidate of candidates) {
+        const clean = candidate.replace(/\/+$/, '');
+        if (!clean) continue;
+        try {
+            const res = await fetch(clean, {
+                method: 'PROPFIND',
+                headers: {
+                    'Authorization': auth,
+                    'Depth': '0',
+                    'Content-Type': 'application/xml; charset=utf-8'
+                },
+                body
+            });
+            if (res.status === 401 || res.status === 403) {
+                unauthorized = true;
+                continue;
+            }
+            if (res.ok || res.status === 207) {
+                return { ok: true, resolvedBaseUrl: clean };
+            }
+        } catch (e) {
+            console.warn('testNextcloudConnection', e);
+        }
+    }
+    if (unauthorized) return { ok: false, error: 'unauthorized' };
+    return { ok: false, error: 'not-found' };
 }
 
 async function syncToNextcloud(showAlert = true) {
@@ -3455,8 +3493,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const testingMsg = (window.i18n && i18n.t) ? i18n.t('nextcloud_status_testing') : 'Comprobando credenciales…';
             setNextcloudStatus(testingMsg, 'info');
             nextcloudSaveBtn.disabled = true;
-            const valid = await testNextcloudConnection(candidate);
-            if (valid) {
+            const validation = await testNextcloudConnection(candidate);
+            if (validation && validation.ok) {
+                candidate.resolvedBaseUrl = validation.resolvedBaseUrl;
                 persistNextcloudConfig(candidate);
                 try { await ensureNextcloudFolder(nextcloudConfig, getNextcloudRootSegments(nextcloudConfig)); } catch (_) {}
                 updateNextcloudFormFromConfig();
@@ -3465,7 +3504,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 showToast(okMsg);
             } else {
                 const errMsg = (window.i18n && i18n.t) ? i18n.t('nextcloud_save_failed') : '❌ No se pudo validar Nextcloud';
-                const statusMsg = (window.i18n && i18n.t) ? i18n.t('nextcloud_status_invalid') : 'Credenciales inválidas. Revisa usuario y token.';
+                let statusMsg;
+                if (validation && validation.error === 'unauthorized') {
+                    statusMsg = (window.i18n && i18n.t) ? i18n.t('nextcloud_status_invalid') : 'Credenciales inválidas. Revisa usuario y token.';
+                } else if (validation && validation.error === 'not-found') {
+                    statusMsg = (window.i18n && i18n.t) ? i18n.t('nextcloud_status_error_generic') : 'No se pudo localizar la ruta WebDAV indicada.';
+                } else {
+                    statusMsg = (window.i18n && i18n.t) ? i18n.t('nextcloud_status_error_network') : 'Error de red al contactar con el servidor WebDAV.';
+                }
                 setNextcloudStatus(statusMsg, 'error');
                 showToast(errMsg, 'error');
             }
