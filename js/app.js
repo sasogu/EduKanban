@@ -223,8 +223,8 @@ function updateNextcloudFormFromConfig(options = {}) {
         setNextcloudStatus(idleMsg, 'info');
     } else if (nextcloudLastSync) {
         const last = formatDateTimeForLocale(nextcloudLastSync);
-        const msg = (window.i18n && i18n.t) ? i18n.t('nextcloud_status_synced', { when: last }) : `Última sincronización: ${last}`;
-        setNextcloudStatus(msg, 'success');
+        const prefix = (window.i18n && i18n.t) ? i18n.t('nextcloud_status_synced_prefix') : 'Última sincronización: ';
+        setNextcloudStatus(`${prefix}${last}`, 'success');
     } else {
         const savedMsg = (window.i18n && i18n.t) ? i18n.t('nextcloud_status_ready') : 'Ajustes guardados. Ejecuta sincronización para empezar.';
         setNextcloudStatus(savedMsg, 'info');
@@ -583,6 +583,16 @@ function migrateOldTasks() {
             if (!Array.isArray(task.attachments)) { task.attachments = []; needsSave = true; }
             // Añadir historial de realizados si no existe
             if (!Array.isArray(task.doneHistory)) { task.doneHistory = []; needsSave = true; }
+            if (Array.isArray(task.attachments)) {
+                task.attachments.forEach(att => {
+                    if (att && typeof att === 'object') {
+                        if (!('dropboxPath' in att)) att.dropboxPath = att.dropboxPath || null;
+                        if (!('uploadedAt' in att)) att.uploadedAt = att.uploadedAt || null;
+                        if (!('nextcloudPath' in att)) { att.nextcloudPath = null; needsSave = true; }
+                        if (!('nextcloudUploadedAt' in att)) { att.nextcloudUploadedAt = null; needsSave = true; }
+                    }
+                });
+            }
         });
     }
     if (needsSave) { console.log('🔧 Migrando tareas antiguas.'); saveCategoriesToLocalStorage(); }
@@ -882,8 +892,8 @@ function toggleTaskArchived(taskId) {
         categories['en-preparacion'].push(movedTask);
     }
     saveCategoriesToLocalStorage();
-   renderTasks();
-   if (accessToken) syncToDropbox(false);
+    renderTasks();
+    if (accessToken) syncToDropbox(false);
     if (isNextcloudConfigured()) syncToNextcloud(false);
 }
 
@@ -2676,7 +2686,10 @@ function updateSyncGroupVisibility() {
     const online = navigator.onLine;
     if (headerGroup) headerGroup.style.display = online ? '' : 'none';
     if (modalGroup) modalGroup.style.display = online ? '' : 'none';
-    if (online) updateDropboxButtons();
+    if (online) {
+        updateDropboxButtons();
+        updateNextcloudFormFromConfig({ keepPasswordField: true });
+    }
 }
 
 
@@ -3182,8 +3195,8 @@ async function syncToNextcloud(showAlert = true) {
             nextcloudLastSync = new Date().toISOString();
             try { localStorage.setItem(LS.nextcloudLastSync, nextcloudLastSync); } catch (_) {}
             const lastMsg = formatDateTimeForLocale(nextcloudLastSync);
-            const statusMsg = (window.i18n && i18n.t) ? i18n.t('nextcloud_status_synced', { when: lastMsg }) : `Última sincronización: ${lastMsg}`;
-            setNextcloudStatus(statusMsg, 'success');
+        const prefix = (window.i18n && i18n.t) ? i18n.t('nextcloud_status_synced_prefix') : 'Última sincronización: ';
+        setNextcloudStatus(`${prefix}${lastMsg}`, 'success');
             if (showAlert) {
                 const msg = (window.i18n && i18n.t) ? i18n.t('toast_nextcloud_uploaded') : '✅ Datos subidos a Nextcloud';
                 showToast(msg);
@@ -3270,8 +3283,8 @@ async function syncFromNextcloud(force = false, showAlert = false) {
             nextcloudLastSync = remoteModifiedIso || new Date().toISOString();
             try { localStorage.setItem(LS.nextcloudLastSync, nextcloudLastSync); } catch (_) {}
             const lastMsg = formatDateTimeForLocale(nextcloudLastSync);
-            const statusMsg = (window.i18n && i18n.t) ? i18n.t('nextcloud_status_synced', { when: lastMsg }) : `Última sincronización: ${lastMsg}`;
-            setNextcloudStatus(statusMsg, 'success');
+            const prefix = (window.i18n && i18n.t) ? i18n.t('nextcloud_status_synced_prefix') : 'Última sincronización: ';
+            setNextcloudStatus(`${prefix}${lastMsg}`, 'success');
             if (showAlert) {
                 const okMsg = (window.i18n && i18n.t) ? i18n.t('toast_nextcloud_downloaded') : '📥 Datos descargados desde Nextcloud';
                 showToast(okMsg);
@@ -3400,6 +3413,81 @@ document.addEventListener('DOMContentLoaded', function() {
     const categoryNameAdmin = setupCategoryNameAdminControls();
     if (categoryNameAdmin && categoryNameAdmin.applyValues) {
         window.__updateCategoryNameInputs = () => categoryNameAdmin.applyValues();
+    }
+
+    const nextcloudUrlInput = document.getElementById('nextcloud-url');
+    const nextcloudUserInput = document.getElementById('nextcloud-username');
+    const nextcloudPasswordInput = document.getElementById('nextcloud-password');
+    const nextcloudFolderInput = document.getElementById('nextcloud-folder');
+    const nextcloudSaveBtn = document.getElementById('nextcloud-save');
+    const nextcloudSyncBtn = document.getElementById('nextcloud-sync');
+    const nextcloudDisconnectBtn = document.getElementById('nextcloud-disconnect');
+
+    updateNextcloudFormFromConfig();
+
+    if (nextcloudSaveBtn) {
+        nextcloudSaveBtn.addEventListener('click', async () => {
+            const baseUrl = (nextcloudUrlInput?.value || '').trim().replace(/\/+$/, '');
+            const username = (nextcloudUserInput?.value || '').trim();
+            const folderRaw = (nextcloudFolderInput?.value || NEXTCLOUD_DEFAULT_FOLDER).trim();
+            let password = nextcloudPasswordInput ? nextcloudPasswordInput.value : '';
+            const folder = folderRaw || NEXTCLOUD_DEFAULT_FOLDER;
+
+            if (!baseUrl || !username) {
+                const msg = (window.i18n && i18n.t) ? i18n.t('nextcloud_status_missing_fields') : 'Indica la URL y el usuario de Nextcloud.';
+                setNextcloudStatus(msg, 'warning');
+                showToast(msg, 'error');
+                return;
+            }
+
+            if (!password && nextcloudConfig && nextcloudConfig.baseUrl === baseUrl && nextcloudConfig.username === username) {
+                password = nextcloudConfig.password || '';
+            }
+
+            if (!password) {
+                const msg = (window.i18n && i18n.t) ? i18n.t('nextcloud_status_missing_password') : 'Introduce una contraseña o token de aplicación.';
+                setNextcloudStatus(msg, 'warning');
+                showToast(msg, 'error');
+                return;
+            }
+
+            const candidate = { baseUrl, username, password, folder };
+            const testingMsg = (window.i18n && i18n.t) ? i18n.t('nextcloud_status_testing') : 'Comprobando credenciales…';
+            setNextcloudStatus(testingMsg, 'info');
+            nextcloudSaveBtn.disabled = true;
+            const valid = await testNextcloudConnection(candidate);
+            if (valid) {
+                persistNextcloudConfig(candidate);
+                try { await ensureNextcloudFolder(nextcloudConfig, getNextcloudRootSegments(nextcloudConfig)); } catch (_) {}
+                updateNextcloudFormFromConfig();
+                if (nextcloudPasswordInput) nextcloudPasswordInput.value = '';
+                const okMsg = (window.i18n && i18n.t) ? i18n.t('nextcloud_save_success') : '✅ Ajustes de Nextcloud guardados';
+                showToast(okMsg);
+            } else {
+                const errMsg = (window.i18n && i18n.t) ? i18n.t('nextcloud_save_failed') : '❌ No se pudo validar Nextcloud';
+                const statusMsg = (window.i18n && i18n.t) ? i18n.t('nextcloud_status_invalid') : 'Credenciales inválidas. Revisa usuario y token.';
+                setNextcloudStatus(statusMsg, 'error');
+                showToast(errMsg, 'error');
+            }
+            nextcloudSaveBtn.disabled = false;
+        });
+    }
+    if (nextcloudSyncBtn) {
+        nextcloudSyncBtn.addEventListener('click', () => {
+            performNextcloudFullSync(true);
+        });
+    }
+    if (nextcloudDisconnectBtn) {
+        nextcloudDisconnectBtn.addEventListener('click', async () => {
+            const msg = (window.i18n && i18n.t) ? i18n.t('nextcloud_confirm_disconnect') : '¿Seguro que quieres eliminar la conexión con Nextcloud?';
+            const accept = await showConfirm(msg, (window.i18n && i18n.t) ? i18n.t('delete') : 'Eliminar', (window.i18n && i18n.t) ? i18n.t('cancel') : 'Cancelar');
+            if (!accept) return;
+            clearNextcloudConfig();
+            updateNextcloudFormFromConfig();
+            if (nextcloudPasswordInput) nextcloudPasswordInput.value = '';
+            const done = (window.i18n && i18n.t) ? i18n.t('nextcloud_disconnected') : 'Conexión con Nextcloud eliminada';
+            showToast(done);
+        });
     }
 
     const closeShortcutsModal = () => {

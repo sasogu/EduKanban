@@ -31,6 +31,37 @@
       history: '📅 Histórico',
       connect_dropbox: 'Conectar con Dropbox',
       sync_dropbox: 'Sincronizar',
+      dropbox_helper: 'Sincroniza automáticamente tus datos mediante OAuth.',
+      nextcloud_section_title: 'Nextcloud (WebDAV)',
+      nextcloud_helper: 'Introduce la URL de tu servidor, usuario y contraseña o token de aplicación.',
+      nextcloud_url_label: 'URL de Nextcloud',
+      nextcloud_username_label: 'Usuario',
+      nextcloud_password_label: 'Contraseña o token de aplicación',
+      nextcloud_folder_label: 'Carpeta (opcional)',
+      nextcloud_save_settings: 'Guardar ajustes',
+      nextcloud_sync_button: 'Sincronizar',
+      nextcloud_disconnect: 'Desconectar',
+      nextcloud_status_idle: 'Introduce la URL, usuario y token de Nextcloud para sincronizar.',
+      nextcloud_status_ready: 'Ajustes guardados. Ejecuta sincronización para empezar.',
+      nextcloud_status_synced_prefix: 'Última sincronización: ',
+      nextcloud_status_missing_fields: 'Indica la URL y el usuario de Nextcloud.',
+      nextcloud_status_missing_password: 'Introduce una contraseña o token de aplicación.',
+      nextcloud_status_testing: 'Comprobando credenciales…',
+      nextcloud_status_invalid: 'Credenciales inválidas. Revisa usuario y token.',
+      nextcloud_status_error_generic: 'Se produjo un error al comunicar con Nextcloud.',
+      nextcloud_status_error_network: 'Error de red al contactar con Nextcloud.',
+      nextcloud_save_success: '✅ Ajustes de Nextcloud guardados',
+      nextcloud_save_failed: '❌ No se pudo validar Nextcloud',
+      nextcloud_confirm_disconnect: '¿Seguro que quieres eliminar la conexión con Nextcloud?',
+      nextcloud_disconnected: 'Conexión con Nextcloud eliminada',
+      nextcloud_syncing: 'Sincronizando con Nextcloud…',
+      nextcloud_sync_complete: '✅ Sincronización con Nextcloud completada',
+      toast_nextcloud_uploaded: '✅ Datos subidos a Nextcloud',
+      toast_nextcloud_error_upload: '❌ Error al subir datos a Nextcloud',
+      toast_nextcloud_downloaded: '📥 Datos descargados desde Nextcloud',
+      toast_nextcloud_error_download: '❌ Error al descargar datos de Nextcloud',
+      toast_nextcloud_sync_failed: '❌ Error al sincronizar con Nextcloud',
+      sync_no_providers: 'No hay servicios de sincronización configurados.',
       show_all: 'Mostrar todo',
       placeholder_activity: 'Nueva actividad',
       placeholder_tags: 'Etiquetas (separadas por comas)',
@@ -97,6 +128,37 @@
       history: '📅 Històric',
       connect_dropbox: 'Connectar amb Dropbox',
       sync_dropbox: 'Sincronitzar',
+      dropbox_helper: 'Sincronitza automàticament les teues dades mitjançant OAuth.',
+      nextcloud_section_title: 'Nextcloud (WebDAV)',
+      nextcloud_helper: 'Introdueix la URL del servidor, l\'usuari i la contrasenya o token d\'aplicació.',
+      nextcloud_url_label: 'URL de Nextcloud',
+      nextcloud_username_label: 'Usuari',
+      nextcloud_password_label: 'Contrasenya o token d\'aplicació',
+      nextcloud_folder_label: 'Carpeta (opcional)',
+      nextcloud_save_settings: 'Guardar ajustos',
+      nextcloud_sync_button: 'Sincronitzar',
+      nextcloud_disconnect: 'Desconnectar',
+      nextcloud_status_idle: 'Introdueix la URL, usuari i token de Nextcloud per a sincronitzar.',
+      nextcloud_status_ready: 'Ajustos guardats. Executa la sincronització per a començar.',
+      nextcloud_status_synced_prefix: 'Última sincronització: ',
+      nextcloud_status_missing_fields: 'Indica la URL i l\'usuari de Nextcloud.',
+      nextcloud_status_missing_password: 'Introdueix una contrasenya o token d\'aplicació.',
+      nextcloud_status_testing: 'Comprovant credencials…',
+      nextcloud_status_invalid: 'Credencials invàlides. Revisa usuari i token.',
+      nextcloud_status_error_generic: 'S\'ha produït un error en comunicar amb Nextcloud.',
+      nextcloud_status_error_network: 'Error de xarxa en contactar amb Nextcloud.',
+      nextcloud_save_success: '✅ Ajustos de Nextcloud guardats',
+      nextcloud_save_failed: '❌ No s\'ha pogut validar Nextcloud',
+      nextcloud_confirm_disconnect: 'Segur que vols eliminar la connexió amb Nextcloud?',
+      nextcloud_disconnected: 'Connexió amb Nextcloud eliminada',
+      nextcloud_syncing: 'Sincronitzant amb Nextcloud…',
+      nextcloud_sync_complete: '✅ Sincronització amb Nextcloud completada',
+      toast_nextcloud_uploaded: '✅ Dades pujades a Nextcloud',
+      toast_nextcloud_error_upload: '❌ Error en pujar dades a Nextcloud',
+      toast_nextcloud_downloaded: '📥 Dades descarregades des de Nextcloud',
+      toast_nextcloud_error_download: '❌ Error en descarregar dades de Nextcloud',
+      toast_nextcloud_sync_failed: '❌ Error en sincronitzar amb Nextcloud',
+      sync_no_providers: 'No hi ha serveis de sincronització configurats.',
       show_all: 'Mostrar tot',
       placeholder_activity: 'Nova activitat',
       placeholder_tags: 'Etiquetes (separades per comes)',
@@ -313,6 +375,27 @@
     if (btnLogin) btnLogin.textContent = t('connect_dropbox');
     const btnSync = document.getElementById('dropbox-sync');
     if (btnSync) btnSync.textContent = t('sync_dropbox');
+    const dropboxHelper = document.querySelector('#dropbox-sync-section .sync-helper');
+    if (dropboxHelper) dropboxHelper.textContent = t('dropbox_helper');
+    const nextcloudTitle = document.querySelector('#nextcloud-sync-section h4');
+    if (nextcloudTitle) nextcloudTitle.textContent = t('nextcloud_section_title');
+    const nextcloudHelper = document.querySelector('#nextcloud-sync-section .sync-helper');
+    if (nextcloudHelper) nextcloudHelper.textContent = t('nextcloud_helper');
+    const ncUrlLabel = document.querySelector('label[for="nextcloud-url"]');
+    if (ncUrlLabel) ncUrlLabel.textContent = t('nextcloud_url_label');
+    const ncUserLabel = document.querySelector('label[for="nextcloud-username"]');
+    if (ncUserLabel) ncUserLabel.textContent = t('nextcloud_username_label');
+    const ncPassLabel = document.querySelector('label[for="nextcloud-password"]');
+    if (ncPassLabel) ncPassLabel.textContent = t('nextcloud_password_label');
+    const ncFolderLabel = document.querySelector('label[for="nextcloud-folder"]');
+    if (ncFolderLabel) ncFolderLabel.textContent = t('nextcloud_folder_label');
+    const ncSaveBtn = document.getElementById('nextcloud-save');
+    if (ncSaveBtn) ncSaveBtn.textContent = t('nextcloud_save_settings');
+    const ncSyncBtn = document.getElementById('nextcloud-sync');
+    if (ncSyncBtn) ncSyncBtn.textContent = t('nextcloud_sync_button');
+    const ncDisconnectBtn = document.getElementById('nextcloud-disconnect');
+    if (ncDisconnectBtn) ncDisconnectBtn.textContent = t('nextcloud_disconnect');
+    if (typeof updateNextcloudFormFromConfig === 'function') updateNextcloudFormFromConfig({ keepPasswordField: true });
     const btnAdmin = document.getElementById('open-admin');
     if (btnAdmin) { btnAdmin.textContent = '⚙️ ' + t('administration'); btnAdmin.title = t('administration'); }
     // Backup section

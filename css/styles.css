@@ -435,6 +435,11 @@ footer {
     gap: 10px;
 }
 
+#admin-modal .modal-content {
+    max-height: 85vh;
+    overflow-y: auto;
+}
+
 .atajos-modal-content {
     background: #ffffff;
     color: var(--color-text);

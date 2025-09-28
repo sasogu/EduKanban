@@ -8,6 +8,106 @@ document.addEventListener('DOMContentLoaded', function() {
     const archiveContainer = document.getElementById('archive-container');
     const filterSelect = document.getElementById('archive-filter-tag');
 
+    const NEXTCLOUD_KEYS = {
+        config: 'edukanban.nextcloudConfig'
+    };
+    const NEXTCLOUD_DEFAULT_FOLDER = '/Apps/EduKanban';
+    const NEXTCLOUD_FILE_NAME = 'edukanban.json';
+
+    function decodeBase64ToUtf8(b64) {
+        if (!b64) return '';
+        try {
+            const binary = atob(b64);
+            const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
+            return new TextDecoder().decode(bytes);
+        } catch (_) {
+            try { return decodeURIComponent(escape(atob(b64))); } catch(__) { return ''; }
+        }
+    }
+
+    function loadNextcloudConfig() {
+        try {
+            const raw = localStorage.getItem(NEXTCLOUD_KEYS.config);
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            if (!parsed || typeof parsed !== 'object') return null;
+            const baseUrl = (parsed.baseUrl || '').trim().replace(/\/+$/, '');
+            const username = (parsed.username || '').trim();
+            const folder = (parsed.folder || '').trim();
+            const password = decodeBase64ToUtf8(parsed.password || '');
+            if (!baseUrl || !username || !password) return null;
+            return { baseUrl, username, password, folder };
+        } catch (err) {
+            console.warn('loadNextcloudConfig', err);
+            return null;
+        }
+    }
+
+    function isNextcloudConfigured(conf) {
+        return !!(conf && conf.baseUrl && conf.username && conf.password);
+    }
+
+    function makeNextcloudAuthHeader(conf) {
+        if (!conf) return '';
+        try {
+            const token = btoa(String.fromCharCode(...new TextEncoder().encode(`${conf.username}:${conf.password}`)));
+            return `Basic ${token}`;
+        } catch (_) {
+            const fallback = btoa(unescape(encodeURIComponent(`${conf.username}:${conf.password}`)));
+            return `Basic ${fallback}`;
+        }
+    }
+
+    function getNextcloudRootSegments(conf) {
+        const folder = (conf && conf.folder) ? conf.folder : NEXTCLOUD_DEFAULT_FOLDER;
+        return folder.split('/').map(part => part.trim()).filter(Boolean);
+    }
+
+    function nextcloudPathToSegments(path) {
+        return String(path || '').split('/').map(part => part.trim()).filter(Boolean);
+    }
+
+    function buildNextcloudUrl(conf, segments = []) {
+        if (!conf || !conf.baseUrl || !conf.username) return '';
+        const base = conf.baseUrl.replace(/\/+$/, '');
+        const basePath = `${base}/remote.php/dav/files/${encodeURIComponent(conf.username)}`;
+        const extra = [];
+        (Array.isArray(segments) ? segments : [segments]).forEach(seg => {
+            const pieces = Array.isArray(seg) ? seg : String(seg).split('/');
+            pieces.forEach(piece => {
+                const trimmed = String(piece || '').trim();
+                if (trimmed) extra.push(encodeURIComponent(trimmed));
+            });
+        });
+        return extra.length ? `${basePath}/${extra.join('/')}` : basePath;
+    }
+
+    async function ensureNextcloudFolder(conf, segments) {
+        if (!isNextcloudConfigured(conf)) return false;
+        const parts = Array.isArray(segments) ? segments.slice() : nextcloudPathToSegments(segments);
+        if (!parts.length) return true;
+        const auth = makeNextcloudAuthHeader(conf);
+        const built = [];
+        for (const segment of parts) {
+            const clean = String(segment || '').trim();
+            if (!clean) continue;
+            built.push(clean);
+            const url = buildNextcloudUrl(conf, built);
+            try {
+                const res = await fetch(url, {
+                    method: 'MKCOL',
+                    headers: { 'Authorization': auth }
+                });
+                if (res.status === 201 || res.status === 405 || res.status === 409) continue;
+                if (!res.ok && res.status !== 412) return false;
+            } catch (err) {
+                console.warn('ensureNextcloudFolder', err);
+                return false;
+            }
+        }
+        return true;
+    }
+
     let __attDBPromise = null;
     const activeObjectUrls = new Set();
 
@@ -155,27 +255,51 @@ document.addEventListener('DOMContentLoaded', function() {
             console.warn('ensureAttachmentBlob cache', err);
         }
 
-        if (!att.dropboxPath) return null;
         const token = localStorage.getItem(LS.token);
-        if (!token) return null;
-        try {
-            const res = await fetch('https://content.dropboxapi.com/2/files/download', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Dropbox-API-Arg': JSON.stringify({ path: att.dropboxPath })
+        if (token && att.dropboxPath) {
+            try {
+                const res = await fetch('https://content.dropboxapi.com/2/files/download', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Dropbox-API-Arg': JSON.stringify({ path: att.dropboxPath })
+                    }
+                });
+                if (res.ok) {
+                    const raw = await res.blob();
+                    const desiredType = isPdfAttachment(att) ? 'application/pdf' : (att.type || raw.type || 'application/octet-stream');
+                    const blob = new Blob([raw], { type: desiredType });
+                    await putAttachmentBlob(att.id, blob);
+                    return blob;
                 }
-            });
-            if (!res.ok) return null;
-            const raw = await res.blob();
-            const desiredType = isPdfAttachment(att) ? 'application/pdf' : (att.type || raw.type || 'application/octet-stream');
-            const blob = new Blob([raw], { type: desiredType });
-            await putAttachmentBlob(att.id, blob);
-            return blob;
-        } catch (err) {
-            console.warn('ensureAttachmentBlob fetch', err);
-            return null;
+            } catch (err) {
+                console.warn('ensureAttachmentBlob dropbox', err);
+            }
         }
+
+        const ncConf = loadNextcloudConfig();
+        if (isNextcloudConfigured(ncConf) && att.nextcloudPath) {
+            const url = buildNextcloudUrl(ncConf, nextcloudPathToSegments(att.nextcloudPath));
+            try {
+                const res = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': makeNextcloudAuthHeader(ncConf),
+                        'Cache-Control': 'no-cache'
+                    }
+                });
+                if (res.ok) {
+                    const raw = await res.blob();
+                    const desiredType = isPdfAttachment(att) ? 'application/pdf' : (att.type || raw.type || 'application/octet-stream');
+                    const blob = new Blob([raw], { type: desiredType });
+                    await putAttachmentBlob(att.id, blob);
+                    return blob;
+                }
+            } catch (err) {
+                console.warn('ensureAttachmentBlob nextcloud', err);
+            }
+        }
+        return null;
     }
 
     async function getDropboxTemporaryLink(path) {
@@ -526,8 +650,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     // 4. Volver a renderizar la vista
                     renderArchivedTasks();
-                    // 5. Intentar sincronizar con Dropbox si hay sesión
-                    syncToDropboxFromArchive();
+                    // 5. Intentar sincronizar con los servicios conectados
+                    syncCloudFromArchive();
                 }
             }
         }
@@ -552,8 +676,8 @@ document.addEventListener('DOMContentLoaded', function() {
         allCategories['en-preparacion'].push(task);
         localStorage.setItem(LS.categories, JSON.stringify(allCategories));
         renderArchivedTasks();
-        // Intentar sincronizar con Dropbox si hay sesión
-        syncToDropboxFromArchive();
+        // Intentar sincronizar con los servicios conectados
+        syncCloudFromArchive();
     }
 
     // Cargar las tareas al iniciar
@@ -597,5 +721,38 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (err) {
             console.warn('Dropbox: fallo de red en sync desde archivo:', err);
         }
+    }
+
+    async function syncToNextcloudFromArchive() {
+        const conf = loadNextcloudConfig();
+        if (!isNextcloudConfigured(conf)) return;
+        try {
+            const categories = JSON.parse(localStorage.getItem(LS.categories) || '{}');
+            const deletedTasks = JSON.parse(localStorage.getItem(LS.deleted) || '[]');
+            const rootSegments = getNextcloudRootSegments(conf);
+            await ensureNextcloudFolder(conf, rootSegments);
+            const url = buildNextcloudUrl(conf, rootSegments.concat([NEXTCLOUD_FILE_NAME]));
+            const payload = { categories, deletedTasks, lastSync: new Date().toISOString() };
+            const res = await fetch(url, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': makeNextcloudAuthHeader(conf),
+                    'Content-Type': 'application/json; charset=utf-8'
+                },
+                body: JSON.stringify(payload, null, 2)
+            });
+            if (!res.ok) {
+                let body = '';
+                try { body = await res.text(); } catch (_) {}
+                console.warn('Nextcloud: error subida desde archivo:', res.status, body);
+            }
+        } catch (err) {
+            console.warn('Nextcloud: fallo de red en sync desde archivo:', err);
+        }
+    }
+
+    function syncCloudFromArchive() {
+        syncToDropboxFromArchive();
+        syncToNextcloudFromArchive();
     }
 });
