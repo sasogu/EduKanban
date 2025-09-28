@@ -504,7 +504,11 @@ footer {
 }
 
 /* Inputs y selects consistentes */
-input[type="text"], select, textarea {
+input[type="text"],
+input[type="url"],
+input[type="password"],
+select,
+textarea {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 10px 12px;
@@ -716,6 +720,57 @@ input[type="text"], select, textarea {
     flex-direction: column;
     gap: 10px;
 }
+
+.sync-provider {
+    border: 1px solid #dce3ef;
+    border-radius: 10px;
+    padding: 12px 14px;
+    background: #f9fbff;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.sync-provider h4 {
+    margin: 0;
+    font-size: 15px;
+    color: #2d3a43;
+}
+
+.sync-helper {
+    margin: 0;
+    font-size: 13px;
+    color: #5a6b78;
+}
+
+.sync-provider label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #44515b;
+}
+
+.sync-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.sync-actions .boton-accion {
+    flex: 1 1 180px;
+    margin-bottom: 0;
+    width: auto;
+    max-width: none;
+}
+
+.sync-status {
+    min-height: 20px;
+    font-size: 13px;
+    color: #4b5563;
+}
+.sync-status.status-success { color: #166534; }
+.sync-status.status-error { color: #b91c1c; }
+.sync-status.status-warning { color: #92400e; }
 
 /* Chips de etiquetas rápidas */
 .tag-suggestions {

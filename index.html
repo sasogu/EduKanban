@@ -144,8 +144,30 @@
             </div>
             <div class="grupo-botones" id="sync-group-modal">
                 <h3>Sincronización</h3>
-                <button id="dropbox-login" type="button" class="boton-accion">Conectar con Dropbox</button>
-                <button id="dropbox-sync" type="button" class="boton-accion" style="display:none;">Sincronizar</button>
+                <div class="sync-provider" id="dropbox-sync-section">
+                    <h4>Dropbox</h4>
+                    <p class="sync-helper">Sincroniza automáticamente tus datos mediante OAuth.</p>
+                    <button id="dropbox-login" type="button" class="boton-accion">Conectar con Dropbox</button>
+                    <button id="dropbox-sync" type="button" class="boton-accion" style="display:none;">Sincronizar</button>
+                </div>
+                <div class="sync-provider" id="nextcloud-sync-section">
+                    <h4>Nextcloud (WebDAV)</h4>
+                    <p class="sync-helper">Introduce la URL de tu servidor, usuario y contraseña o token de aplicación.</p>
+                    <label for="nextcloud-url">URL de Nextcloud</label>
+                    <input id="nextcloud-url" type="url" placeholder="https://cloud.ejemplo.com" autocomplete="url">
+                    <label for="nextcloud-username">Usuario</label>
+                    <input id="nextcloud-username" type="text" placeholder="usuario" autocomplete="username">
+                    <label for="nextcloud-password">Contraseña o token de aplicación</label>
+                    <input id="nextcloud-password" type="password" placeholder="••••••" autocomplete="current-password">
+                    <label for="nextcloud-folder">Carpeta (opcional)</label>
+                    <input id="nextcloud-folder" type="text" placeholder="/Apps/EduKanban">
+                    <div class="sync-actions">
+                        <button id="nextcloud-save" type="button" class="boton-accion">Guardar ajustes</button>
+                        <button id="nextcloud-sync" type="button" class="boton-accion" style="display:none;">Sincronizar</button>
+                        <button id="nextcloud-disconnect" type="button" class="boton-accion boton-peligro" style="display:none;">Desconectar</button>
+                    </div>
+                    <div id="nextcloud-status" class="sync-status" role="status" aria-live="polite"></div>
+                </div>
             </div>
             <div class="grupo-botones" id="backup-group">
                 <h3>Copia de seguridad</h3>

@@ -29,6 +29,8 @@ const LS = {
   deleted: 'edukanban.deletedTasks',
   token: 'edukanban.dropbox_access_token',
   lastSync: 'edukanban.lastSync',
+  nextcloudConfig: 'edukanban.nextcloudConfig',
+  nextcloudLastSync: 'edukanban.nextcloudLastSync',
   selectedFilterTag: 'edukanban.selectedFilterTag',
   visibleColumn: 'edukanban.visibleColumn', // compat: antes guardaba un string; ahora guarda JSON array
   notificationsEnabled: 'edukanban.notificationsEnabled',
@@ -43,11 +45,191 @@ const deletedTasks = JSON.parse(localStorage.getItem(LS.deleted) || '[]');
 const DROPBOX_APP_KEY = 'dvvtedkibz396hq';
 const DROPBOX_FILE_PATH = '/edukanban.json';
 const DROPBOX_ATTACH_DIR = '/edukanban_attachments';
+const NEXTCLOUD_FILE_NAME = 'edukanban.json';
+const NEXTCLOUD_ATTACH_DIR = 'edukanban_attachments';
+const NEXTCLOUD_DEFAULT_FOLDER = '/Apps/EduKanban';
 let accessToken = localStorage.getItem(LS.token);
 let localLastSync = localStorage.getItem(LS.lastSync);
+let nextcloudConfig = loadNextcloudConfig();
+let nextcloudLastSync = localStorage.getItem(LS.nextcloudLastSync);
 let syncInterval = null;
 // Flujo de redirect dinámico; constante obsoleta tras rebranding
 const DROPBOX_REDIRECT_URI = 'about:blank';
+
+function encodeUtf8ToBase64(str) {
+    try {
+        const bytes = new TextEncoder().encode(str || '');
+        let binary = '';
+        bytes.forEach(b => { binary += String.fromCharCode(b); });
+        return btoa(binary);
+    } catch (_) {
+        try { return btoa(unescape(encodeURIComponent(str || ''))); } catch (__){ return ''; }
+    }
+}
+function decodeBase64ToUtf8(b64) {
+    if (!b64) return '';
+    try {
+        const binary = atob(b64);
+        const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
+        return new TextDecoder().decode(bytes);
+    } catch (_) {
+        try { return decodeURIComponent(escape(atob(b64))); } catch (__){ return ''; }
+    }
+}
+
+function loadNextcloudConfig() {
+    try {
+        const raw = localStorage.getItem(LS.nextcloudConfig);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object') return null;
+        const baseUrl = (parsed.baseUrl || '').trim().replace(/\/+$/, '');
+        const username = (parsed.username || '').trim();
+        const folder = (parsed.folder || '').trim();
+        const password = decodeBase64ToUtf8(parsed.password || '');
+        return {
+            baseUrl,
+            username,
+            password,
+            folder,
+            savedAt: parsed.savedAt || null
+        };
+    } catch (_) {
+        return null;
+    }
+}
+
+function persistNextcloudConfig(config) {
+    if (!config) return;
+    const baseUrl = (config.baseUrl || '').trim().replace(/\/+$/, '');
+    const username = (config.username || '').trim();
+    const folder = (config.folder || '').trim();
+    const password = config.password || '';
+    const payload = {
+        baseUrl,
+        username,
+        folder,
+        password: encodeUtf8ToBase64(password),
+        savedAt: new Date().toISOString()
+    };
+    try { localStorage.setItem(LS.nextcloudConfig, JSON.stringify(payload)); } catch (_) {}
+    nextcloudConfig = { baseUrl, username, folder, password, savedAt: payload.savedAt };
+}
+
+function clearNextcloudConfig() {
+    try { localStorage.removeItem(LS.nextcloudConfig); } catch (_) {}
+    try { localStorage.removeItem(LS.nextcloudLastSync); } catch (_) {}
+    nextcloudConfig = null;
+    nextcloudLastSync = null;
+}
+
+function isNextcloudConfigured() {
+    return !!(nextcloudConfig && nextcloudConfig.baseUrl && nextcloudConfig.username && (nextcloudConfig.password || '').length);
+}
+
+function getNextcloudRootSegments(conf) {
+    const folder = (conf && conf.folder) ? conf.folder : NEXTCLOUD_DEFAULT_FOLDER;
+    return folder
+        .split('/')
+        .map(s => s.trim())
+        .filter(Boolean);
+}
+
+function nextcloudPathToSegments(path) {
+    if (!path) return [];
+    return String(path)
+        .split('/')
+        .map(part => part.trim())
+        .filter(Boolean);
+}
+
+function buildNextcloudRelativePath(...parts) {
+    const segments = [];
+    parts.forEach(part => {
+        if (!part) return;
+        const list = Array.isArray(part) ? part : String(part).split('/');
+        list.forEach(item => {
+            const trimmed = String(item || '').trim();
+            if (trimmed) segments.push(trimmed);
+        });
+    });
+    return '/' + segments.join('/');
+}
+
+function buildNextcloudUrl(conf, ...segments) {
+    if (!conf || !conf.baseUrl || !conf.username) return '';
+    const base = conf.baseUrl.replace(/\/+$/, '');
+    const userSegment = encodeURIComponent(conf.username);
+    const extra = [];
+    segments.forEach(seg => {
+        if (!seg) return;
+        const parts = Array.isArray(seg) ? seg : String(seg).split('/');
+        parts.forEach(part => {
+            const trimmed = String(part || '').trim();
+            if (trimmed) extra.push(encodeURIComponent(trimmed));
+        });
+    });
+    const suffix = extra.length ? '/' + extra.join('/') : '';
+    return `${base}/remote.php/dav/files/${userSegment}${suffix}`;
+}
+
+function makeNextcloudAuthHeader(conf) {
+    if (!conf) return '';
+    const token = encodeUtf8ToBase64(`${conf.username}:${conf.password || ''}`);
+    return `Basic ${token}`;
+}
+
+function formatDateTimeForLocale(isoString) {
+    if (!isoString) return '';
+    try {
+        const locale = (window.i18n && i18n.getLocale) ? i18n.getLocale() : (navigator.language || 'es-ES');
+        const formatter = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' });
+        return formatter.format(new Date(isoString));
+    } catch (_) {
+        try { return new Date(isoString).toLocaleString(); } catch (__){ return isoString; }
+    }
+}
+
+function setNextcloudStatus(message, tone = 'info') {
+    const statusEl = document.getElementById('nextcloud-status');
+    if (!statusEl) return;
+    statusEl.textContent = message || '';
+    statusEl.classList.remove('status-success', 'status-error', 'status-warning');
+    if (tone === 'success') statusEl.classList.add('status-success');
+    else if (tone === 'error') statusEl.classList.add('status-error');
+    else if (tone === 'warning') statusEl.classList.add('status-warning');
+}
+
+function updateNextcloudFormFromConfig(options = {}) {
+    const conf = nextcloudConfig;
+    const keepPassword = !!options.keepPasswordField;
+    const urlInput = document.getElementById('nextcloud-url');
+    if (urlInput) urlInput.value = conf ? conf.baseUrl || '' : '';
+    const userInput = document.getElementById('nextcloud-username');
+    if (userInput) userInput.value = conf ? conf.username || '' : '';
+    const folderInput = document.getElementById('nextcloud-folder');
+    if (folderInput) folderInput.value = conf ? (conf.folder || '') : NEXTCLOUD_DEFAULT_FOLDER;
+    const passwordInput = document.getElementById('nextcloud-password');
+    if (passwordInput && !keepPassword) passwordInput.value = '';
+    const syncBtn = document.getElementById('nextcloud-sync');
+    if (syncBtn) syncBtn.style.display = isNextcloudConfigured() ? 'inline-flex' : 'none';
+    const disconnectBtn = document.getElementById('nextcloud-disconnect');
+    if (disconnectBtn) disconnectBtn.style.display = isNextcloudConfigured() ? 'inline-flex' : 'none';
+    const saveBtn = document.getElementById('nextcloud-save');
+    if (saveBtn) saveBtn.disabled = false;
+
+    if (!isNextcloudConfigured()) {
+        const idleMsg = (window.i18n && i18n.t) ? i18n.t('nextcloud_status_idle') : 'Introduce la URL, usuario y token de Nextcloud para sincronizar.';
+        setNextcloudStatus(idleMsg, 'info');
+    } else if (nextcloudLastSync) {
+        const last = formatDateTimeForLocale(nextcloudLastSync);
+        const msg = (window.i18n && i18n.t) ? i18n.t('nextcloud_status_synced', { when: last }) : `Última sincronización: ${last}`;
+        setNextcloudStatus(msg, 'success');
+    } else {
+        const savedMsg = (window.i18n && i18n.t) ? i18n.t('nextcloud_status_ready') : 'Ajustes guardados. Ejecuta sincronización para empezar.';
+        setNextcloudStatus(savedMsg, 'info');
+    }
+}
 
 // Preferencias locales de bucle por adjunto (no se sincronizan)
 let __mediaLoopPrefs = {};
@@ -599,6 +781,8 @@ async function prepareAttachmentsFromFiles(fileList) {
             isImage: isImg,
             dropboxPath: null,
             uploadedAt: null,
+            nextcloudPath: null,
+            nextcloudUploadedAt: null,
             lastModified: new Date().toISOString()
         });
     }
@@ -632,6 +816,7 @@ function addTask(category, taskName, tags = [], reminderAt = null) {
     saveCategoriesToLocalStorage();
     renderTasks();
     if (accessToken) syncToDropbox(false);
+    if (isNextcloudConfigured()) syncToNextcloud(false);
 }
 
 async function removeTask(taskId) {
@@ -649,6 +834,7 @@ async function removeTask(taskId) {
     saveCategoriesToLocalStorage();
     renderTasks();
     if (accessToken) syncToDropbox(false);
+    if (isNextcloudConfigured()) syncToNextcloud(false);
 }
 
 function toggleTaskCompletion(taskId) {
@@ -664,6 +850,7 @@ function toggleTaskCompletion(taskId) {
         renderTasks();
         showToast((window.i18n&&i18n.t)?i18n.t('marked_done'):'Actividad marcada como realizada');
         if (accessToken) syncToDropbox(false);
+        if (isNextcloudConfigured()) syncToNextcloud(false);
     }
 }
 
@@ -695,8 +882,9 @@ function toggleTaskArchived(taskId) {
         categories['en-preparacion'].push(movedTask);
     }
     saveCategoriesToLocalStorage();
-    renderTasks();
-    if (accessToken) syncToDropbox(false);
+   renderTasks();
+   if (accessToken) syncToDropbox(false);
+    if (isNextcloudConfigured()) syncToNextcloud(false);
 }
 
 function moveTask(taskId, newCategory) {
@@ -717,6 +905,7 @@ function moveTask(taskId, newCategory) {
         saveCategoriesToLocalStorage();
         renderTasks();
         if (accessToken) syncToDropbox(false);
+        if (isNextcloudConfigured()) syncToNextcloud(false);
     }
 }
 
@@ -730,6 +919,7 @@ function setTaskOrder(taskId, code) {
     saveCategoriesToLocalStorage();
     renderTasks();
     if (accessToken) syncToDropbox(false);
+    if (isNextcloudConfigured()) syncToNextcloud(false);
 }
 
 // --- DIVIDIR TAREA POR ETIQUETAS ---
@@ -775,6 +965,7 @@ async function splitTaskByTags(taskId) {
     renderTasks();
     showToast((window.i18n&&i18n.t)?i18n.t('split_done'):'Actividad dividida por etiquetas.');
     if (accessToken) syncToDropbox(false);
+    if (isNextcloudConfigured()) syncToNextcloud(false);
 }
 
 // --- EDICIÓN DE TAREAS ---
@@ -810,6 +1001,7 @@ function updateTask(taskId, newName, newCategory, newTags = [], newReminderAt = 
     saveCategoriesToLocalStorage();
     renderTasks();
     if (accessToken) syncToDropbox(false);
+    if (isNextcloudConfigured()) syncToNextcloud(false);
 }
 
 function openEditTask(taskId) {
@@ -915,7 +1107,7 @@ function iterAllAttachments(cb) {
 function collectReuseCatalog() {
     const map = new Map();
     iterAllAttachments((att, t) => {
-        const key = att.dropboxPath || `${att.name}|${att.type}|${att.size}`;
+        const key = att.dropboxPath || att.nextcloudPath || `${att.name}|${att.type}|${att.size}`;
         if (!map.has(key)) map.set(key, { att, fromTaskId: t.id, key });
     });
     return Array.from(map.values());
@@ -939,6 +1131,8 @@ async function addExistingAttachment(targetTaskId, source) {
         isImage: !!srcAtt.isImage,
         dropboxPath: srcAtt.dropboxPath || null,
         uploadedAt: srcAtt.uploadedAt || null,
+        nextcloudPath: srcAtt.nextcloudPath || null,
+        nextcloudUploadedAt: srcAtt.nextcloudUploadedAt || null,
         lastModified: new Date().toISOString()
     };
     task.attachments = Array.isArray(task.attachments) ? task.attachments : [];
@@ -964,6 +1158,8 @@ async function addExistingToPending(source) {
             isImage: !!srcAtt.isImage,
             dropboxPath: srcAtt.dropboxPath || null,
             uploadedAt: srcAtt.uploadedAt || null,
+            nextcloudPath: srcAtt.nextcloudPath || null,
+            nextcloudUploadedAt: srcAtt.nextcloudUploadedAt || null,
             lastModified: new Date().toISOString()
         };
         pendingReusedAttachments.push(newAtt);
@@ -1851,6 +2047,16 @@ async function ensureAttachmentBlob(att) {
             }
         } catch (e) { console.warn('download attachment failed', e); }
     }
+    if (!blob && isNextcloudConfigured() && att.nextcloudPath) {
+        try {
+            const raw = await downloadNextcloudAttachment(att.nextcloudPath);
+            if (raw) {
+                const desiredType = isPdfAttachment(att) ? 'application/pdf' : (att.type || raw.type || 'application/octet-stream');
+                blob = new Blob([raw], { type: desiredType });
+                await putAttachmentBlob(att.id, blob);
+            }
+        } catch (e) { console.warn('download nextcloud attachment failed', e); }
+    }
     return blob;
 }
 
@@ -2233,12 +2439,22 @@ async function removeAttachment(taskId, attachmentId) {
             try { await deleteDropboxFile(att.dropboxPath); } catch (_) {}
         }
     }
+    if (isNextcloudConfigured() && att.nextcloudPath) {
+        let refs = 0;
+        iterAllAttachments((a)=>{ if (a.nextcloudPath === att.nextcloudPath) refs++; });
+        if (refs <= 1) {
+            try { await deleteNextcloudFile(att.nextcloudPath); } catch (_) {}
+        }
+    }
     task.attachments.splice(idx, 1);
     task.lastModified = new Date().toISOString();
     saveCategoriesToLocalStorage();
     renderTasks();
     if (accessToken) {
         try { performFullSync(); } catch (_) { syncToDropbox(false); }
+    }
+    if (isNextcloudConfigured()) {
+        try { performNextcloudFullSync(false); } catch (_) { syncToNextcloud(false); }
     }
     showToast((window.i18n&&i18n.t)?i18n.t('attachment_removed'):'Adjunto eliminado');
 }
@@ -2681,21 +2897,52 @@ async function syncFromDropbox(force = false) {
 }
 
 async function performFullSync() {
+    const hasDropbox = !!accessToken;
+    const hasNextcloud = isNextcloudConfigured();
+    if (!hasDropbox && !hasNextcloud) {
+        const msg = (window.i18n && i18n.t) ? i18n.t('sync_no_providers') : 'No hay servicios de sincronización configurados.';
+        showToast(msg, 'error');
+        return false;
+    }
     console.log('🔄 Iniciando sincronización completa...');
     showToast('Sincronizando...');
-    const downloaded = await syncFromDropbox(true);
-    if (downloaded) {
-        const uploaded = await syncToDropbox(false);
-        if (uploaded) showToast('✅ Sincronización completada.');
-        else showToast('❌ Error al subir datos.', 'error');
-    } else {
-        showToast('❌ Error al descargar datos.', 'error');
+    let success = true;
+
+    if (hasDropbox) {
+        const downloaded = await syncFromDropbox(true);
+        if (downloaded) {
+            const uploaded = await syncToDropbox(false);
+            if (!uploaded) {
+                showToast('❌ Error al subir datos.', 'error');
+                success = false;
+            }
+        } else {
+            showToast('❌ Error al descargar datos.', 'error');
+            success = false;
+        }
     }
+
+    if (hasNextcloud) {
+        const nextcloudOk = await performNextcloudFullSync(false);
+        if (!nextcloudOk) {
+            const err = (window.i18n && i18n.t) ? i18n.t('toast_nextcloud_sync_failed') : '❌ Error al sincronizar con Nextcloud';
+            showToast(err, 'error');
+            success = false;
+        }
+    }
+
+    if (success) {
+        showToast('✅ Sincronización completada.');
+    }
+    return success;
 }
 
 function startAutoSyncPolling() {
     if (syncInterval) clearInterval(syncInterval);
-    syncInterval = setInterval(() => syncFromDropbox(), 30000);
+    syncInterval = setInterval(() => {
+        if (accessToken) syncFromDropbox();
+        if (isNextcloudConfigured()) syncFromNextcloud();
+    }, 30000);
     console.log('🔄 Sondeo de sincronización automática iniciado.');
 }
 function stopAutoSyncPolling() {
@@ -2760,6 +3007,314 @@ async function deleteDropboxFile(path) {
         });
         return res.ok;
     } catch (e) { console.warn('delete dropbox file', e); return false; }
+}
+
+async function ensureNextcloudFolder(conf, segments) {
+    if (!conf) return false;
+    const parts = Array.isArray(segments) ? segments.slice() : nextcloudPathToSegments(segments);
+    if (!parts.length) return true;
+    const auth = makeNextcloudAuthHeader(conf);
+    let built = [];
+    for (const seg of parts) {
+        const clean = String(seg || '').trim();
+        if (!clean) continue;
+        built.push(clean);
+        const url = buildNextcloudUrl(conf, built);
+        try {
+            const res = await fetch(url, {
+                method: 'MKCOL',
+                headers: { 'Authorization': auth }
+            });
+            if (res.status === 201 || res.status === 405 || res.status === 409 || res.status === 301 || res.status === 302) continue;
+            if (!res.ok && res.status !== 412) {
+                console.warn('ensureNextcloudFolder', res.status, url);
+                return false;
+            }
+        } catch (e) {
+            console.warn('ensureNextcloudFolder error', e);
+            return false;
+        }
+    }
+    return true;
+}
+
+async function uploadPendingAttachmentsToNextcloud() {
+    if (!isNextcloudConfigured()) return false;
+    const conf = nextcloudConfig;
+    const auth = makeNextcloudAuthHeader(conf);
+    const rootParts = getNextcloudRootSegments(conf);
+    const attachParts = rootParts.concat([NEXTCLOUD_ATTACH_DIR]);
+    await ensureNextcloudFolder(conf, rootParts);
+    await ensureNextcloudFolder(conf, attachParts);
+
+    let updatedAny = false;
+    for (const [, tasks] of Object.entries(categories)) {
+        for (const t of tasks) {
+            if (!Array.isArray(t.attachments)) continue;
+            for (const att of t.attachments) {
+                if (att.nextcloudPath && att.nextcloudUploadedAt) continue;
+                const blob = await getAttachmentBlob(att.id);
+                if (!blob) continue;
+                const safeName = (att.name || att.id).replace(/[^A-Za-z0-9._-]/g, '_');
+                const filename = `${att.id}-${safeName}`;
+                const relativeSegments = attachParts.concat([filename]);
+                const url = buildNextcloudUrl(conf, relativeSegments);
+                try {
+                    const res = await fetch(url, {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': auth,
+                            'Content-Type': blob.type || 'application/octet-stream'
+                        },
+                        body: blob
+                    });
+                    if (res.ok || res.status === 201 || res.status === 204) {
+                        att.nextcloudPath = buildNextcloudRelativePath(relativeSegments);
+                        att.nextcloudUploadedAt = new Date().toISOString();
+                        t.lastModified = new Date().toISOString();
+                        saveCategoriesToLocalStorage();
+                        updatedAny = true;
+                    } else {
+                        console.warn('upload nextcloud attachment', res.status, url);
+                    }
+                } catch (e) {
+                    console.warn('upload nextcloud attachment error', e);
+                }
+            }
+        }
+    }
+    return updatedAny;
+}
+
+async function deleteNextcloudFile(relativePath) {
+    if (!isNextcloudConfigured() || !relativePath) return false;
+    const conf = nextcloudConfig;
+    const segments = nextcloudPathToSegments(relativePath);
+    if (!segments.length) return false;
+    const url = buildNextcloudUrl(conf, segments);
+    try {
+        const res = await fetch(url, {
+            method: 'DELETE',
+            headers: { 'Authorization': makeNextcloudAuthHeader(conf) }
+        });
+        return res.ok || res.status === 404;
+    } catch (e) {
+        console.warn('delete nextcloud file', e);
+        return false;
+    }
+}
+
+async function downloadNextcloudAttachment(relativePath) {
+    if (!isNextcloudConfigured() || !relativePath) return null;
+    const conf = nextcloudConfig;
+    const segments = nextcloudPathToSegments(relativePath);
+    if (!segments.length) return null;
+    const url = buildNextcloudUrl(conf, segments);
+    try {
+        const res = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Authorization': makeNextcloudAuthHeader(conf),
+                'Cache-Control': 'no-cache'
+            }
+        });
+        if (res.ok) return await res.blob();
+    } catch (e) {
+        console.warn('download nextcloud attachment error', e);
+    }
+    return null;
+}
+
+async function testNextcloudConnection(conf) {
+    if (!conf || !conf.baseUrl || !conf.username) return false;
+    const url = buildNextcloudUrl(conf);
+    const body = '<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/></d:prop></d:propfind>';
+    try {
+        const res = await fetch(url, {
+            method: 'PROPFIND',
+            headers: {
+                'Authorization': makeNextcloudAuthHeader(conf),
+                'Depth': '0',
+                'Content-Type': 'application/xml; charset=utf-8'
+            },
+            body
+        });
+        if (res.status === 401 || res.status === 403) return false;
+        return res.ok || res.status === 207;
+    } catch (e) {
+        console.warn('testNextcloudConnection', e);
+        return false;
+    }
+}
+
+async function syncToNextcloud(showAlert = true) {
+    if (!isNextcloudConfigured()) {
+        if (showAlert) {
+            const msg = (window.i18n && i18n.t) ? i18n.t('nextcloud_status_idle') : 'Configura Nextcloud antes de sincronizar.';
+            showToast(msg, 'error');
+        }
+        return false;
+    }
+    const conf = nextcloudConfig;
+    try {
+        const rootParts = getNextcloudRootSegments(conf);
+        await ensureNextcloudFolder(conf, rootParts);
+        await uploadPendingAttachmentsToNextcloud();
+
+        const payload = { categories, deletedTasks, lastSync: new Date().toISOString() };
+        const fileSegments = rootParts.concat([NEXTCLOUD_FILE_NAME]);
+        const url = buildNextcloudUrl(conf, fileSegments);
+        const res = await fetch(url, {
+            method: 'PUT',
+            headers: {
+                'Authorization': makeNextcloudAuthHeader(conf),
+                'Content-Type': 'application/json; charset=utf-8'
+            },
+            body: JSON.stringify(payload, null, 2)
+        });
+        if (res.status === 401 || res.status === 403) {
+            const invalid = (window.i18n && i18n.t) ? i18n.t('nextcloud_status_invalid') : 'Credenciales inválidas. Revisa usuario y token.';
+            setNextcloudStatus(invalid, 'error');
+            if (showAlert) showToast(invalid, 'error');
+            return false;
+        }
+        if (res.ok || res.status === 201 || res.status === 204) {
+            nextcloudLastSync = new Date().toISOString();
+            try { localStorage.setItem(LS.nextcloudLastSync, nextcloudLastSync); } catch (_) {}
+            const lastMsg = formatDateTimeForLocale(nextcloudLastSync);
+            const statusMsg = (window.i18n && i18n.t) ? i18n.t('nextcloud_status_synced', { when: lastMsg }) : `Última sincronización: ${lastMsg}`;
+            setNextcloudStatus(statusMsg, 'success');
+            if (showAlert) {
+                const msg = (window.i18n && i18n.t) ? i18n.t('toast_nextcloud_uploaded') : '✅ Datos subidos a Nextcloud';
+                showToast(msg);
+            }
+            return true;
+        }
+        const generic = (window.i18n && i18n.t) ? i18n.t('nextcloud_status_error_generic') : `Error ${res.status} al subir datos.`;
+        setNextcloudStatus(generic, 'error');
+    } catch (e) {
+        console.error('syncToNextcloud', e);
+        const msg = (window.i18n && i18n.t) ? i18n.t('nextcloud_status_error_network') : 'Error de red al contactar con Nextcloud.';
+        setNextcloudStatus(msg, 'error');
+    }
+    if (showAlert) {
+        const msg = (window.i18n && i18n.t) ? i18n.t('toast_nextcloud_error_upload') : '❌ Error al subir datos a Nextcloud';
+        showToast(msg, 'error');
+    }
+    return false;
+}
+
+async function syncFromNextcloud(force = false, showAlert = false) {
+    if (!isNextcloudConfigured()) return false;
+    const conf = nextcloudConfig;
+    const rootParts = getNextcloudRootSegments(conf);
+    const fileSegments = rootParts.concat([NEXTCLOUD_FILE_NAME]);
+    const url = buildNextcloudUrl(conf, fileSegments);
+    let remoteModifiedIso = null;
+    try {
+        const headRes = await fetch(url, { method: 'HEAD', headers: { 'Authorization': makeNextcloudAuthHeader(conf) } });
+        if (headRes.status === 401 || headRes.status === 403) {
+            const invalid = (window.i18n && i18n.t) ? i18n.t('nextcloud_status_invalid') : 'Credenciales inválidas. Revisa usuario y token.';
+            setNextcloudStatus(invalid, 'error');
+            if (showAlert) showToast(invalid, 'error');
+            return false;
+        }
+        if (headRes.status === 404) {
+            return await syncToNextcloud(showAlert);
+        }
+        if (headRes.ok) {
+            const remoteModified = headRes.headers.get('Last-Modified');
+            if (remoteModified) remoteModifiedIso = new Date(remoteModified).toISOString();
+            if (!force && nextcloudLastSync && remoteModifiedIso) {
+                if (new Date(remoteModifiedIso) <= new Date(nextcloudLastSync)) return false;
+            }
+        }
+    } catch (e) {
+        console.warn('HEAD nextcloud falló', e);
+    }
+    try {
+        const res = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Authorization': makeNextcloudAuthHeader(conf),
+                'Cache-Control': 'no-cache'
+            }
+        });
+        if (res.status === 401 || res.status === 403) {
+            const invalid = (window.i18n && i18n.t) ? i18n.t('nextcloud_status_invalid') : 'Credenciales inválidas. Revisa usuario y token.';
+            setNextcloudStatus(invalid, 'error');
+            if (showAlert) showToast(invalid, 'error');
+            return false;
+        }
+        if (res.status === 404) {
+            return await syncToNextcloud(showAlert);
+        }
+        if (!res.ok) {
+            const generic = (window.i18n && i18n.t) ? i18n.t('nextcloud_status_error_generic') : `Error ${res.status} al descargar datos.`;
+            setNextcloudStatus(generic, 'error');
+            if (showAlert) showToast(generic, 'error');
+            return false;
+        }
+        const remoteData = await res.json();
+        if (remoteData && remoteData.categories) {
+            const remoteDeleted = Array.isArray(remoteData.deletedTasks) ? remoteData.deletedTasks : [];
+            const mergedDeleted = mergeDeletedTasks(deletedTasks, remoteDeleted);
+            const deletedIdsSet = new Set(mergedDeleted.map(t => t.id));
+            const mergedCategories = mergeTasks(categories, remoteData.categories, deletedIdsSet);
+            Object.assign(categories, mergedCategories);
+            deletedTasks.length = 0;
+            Array.prototype.push.apply(deletedTasks, mergedDeleted);
+            saveCategoriesToLocalStorage();
+            localStorage.setItem(LS.deleted, JSON.stringify(deletedTasks));
+            renderTasks();
+            nextcloudLastSync = remoteModifiedIso || new Date().toISOString();
+            try { localStorage.setItem(LS.nextcloudLastSync, nextcloudLastSync); } catch (_) {}
+            const lastMsg = formatDateTimeForLocale(nextcloudLastSync);
+            const statusMsg = (window.i18n && i18n.t) ? i18n.t('nextcloud_status_synced', { when: lastMsg }) : `Última sincronización: ${lastMsg}`;
+            setNextcloudStatus(statusMsg, 'success');
+            if (showAlert) {
+                const okMsg = (window.i18n && i18n.t) ? i18n.t('toast_nextcloud_downloaded') : '📥 Datos descargados desde Nextcloud';
+                showToast(okMsg);
+            }
+            return true;
+        }
+    } catch (e) {
+        console.error('syncFromNextcloud', e);
+        const msg = (window.i18n && i18n.t) ? i18n.t('nextcloud_status_error_network') : 'Error de red al contactar con Nextcloud.';
+        setNextcloudStatus(msg, 'error');
+        if (showAlert) showToast(msg, 'error');
+    }
+    return false;
+}
+
+async function performNextcloudFullSync(showNotifications = true) {
+    if (!isNextcloudConfigured()) {
+        const msg = (window.i18n && i18n.t) ? i18n.t('nextcloud_status_idle') : 'Configura Nextcloud antes de sincronizar.';
+        setNextcloudStatus(msg, 'warning');
+        if (showNotifications) showToast(msg, 'error');
+        return false;
+    }
+    if (showNotifications) {
+        const syncing = (window.i18n && i18n.t) ? i18n.t('nextcloud_syncing') : 'Sincronizando con Nextcloud…';
+        showToast(syncing);
+    }
+    const downloaded = await syncFromNextcloud(true, showNotifications);
+    if (!downloaded) {
+        if (showNotifications) {
+            const err = (window.i18n && i18n.t) ? i18n.t('toast_nextcloud_error_download') : '❌ Error al descargar datos de Nextcloud';
+            showToast(err, 'error');
+        }
+        return false;
+    }
+    const uploaded = await syncToNextcloud(showNotifications);
+    if (uploaded) {
+        if (showNotifications) {
+            const done = (window.i18n && i18n.t) ? i18n.t('nextcloud_sync_complete') : '✅ Sincronización con Nextcloud completada';
+            showToast(done);
+        }
+        return true;
+    }
+    return false;
 }
 
 function handleAuthCallback() {
@@ -2948,7 +3503,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 updateTask(editingId, nombre, categoria, tags, reminderAt);
                 // Si se han añadido adjuntos, realizar una sincronización completa para subirlos primero
-                if (hadNewAtts && accessToken) {
+                const needsFullSync = hadNewAtts && (accessToken || isNextcloudConfigured());
+                if (needsFullSync) {
                     try { performFullSync(); } catch(_) {}
                 }
             } else {
@@ -2963,12 +3519,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 pendingReusedAttachments = [];
                 saveCategoriesToLocalStorage();
                 renderTasks();
-                if (accessToken) {
-                    // Si hay adjuntos, hacer sync completa (subir adjuntos primero, luego JSON)
+                const hasProvider = accessToken || isNextcloudConfigured();
+                if (hasProvider) {
                     if (toAttach.length > 0) {
-                        try { performFullSync(); } catch(_) { syncToDropbox(false); }
+                        try { performFullSync(); } catch(_) {
+                            if (accessToken) syncToDropbox(false);
+                            if (isNextcloudConfigured()) syncToNextcloud(false);
+                        }
                     } else {
-                        syncToDropbox(false);
+                        if (accessToken) syncToDropbox(false);
+                        if (isNextcloudConfigured()) syncToNextcloud(false);
                     }
                 }
             }
