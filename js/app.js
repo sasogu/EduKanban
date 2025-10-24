@@ -38,6 +38,7 @@ const LS = {
   lastReauthAt: 'edukanban.lastReauthAt',
   mediaLoop: 'edukanban.mediaLoop',
   mediaLoopAB: 'edukanban.mediaLoopAB',
+  mediaPitchPref: 'edukanban.mediaPitchPref',
   categoryNames: 'edukanban.categoryNameOverrides'
 };
 
@@ -289,6 +290,120 @@ function setMediaABPref(attId, patch) {
 function generateUUID() { return crypto.randomUUID(); }
 // Adjuntos seleccionados para nuevas tareas (reutilización en modo "Añadir")
 let pendingReusedAttachments = [];
+
+// Controla si audio y video mantienen el tono al cambiar la velocidad.
+const MEDIA_PITCH_PROPS = ['preservesPitch', 'mozPreservesPitch', 'webkitPreservesPitch'];
+const MEDIA_RATE_MIN = 0.25;
+const MEDIA_RATE_MAX = 3.0;
+const MEDIA_RATE_STEP = 0.05;
+let mediaPitchObserver = null;
+let __mediaPreservePitch = (() => {
+    try { return localStorage.getItem(LS.mediaPitchPref) === '1'; } catch (_) { return false; }
+})();
+
+function isMediaPitchPreserved() {
+    return !!__mediaPreservePitch;
+}
+function setMediaPitchPreserved(value) {
+    __mediaPreservePitch = !!value;
+    try { localStorage.setItem(LS.mediaPitchPref, __mediaPreservePitch ? '1' : '0'); } catch (_) {}
+}
+
+function ensureMediaPitchFollowsRate(mediaEl) {
+    try {
+        if (!mediaEl) return;
+        const shouldPreserve = isMediaPitchPreserved();
+        for (const prop of MEDIA_PITCH_PROPS) {
+            if (prop in mediaEl) {
+                mediaEl[prop] = shouldPreserve;
+            }
+        }
+    } catch (_) {}
+}
+function bindPitchPersistence(mediaEl) {
+    try {
+        ensureMediaPitchFollowsRate(mediaEl);
+        if (!mediaEl || mediaEl.dataset.pitchLockBound === '1') return;
+        const reapply = () => ensureMediaPitchFollowsRate(mediaEl);
+        mediaEl.addEventListener('ratechange', reapply);
+        mediaEl.addEventListener('loadedmetadata', reapply);
+        mediaEl.addEventListener('play', reapply);
+        mediaEl.dataset.pitchLockBound = '1';
+    } catch (_) {}
+}
+function bindPitchForNodeAndChildren(root) {
+    try {
+        if (!root) return;
+        if (root.tagName) {
+            const tag = root.tagName.toLowerCase();
+            if (tag === 'audio' || tag === 'video') bindPitchPersistence(root);
+        }
+        if (root.querySelectorAll) root.querySelectorAll('audio,video').forEach(bindPitchPersistence);
+    } catch (_) {}
+}
+
+function clampMediaPlaybackRate(value) {
+    const num = Number.isFinite(value) ? Number(value) : 1;
+    return Math.min(MEDIA_RATE_MAX, Math.max(MEDIA_RATE_MIN, num));
+}
+function quantizeMediaPlaybackRate(value) {
+    try {
+        const clamped = clampMediaPlaybackRate(value);
+        const steps = Math.round(clamped / MEDIA_RATE_STEP);
+        const quantized = steps * MEDIA_RATE_STEP;
+        return Number(quantized.toFixed(2));
+    } catch (_) {
+        return clampMediaPlaybackRate(value);
+    }
+}
+function animateMediaPlaybackRate(mediaEl, targetRate, onUpdate) {
+    try {
+        if (!mediaEl) return;
+        const finalRate = quantizeMediaPlaybackRate(targetRate);
+        bindPitchPersistence(mediaEl);
+        const startRate = clampMediaPlaybackRate(mediaEl.playbackRate || 1);
+        const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : null;
+        const caf = typeof cancelAnimationFrame === 'function' ? cancelAnimationFrame : null;
+        if (!raf || Math.abs(finalRate - startRate) < 0.004) {
+            mediaEl.playbackRate = finalRate;
+            ensureMediaPitchFollowsRate(mediaEl);
+            if (typeof onUpdate === 'function') onUpdate(mediaEl.playbackRate || finalRate);
+            return;
+        }
+        if (mediaEl.__rateTweenId && caf) {
+            caf(mediaEl.__rateTweenId);
+        }
+        mediaEl.__rateTweenId = null;
+        let startTime = null;
+        const duration = 200;
+        const step = (now) => {
+            if (startTime === null) startTime = now;
+            const progress = Math.min(1, (now - startTime) / duration);
+            const eased = 1 - Math.pow(1 - progress, 3); // easeOutCubic
+            const nextRate = startRate + (finalRate - startRate) * eased;
+            mediaEl.playbackRate = clampMediaPlaybackRate(nextRate);
+            ensureMediaPitchFollowsRate(mediaEl);
+            if (typeof onUpdate === 'function') onUpdate(mediaEl.playbackRate);
+            if (progress < 1) {
+                mediaEl.__rateTweenId = raf(step);
+            } else {
+                mediaEl.playbackRate = finalRate;
+                ensureMediaPitchFollowsRate(mediaEl);
+                if (typeof onUpdate === 'function') onUpdate(mediaEl.playbackRate);
+                mediaEl.__rateTweenId = null;
+            }
+        };
+        mediaEl.__rateTweenId = raf(step);
+    } catch (_) {}
+}
+function adjustMediaPlaybackRate(mediaEl, delta, onUpdate) {
+    try {
+        if (!mediaEl) return;
+        const current = clampMediaPlaybackRate(mediaEl.playbackRate || 1);
+        const target = quantizeMediaPlaybackRate(current + delta);
+        animateMediaPlaybackRate(mediaEl, target, onUpdate);
+    } catch (_) {}
+}
 
 function showToast(message, type = 'success') {
     const toast = document.createElement('div');
@@ -1220,6 +1335,8 @@ function renderPendingAttachments() {
                 const aEl = container.querySelector(`a.attachment-file[data-att-id="${att.id}"]`);
                 const audioEl = container.querySelector(`audio.attachment-audio[data-att-id="${att.id}"]`);
                 const videoEl = container.querySelector(`video.attachment-video[data-att-id="${att.id}"]`);
+                if (audioEl) bindPitchPersistence(audioEl);
+                if (videoEl) bindPitchPersistence(videoEl);
                 let url = null;
                 const blob = await ensureAttachmentBlob(att);
                 if (imgEl && blob) imgEl.src = URL.createObjectURL(blob);
@@ -1486,8 +1603,7 @@ function renderPendingAttachments() {
                     speedDownBtn.addEventListener('click', () => {
                         const el = container.querySelector(`audio.attachment-audio[data-att-id="${att.id}"]`);
                         if (!el) return;
-                        el.playbackRate = Math.max(0.25, Math.round((el.playbackRate - 0.10) * 100) / 100);
-                        updateSpeedLabel();
+                        adjustMediaPlaybackRate(el, -MEDIA_RATE_STEP, () => updateSpeedLabel());
                     });
                     speedDownBtn.dataset.bound = '1';
                 }
@@ -1495,8 +1611,7 @@ function renderPendingAttachments() {
                     speedUpBtn.addEventListener('click', () => {
                         const el = container.querySelector(`audio.attachment-audio[data-att-id="${att.id}"]`);
                         if (!el) return;
-                        el.playbackRate = Math.min(3.0, Math.round((el.playbackRate + 0.10) * 100) / 100);
-                        updateSpeedLabel();
+                        adjustMediaPlaybackRate(el, MEDIA_RATE_STEP, () => updateSpeedLabel());
                     });
                     speedUpBtn.dataset.bound = '1';
                 }
@@ -1510,8 +1625,7 @@ function renderPendingAttachments() {
                     vSpeedDownBtn.addEventListener('click', () => {
                         const el = container.querySelector(`video.attachment-video[data-att-id="${att.id}"]`);
                         if (!el) return;
-                        el.playbackRate = Math.max(0.25, Math.round((el.playbackRate - 0.10) * 100) / 100);
-                        updateVSpeedLabel();
+                        adjustMediaPlaybackRate(el, -MEDIA_RATE_STEP, () => updateVSpeedLabel());
                     });
                     vSpeedDownBtn.dataset.bound = '1';
                 }
@@ -1519,8 +1633,7 @@ function renderPendingAttachments() {
                     vSpeedUpBtn.addEventListener('click', () => {
                         const el = container.querySelector(`video.attachment-video[data-att-id="${att.id}"]`);
                         if (!el) return;
-                        el.playbackRate = Math.min(3.0, Math.round((el.playbackRate + 0.10) * 100) / 100);
-                        updateVSpeedLabel();
+                        adjustMediaPlaybackRate(el, MEDIA_RATE_STEP, () => updateVSpeedLabel());
                     });
                     vSpeedUpBtn.dataset.bound = '1';
                 }
@@ -1635,6 +1748,8 @@ async function renderPopupAttachments(task) {
         const aEl = container.querySelector(`a.attachment-file[data-att-id="${att.id}"]`);
         const audioEl = container.querySelector(`audio.attachment-audio[data-att-id="${att.id}"]`);
         const videoEl = container.querySelector(`video.attachment-video[data-att-id="${att.id}"]`);
+        if (audioEl) bindPitchPersistence(audioEl);
+        if (videoEl) bindPitchPersistence(videoEl);
         let url = null;
         const blob = await ensureAttachmentBlob(att);
         if (imgEl && blob) imgEl.src = URL.createObjectURL(blob);
@@ -1737,8 +1852,7 @@ async function renderPopupAttachments(task) {
                 speedDownBtn.addEventListener('click', () => {
                     const el = container.querySelector(`audio.attachment-audio[data-att-id="${att.id}"]`);
                     if (!el) return;
-                    el.playbackRate = Math.max(0.25, Math.round((el.playbackRate - 0.10) * 100) / 100);
-                    updateSpeedLabel();
+                    adjustMediaPlaybackRate(el, -MEDIA_RATE_STEP, () => updateSpeedLabel());
                 });
                 speedDownBtn.dataset.bound = '1';
             }
@@ -1746,8 +1860,7 @@ async function renderPopupAttachments(task) {
                 speedUpBtn.addEventListener('click', () => {
                     const el = container.querySelector(`audio.attachment-audio[data-att-id="${att.id}"]`);
                     if (!el) return;
-                    el.playbackRate = Math.min(3.0, Math.round((el.playbackRate + 0.10) * 100) / 100);
-                    updateSpeedLabel();
+                    adjustMediaPlaybackRate(el, MEDIA_RATE_STEP, () => updateSpeedLabel());
                 });
                 speedUpBtn.dataset.bound = '1';
             }
@@ -1761,8 +1874,7 @@ async function renderPopupAttachments(task) {
                 vSpeedDownBtn.addEventListener('click', () => {
                     const el = container.querySelector(`video.attachment-video[data-att-id="${att.id}"]`);
                     if (!el) return;
-                    el.playbackRate = Math.max(0.25, Math.round((el.playbackRate - 0.10) * 100) / 100);
-                    updateVSpeedLabel();
+                    adjustMediaPlaybackRate(el, -MEDIA_RATE_STEP, () => updateVSpeedLabel());
                 });
                 vSpeedDownBtn.dataset.bound = '1';
             }
@@ -1770,8 +1882,7 @@ async function renderPopupAttachments(task) {
                 vSpeedUpBtn.addEventListener('click', () => {
                     const el = container.querySelector(`video.attachment-video[data-att-id="${att.id}"]`);
                     if (!el) return;
-                    el.playbackRate = Math.min(3.0, Math.round((el.playbackRate + 0.10) * 100) / 100);
-                    updateVSpeedLabel();
+                    adjustMediaPlaybackRate(el, MEDIA_RATE_STEP, () => updateVSpeedLabel());
                 });
                 vSpeedUpBtn.dataset.bound = '1';
             }
@@ -2117,6 +2228,8 @@ function hydrateAttachmentsForCategory(tasks, rootEl) {
             const aEl = taskEl.querySelector(`a.attachment-file[data-att-id="${att.id}"]`);
             const audioEl = taskEl.querySelector(`audio.attachment-audio[data-att-id="${att.id}"]`);
             const videoEl = taskEl.querySelector(`video.attachment-video[data-att-id="${att.id}"]`);
+            if (audioEl) bindPitchPersistence(audioEl);
+            if (videoEl) bindPitchPersistence(videoEl);
             const dlEl = taskEl.querySelector(`a.attachment-dl[data-att-id="${att.id}"]`);
             if (imgEl && !imgEl.src) {
                 const blob = await ensureAttachmentBlob(att);
@@ -2229,8 +2342,7 @@ function hydrateAttachmentsForCategory(tasks, rootEl) {
                 speedDownBtn.addEventListener('click', () => {
                     const el = taskEl.querySelector(`audio.attachment-audio[data-att-id="${att.id}"]`);
                     if (!el) return;
-                    el.playbackRate = Math.max(0.25, Math.round((el.playbackRate - 0.10) * 100) / 100);
-                    updateSpeedLabel();
+                    adjustMediaPlaybackRate(el, -MEDIA_RATE_STEP, () => updateSpeedLabel());
                 });
                 speedDownBtn.dataset.bound = '1';
             }
@@ -2238,8 +2350,7 @@ function hydrateAttachmentsForCategory(tasks, rootEl) {
                 speedUpBtn.addEventListener('click', () => {
                     const el = taskEl.querySelector(`audio.attachment-audio[data-att-id="${att.id}"]`);
                     if (!el) return;
-                    el.playbackRate = Math.min(3.0, Math.round((el.playbackRate + 0.10) * 100) / 100);
-                    updateSpeedLabel();
+                    adjustMediaPlaybackRate(el, MEDIA_RATE_STEP, () => updateSpeedLabel());
                 });
                 speedUpBtn.dataset.bound = '1';
             }
@@ -2332,8 +2443,7 @@ function hydrateAttachmentsForCategory(tasks, rootEl) {
                 vSpeedDownBtn.addEventListener('click', () => {
                     const el = taskEl.querySelector(`video.attachment-video[data-att-id="${att.id}"]`);
                     if (!el) return;
-                    el.playbackRate = Math.max(0.25, Math.round((el.playbackRate - 0.10) * 100) / 100);
-                    updateVSpeedLabel();
+                    adjustMediaPlaybackRate(el, -MEDIA_RATE_STEP, () => updateVSpeedLabel());
                 });
                 vSpeedDownBtn.dataset.bound = '1';
             }
@@ -2341,8 +2451,7 @@ function hydrateAttachmentsForCategory(tasks, rootEl) {
                 vSpeedUpBtn.addEventListener('click', () => {
                     const el = taskEl.querySelector(`video.attachment-video[data-att-id="${att.id}"]`);
                     if (!el) return;
-                    el.playbackRate = Math.min(3.0, Math.round((el.playbackRate + 0.10) * 100) / 100);
-                    updateVSpeedLabel();
+                    adjustMediaPlaybackRate(el, MEDIA_RATE_STEP, () => updateVSpeedLabel());
                 });
                 vSpeedUpBtn.dataset.bound = '1';
             }
@@ -3441,6 +3550,50 @@ document.addEventListener('DOMContentLoaded', function() {
     migrateOldTasks();
     renderTasks();
 
+    const setupMediaPitchObserver = () => {
+        const target = document.body || document.documentElement;
+        if (!target) return;
+        bindPitchForNodeAndChildren(target);
+        if (mediaPitchObserver || typeof MutationObserver === 'undefined') return;
+        mediaPitchObserver = new MutationObserver((mutations) => {
+            try {
+                mutations.forEach((mutation) => {
+                    mutation.addedNodes.forEach((node) => {
+                        if (!node || (node.nodeType !== 1 && node.nodeType !== 11)) return;
+                        bindPitchForNodeAndChildren(node);
+                    });
+                });
+            } catch (_) {}
+        });
+        mediaPitchObserver.observe(target, { childList: true, subtree: true });
+    };
+    setupMediaPitchObserver();
+
+    const pitchToggleBtn = document.getElementById('media-pitch-toggle');
+    const refreshPitchToggleBtn = () => {
+        if (!pitchToggleBtn) return;
+        const preserve = isMediaPitchPreserved();
+        let labelOn = '🎼 Mantener tono: Sí';
+        let labelOff = '🎼 Mantener tono: No';
+        if (window.i18n && i18n.t) {
+            try {
+                labelOn = i18n.t('keep_pitch_on') || labelOn;
+                labelOff = i18n.t('keep_pitch_off') || labelOff;
+            } catch (_) {}
+        }
+        pitchToggleBtn.textContent = preserve ? labelOn : labelOff;
+        pitchToggleBtn.setAttribute('aria-pressed', preserve ? 'true' : 'false');
+    };
+    if (pitchToggleBtn) {
+        refreshPitchToggleBtn();
+        pitchToggleBtn.addEventListener('click', () => {
+            const next = !isMediaPitchPreserved();
+            setMediaPitchPreserved(next);
+            refreshPitchToggleBtn();
+            bindPitchForNodeAndChildren(document.body || document.documentElement);
+        });
+    }
+
     // Lógica del Popup
     const popup = document.getElementById('popup-tarea');
     const abrirPopupBtn = document.getElementById('abrir-popup-tarea');
@@ -3889,19 +4042,17 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (_) {}
     };
 
-    // Cambia la velocidad con paso de 0.10 (clamp 0.25–3.0)
+    // Cambia la velocidad con paso progresivo (clamp 0.25–3.0)
     const nudgePlaybackRate = (mediaEl, delta) => {
         try {
             if (!mediaEl) return;
-            const next = Math.max(0.25, Math.min(3.0, Math.round((mediaEl.playbackRate + delta) * 100) / 100));
-            mediaEl.playbackRate = next;
-            updateMediaSpeedLabels(mediaEl);
+            adjustMediaPlaybackRate(mediaEl, delta, () => updateMediaSpeedLabels(mediaEl));
         } catch (_) {}
     };
 
     // Atajos:
-    // - Alt+ArrowUp / Alt+ArrowDown: sube/baja 0.10 para el último medio activo
-    // - Cuando un <audio>/<video> tiene el foco: '.' sube y ',' baja 0.10
+    // - Alt+ArrowUp / Alt+ArrowDown: sube/baja el paso configurado para el último medio activo
+    // - Cuando un <audio>/<video> tiene el foco: '.' sube y ',' baja el paso configurado
     document.addEventListener('keydown', (e) => {
         const activeTag = (document.activeElement && document.activeElement.tagName || '').toLowerCase();
         const isTypingTarget = activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select' || (document.activeElement && document.activeElement.isContentEditable);
@@ -3920,10 +4071,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.altKey && !isTypingTarget) {
             if (e.key === 'ArrowUp') {
                 e.preventDefault();
-                nudgePlaybackRate(targetMedia, +0.10);
+                nudgePlaybackRate(targetMedia, +MEDIA_RATE_STEP);
             } else if (e.key === 'ArrowDown') {
                 e.preventDefault();
-                nudgePlaybackRate(targetMedia, -0.10);
+                nudgePlaybackRate(targetMedia, -MEDIA_RATE_STEP);
             }
         }
 
@@ -3931,10 +4082,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if (document.activeElement === targetMedia && !e.altKey && !e.ctrlKey && !e.metaKey) {
             if (e.key === '.') {
                 e.preventDefault();
-                nudgePlaybackRate(targetMedia, +0.10);
+                nudgePlaybackRate(targetMedia, +MEDIA_RATE_STEP);
             } else if (e.key === ',') {
                 e.preventDefault();
-                nudgePlaybackRate(targetMedia, -0.10);
+                nudgePlaybackRate(targetMedia, -MEDIA_RATE_STEP);
             }
         }
     });
