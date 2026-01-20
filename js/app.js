@@ -32,6 +32,7 @@ const LS = {
   nextcloudConfig: 'edukanban.nextcloudConfig',
   nextcloudLastSync: 'edukanban.nextcloudLastSync',
   selectedFilterTag: 'edukanban.selectedFilterTag',
+  searchQuery: 'edukanban.searchQuery',
   visibleColumn: 'edukanban.visibleColumn', // compat: antes guardaba un string; ahora guarda JSON array
   notificationsEnabled: 'edukanban.notificationsEnabled',
   pendingDropboxAction: 'edukanban.pendingDropboxAction',
@@ -1920,10 +1921,31 @@ async function renderPopupAttachments(task) {
     });
 }
 
+function normalizeSearchValue(value) {
+    return String(value || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim();
+}
+
+function taskMatchesSearch(task, searchNorm) {
+    if (!searchNorm) return true;
+    const parts = [];
+    if (task && task.task) parts.push(task.task);
+    if (Array.isArray(task.tags) && task.tags.length) parts.push(task.tags.join(' '));
+    if (Array.isArray(task.attachments) && task.attachments.length) {
+        parts.push(task.attachments.map(att => att && att.name ? att.name : '').join(' '));
+    }
+    const haystack = normalizeSearchValue(parts.join(' '));
+    return haystack.includes(searchNorm);
+}
+
 // --- RENDERIZADO EN EL DOM (SIN BOTÓN DE ELIMINAR) ---
 function renderTasks() {
     const taskContainer = document.getElementById('task-container');
     const filterTagSelect = document.getElementById('filter-tag');
+    const filterSearchInput = document.getElementById('filter-search');
     const filterColumnSelect = document.getElementById('filter-column');
     const filterColumnGroup = document.getElementById('filter-column-group');
     const locale = (window.i18n && i18n.getLocale) ? i18n.getLocale() : 'es-ES';
@@ -1934,6 +1956,14 @@ function renderTasks() {
     } else {
         filterTag = localStorage.getItem(LS.selectedFilterTag) || '';
     }
+    let searchQuery = '';
+    if (filterSearchInput) {
+        searchQuery = filterSearchInput.value || localStorage.getItem(LS.searchQuery) || '';
+        if (!filterSearchInput.value && searchQuery) filterSearchInput.value = searchQuery;
+    } else {
+        searchQuery = localStorage.getItem(LS.searchQuery) || '';
+    }
+    const searchNorm = normalizeSearchValue(searchQuery);
     // Columns: ahora puede ser múltiple. Si LS guarda string antiguo, lo convertimos a array.
     let filterColumns = [];
     if (filterColumnSelect) {
@@ -2027,6 +2057,9 @@ function renderTasks() {
         let filteredTasks = filterTag
             ? tasks.filter(task => task.tags && task.tags.includes(filterTag))
             : tasks;
+        if (searchNorm) {
+            filteredTasks = filteredTasks.filter(task => taskMatchesSearch(task, searchNorm));
+        }
         filteredTasks = filteredTasks.slice().sort(cmpTasks);
 
         let tasksHTML = filteredTasks.map(task => {
@@ -3714,6 +3747,23 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('popup-task-name').focus();
         updateTagDatalist();
         renderTagSuggestions();
+        // Si hay una etiqueta filtrada, precargarla en el formulario de nueva tarea
+        const tagsInput = document.getElementById('popup-task-tags');
+        const filterTagSelect = document.getElementById('filter-tag');
+        let activeFilterTag = '';
+        if (filterTagSelect && filterTagSelect.value) {
+            activeFilterTag = filterTagSelect.value;
+        } else {
+            try { activeFilterTag = localStorage.getItem(LS.selectedFilterTag) || ''; } catch (_) {}
+        }
+        if (tagsInput && activeFilterTag) {
+            const current = parseTagsInputValue(tagsInput.value);
+            if (!current.includes(activeFilterTag)) {
+                current.push(activeFilterTag);
+                setTagsInputFromArray(current);
+                renderTagSuggestions();
+            }
+        }
         // En modo añadir, preparar reutilización
         pendingReusedAttachments = [];
         const reuseToggle = document.getElementById('popup-attach-reuse-toggle');
@@ -3911,6 +3961,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.getElementById('filter-tag')?.addEventListener('change', (e) => {
         try { localStorage.setItem(LS.selectedFilterTag, e.target.value || ''); } catch (_) {}
+        renderTasks();
+    });
+    document.getElementById('filter-search')?.addEventListener('input', (e) => {
+        try { localStorage.setItem(LS.searchQuery, e.target.value || ''); } catch (_) {}
         renderTasks();
     });
     document.getElementById('filter-column')?.addEventListener('change', (e) => {

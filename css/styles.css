@@ -510,6 +510,7 @@ footer {
 
 /* Inputs y selects consistentes */
 input[type="text"],
+input[type="search"],
 input[type="url"],
 input[type="password"],
 select,
@@ -638,13 +639,14 @@ textarea {
         flex-direction: column;
         gap: 10px;
     }
-    input[type="text"], button {
+    input[type="text"], input[type="search"], button {
         width: 100%;
         box-sizing: border-box;
         font-size: 1.1em;
     }
     /* Separar el filtro del borde en móvil */
-    #filter-tag-label, #filter-tag {
+    #filter-tag-label, #filter-tag,
+    #filter-search-label, #filter-search {
         margin-left: 12px;
         margin-right: 12px;
     }

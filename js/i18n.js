@@ -16,6 +16,8 @@
       synchronization: 'Sincronización',
       administration: 'Administración',
       filter_by_tag: 'Filtrar por etiqueta:',
+      search_label: 'Buscar:',
+      search_placeholder: 'Buscar actividades...',
       reconnecting: 'Reconectando con Dropbox…',
       reconnected_retrying: 'Reconectado. Reintentando operación…',
       backup: 'Copia de seguridad',
@@ -115,6 +117,8 @@
       synchronization: 'Sincronització',
       administration: 'Administració',
       filter_by_tag: 'Filtrar per etiqueta:',
+      search_label: 'Cercar:',
+      search_placeholder: 'Cercar activitats...',
       reconnecting: 'Tornant a connectar amb Dropbox…',
       reconnected_retrying: 'Reconnectat. Reintentant operació…',
       backup: 'Còpia de seguretat',
@@ -421,6 +425,10 @@
     if (tagsInput) tagsInput.placeholder = t('placeholder_tags');
     const filterLbl = document.getElementById('filter-tag-label');
     if (filterLbl) filterLbl.textContent = t('filter_by_tag');
+    const searchLbl = document.getElementById('filter-search-label');
+    if (searchLbl) searchLbl.textContent = t('search_label');
+    const searchInput = document.getElementById('filter-search');
+    if (searchInput) searchInput.placeholder = t('search_placeholder');
     // Selector de categorías en el modal: traducir etiquetas
     const catSelect = document.getElementById('popup-task-category');
     if (catSelect && typeof getEffectiveCategoryNames === 'function') {
