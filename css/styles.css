@@ -108,6 +108,14 @@ header .boton-accion.boton-primario:hover {
     width: 100%;
     box-sizing: border-box;
 }
+#resources-container {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    padding: 16px;
+    width: 100%;
+    box-sizing: border-box;
+}
 /* Cuando se filtra a una sola columna, ocupar todo el ancho en cualquier breakpoint */
 #task-container.single-column { grid-template-columns: 1fr !important; }
 /* Cuando se filtran exactamente dos columnas, que ambas ocupen todo el ancho */
@@ -277,6 +285,23 @@ button:hover { background: #1f2937; }
   margin-top: 4px;
   color: var(--color-muted);
   font-size: 12px;
+}
+.resource-meta {
+  display: block;
+  margin-top: 6px;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+.category-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #eef2f7;
+  color: #374151;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 2px 6px;
+  margin-right: 6px;
 }
 /* Adjuntos dentro de la tarjeta */
 .attachments { margin-top: 6px; display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; max-width: 100%; }

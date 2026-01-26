@@ -32,6 +32,7 @@
       view_reminders: '⏰ Ver Recordatorios',
       view_archive: '🗄️ Ver Archivo',
       board: '📋 Tablero',
+      resources: '📚 Recursos',
       history: '📅 Histórico',
       connect_dropbox: 'Conectar con Dropbox',
       sync_dropbox: 'Sincronizar',
@@ -133,6 +134,7 @@
       view_reminders: '⏰ Veure recordatoris',
       view_archive: '🗄️ Veure arxiu',
       board: '📋 Tauler',
+      resources: '📚 Recursos',
       history: '📅 Històric',
       connect_dropbox: 'Connectar amb Dropbox',
       sync_dropbox: 'Sincronitzar',
@@ -371,6 +373,8 @@
     // Tabs (si existen)
     const tabBoard = document.querySelector('nav.main-nav a.tab[href="index.html"]');
     if (tabBoard) { tabBoard.textContent = t('board'); tabBoard.title = t('board'); }
+    const tabResources = document.querySelector('nav.main-nav a.tab[href="recursos.html"]');
+    if (tabResources) { tabResources.textContent = t('resources'); tabResources.title = t('resources'); }
     const tabHist = document.querySelector('nav.main-nav a.tab[href="historico.html"]');
     if (tabHist) { tabHist.textContent = t('history'); tabHist.title = t('history'); }
     const tabRem = document.querySelector('nav.main-nav a.tab[href="recordatorios.html"]');

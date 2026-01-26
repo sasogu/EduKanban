@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: data:; connect-src 'self' https://api.dropboxapi.com https://content.dropboxapi.com https:; object-src 'self' blob:; base-uri 'self'; frame-ancestors 'self'; form-action 'self'">
-    <title>Actividades Archivadas — EduKanban</title>
+    <title>Recursos — EduKanban</title>
     <link rel="stylesheet" href="css/styles.css">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗄️</text></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📚</text></svg>">
 </head>
 <body>
     <header>
@@ -15,24 +15,19 @@
         </div>
         <nav class="main-nav" role="tablist">
             <a href="index.html" class="tab" role="tab" aria-selected="false">Tablero</a>
-            <a href="recursos.html" class="tab" role="tab" aria-selected="false">Recursos</a>
+            <a href="recursos.html" class="tab active" role="tab" aria-selected="true">Recursos</a>
             <a href="recordatorios.html" class="tab" role="tab" aria-selected="false">Recordatorios</a>
-            <a href="archivo.html" class="tab active" role="tab" aria-selected="true">Archivo</a>
+            <a href="archivo.html" class="tab" role="tab" aria-selected="false">Archivo</a>
             <a href="historico.html" class="tab" role="tab" aria-selected="false">Histórico</a>
         </nav>
     </header>
 
     <main>
-        <select id="archive-filter-tag">
-            <option value="">Mostrar todo</option>
-        </select>
-        <div id="archive-container" class="task-container">
-            <!-- Las tareas archivadas se cargarán aquí -->
-        </div>
+        <div id="resources-container" class="resources-container"></div>
     </main>
 
-     <script src="js/i18n.js"></script>
-    <script src="js/archivo.js"></script>
+    <script src="js/i18n.js"></script>
+    <script src="js/recursos.js"></script>
     <script src="js/sw-register.js"></script>
 </body>
 </html>
