@@ -180,7 +180,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const name = (att && att.name || '').toLowerCase();
             const type = (att && att.type || '').toLowerCase();
             if (type.startsWith('video/')) return true;
-            return ['.mp4', '.m4v', '.mov', '.webm', '.ogv'].some(ext => name.endsWith(ext));
+            return ['.mp4', '.m4v', '.mov', '.webm', '.ogv', '.mkv'].some(ext => name.endsWith(ext));
         } catch (_) {
             return false;
         }

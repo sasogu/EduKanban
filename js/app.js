@@ -797,7 +797,7 @@ function isVideoAttachment(att) {
         const n = (att && att.name || '').toLowerCase();
         const t = (att && att.type || '').toLowerCase();
         if (t.startsWith('video/')) return true;
-        return n.endsWith('.mp4') || n.endsWith('.m4v') || n.endsWith('.mov') || n.endsWith('.webm') || n.endsWith('.ogv');
+        return n.endsWith('.mp4') || n.endsWith('.m4v') || n.endsWith('.mov') || n.endsWith('.webm') || n.endsWith('.ogv') || n.endsWith('.mkv');
     } catch (_) { return false; }
 }
 
