@@ -169,7 +169,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const name = (att && att.name || '').toLowerCase();
             const type = (att && att.type || '').toLowerCase();
             if (type.startsWith('audio/')) return true;
-            return ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac', '.weba', '.webm'].some(ext => name.endsWith(ext));
+            return ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac', '.weba'].some(ext => name.endsWith(ext));
         } catch (_) {
             return false;
         }

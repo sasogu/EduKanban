@@ -788,7 +788,7 @@ function isAudioAttachment(att) {
         const n = (att && att.name || '').toLowerCase();
         const t = (att && att.type || '').toLowerCase();
         if (t.startsWith('audio/')) return true;
-        return n.endsWith('.mp3') || n.endsWith('.wav') || n.endsWith('.ogg') || n.endsWith('.m4a') || n.endsWith('.aac') || n.endsWith('.flac') || n.endsWith('.weba') || n.endsWith('.webm');
+        return n.endsWith('.mp3') || n.endsWith('.wav') || n.endsWith('.ogg') || n.endsWith('.m4a') || n.endsWith('.aac') || n.endsWith('.flac') || n.endsWith('.weba');
     } catch (_) { return false; }
 }
 
