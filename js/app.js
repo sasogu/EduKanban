@@ -940,11 +940,13 @@ function findTask(taskId) {
 }
 
 function addTask(category, taskName, tags = [], reminderAt = null) {
+    const now = new Date().toISOString();
     const newTask = {
         id: generateUUID(),
         task: taskName,
         completed: false,
-        lastModified: new Date().toISOString(),
+        lastModified: now,
+        sortModifiedAt: now,
         tags: tags,
         reminderAt: reminderAt, // ISO string o null
         reminderDone: false,
@@ -983,9 +985,12 @@ function toggleTaskCompletion(taskId) {
     if (taskData) {
         const { task } = taskData;
         // Nuevo: marcar como realizado sin archivar, guardando historial
+        const prevSort = task.sortModifiedAt || task.lastModified || new Date(0).toISOString();
         task.doneHistory = Array.isArray(task.doneHistory) ? task.doneHistory : [];
         task.doneHistory.push(new Date().toISOString());
         task.lastModified = new Date().toISOString();
+        // Mantener el orden visual: no tocar la clave de ordenación
+        task.sortModifiedAt = prevSort;
         task.reminderDone = true;
         saveCategoriesToLocalStorage();
         renderTasks();
@@ -1013,6 +1018,7 @@ function toggleTaskArchived(taskId) {
         movedTask.archivedOn = now;
         movedTask.reminderDone = true;
         movedTask.lastModified = now;
+        movedTask.sortModifiedAt = now;
         categories['archivadas'].push(movedTask);
     } else {
         // Desarchivar a En preparación
@@ -1020,6 +1026,7 @@ function toggleTaskArchived(taskId) {
         movedTask.completed = false;
         delete movedTask.archivedOn;
         movedTask.lastModified = now;
+        movedTask.sortModifiedAt = now;
         categories['en-preparacion'].push(movedTask);
     }
     saveCategoriesToLocalStorage();
@@ -1032,7 +1039,9 @@ function moveTask(taskId, newCategory) {
     const taskData = findTask(taskId);
     if (taskData && categories[newCategory]) {
         const [task] = categories[taskData.category].splice(taskData.taskIndex, 1);
-        task.lastModified = new Date().toISOString();
+        const now = new Date().toISOString();
+        task.lastModified = now;
+        task.sortModifiedAt = now;
         // Gestionar metadatos de archivado al mover entre categorías
         if (newCategory === 'archivadas') {
             task.completed = true;
@@ -1056,7 +1065,9 @@ function setTaskOrder(taskId, code) {
     if (!data) return;
     const { task } = data;
     task.orderCode = (code || '').toUpperCase();
-    task.lastModified = new Date().toISOString();
+    const now = new Date().toISOString();
+    task.lastModified = now;
+    task.sortModifiedAt = now;
     saveCategoriesToLocalStorage();
     renderTasks();
     if (accessToken) syncToDropbox(false);
@@ -1083,7 +1094,9 @@ async function splitTaskByTags(taskId) {
     // Mantener la primera etiqueta en la tarea original
     const firstTag = tags[0];
     task.tags = [firstTag];
-    task.lastModified = new Date().toISOString();
+    const now = new Date().toISOString();
+    task.lastModified = now;
+    task.sortModifiedAt = now;
 
     // Crear copias para las demás etiquetas
     const extraTags = tags.slice(1);
@@ -1091,7 +1104,8 @@ async function splitTaskByTags(taskId) {
         id: generateUUID(),
         task: task.task,
         completed: !!task.completed,
-        lastModified: new Date().toISOString(),
+        lastModified: now,
+        sortModifiedAt: now,
         tags: [tg],
         reminderAt: task.reminderAt || null,
         reminderDone: false,
@@ -1126,7 +1140,9 @@ function updateTask(taskId, newName, newCategory, newTags = [], newReminderAt = 
     // Si se cambia la fecha, reiniciar el estado de disparo y reprogramar
     task.reminderDone = false;
     task.triggerScheduledAt = null;
-    task.lastModified = new Date().toISOString();
+    const now = new Date().toISOString();
+    task.lastModified = now;
+    task.sortModifiedAt = now;
     if (newCategory && newCategory !== category && categories[newCategory]) {
         categories[category].splice(data.taskIndex, 1);
         // Gestionar metadatos de archivado si cambia la categoría desde el editor
@@ -1948,6 +1964,13 @@ function renderTasks() {
     const filterSearchInput = document.getElementById('filter-search');
     const filterColumnSelect = document.getElementById('filter-column');
     const filterColumnGroup = document.getElementById('filter-column-group');
+    // Permitir cargar app.js en vistas sin tablero
+    if (!taskContainer) {
+        try {
+            if (typeof window.__rerenderResources === 'function') window.__rerenderResources();
+        } catch (_) {}
+        return;
+    }
     const locale = (window.i18n && i18n.getLocale) ? i18n.getLocale() : 'es-ES';
     // Mantener filtro activo: tomar el valor actual o el guardado en localStorage
     let filterTag = '';
@@ -2031,7 +2054,7 @@ function renderTasks() {
         }).join('');
     };
 
-    // Comparador: orderCode (A..Z) luego lastModified desc
+    // Comparador: orderCode (A..Z) luego sortModifiedAt/lastModified desc
     const cmpTasks = (a, b) => {
         const A = (a.orderCode || '').toUpperCase();
         const B = (b.orderCode || '').toUpperCase();
@@ -2042,8 +2065,8 @@ function renderTasks() {
             if (A < B) return -1;
             if (A > B) return 1;
         }
-        const ta = new Date(a.lastModified || 0).getTime();
-        const tb = new Date(b.lastModified || 0).getTime();
+        const ta = new Date(a.sortModifiedAt || a.lastModified || 0).getTime();
+        const tb = new Date(b.sortModifiedAt || b.lastModified || 0).getTime();
         return tb - ta;
     };
 
@@ -2620,7 +2643,9 @@ async function removeAttachment(taskId, attachmentId) {
         }
     }
     task.attachments.splice(idx, 1);
-    task.lastModified = new Date().toISOString();
+    const now = new Date().toISOString();
+    task.lastModified = now;
+    task.sortModifiedAt = now;
     saveCategoriesToLocalStorage();
     renderTasks();
     if (accessToken) {
@@ -2951,7 +2976,7 @@ function mergeTasks(localCategories, remoteCategories, deletedIdsSet) {
             mergedCategories[targetCat].push(finalTask);
         }
     }
-    // Orden determinista: orderCode (A..Z) primero, luego lastModified desc
+    // Orden determinista: orderCode (A..Z) primero, luego sortModifiedAt/lastModified desc
     const cmp = (a, b) => {
         const A = (a.orderCode || '').toUpperCase();
         const B = (b.orderCode || '').toUpperCase();
@@ -2962,8 +2987,8 @@ function mergeTasks(localCategories, remoteCategories, deletedIdsSet) {
             if (A < B) return -1;
             if (A > B) return 1;
         }
-        const ta = new Date(a.lastModified || 0).getTime();
-        const tb = new Date(b.lastModified || 0).getTime();
+        const ta = new Date(a.sortModifiedAt || a.lastModified || 0).getTime();
+        const tb = new Date(b.sortModifiedAt || b.lastModified || 0).getTime();
         return tb - ta;
     };
     Object.keys(mergedCategories).forEach(cat => { mergedCategories[cat].sort(cmp); });

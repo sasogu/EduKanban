@@ -1,10 +1,24 @@
 document.addEventListener('DOMContentLoaded', function() {
     const LS = {
         categories: 'edukanban.categories',
-        token: 'edukanban.dropbox_access_token'
+        token: 'edukanban.dropbox_access_token',
+        deleted: 'edukanban.deletedTasks',
+        selectedFilterTag: 'edukanban.selectedFilterTag',
+        searchQuery: 'edukanban.searchQuery'
     };
     const container = document.getElementById('resources-container');
     if (!container) return;
+    const filterTagSelect = document.getElementById('filter-tag');
+    const filterSearchInput = document.getElementById('filter-search');
+    const CATEGORY_KEYS = ['en-preparacion', 'preparadas', 'en-proceso', 'pendientes', 'archivadas'];
+    const editModal = document.getElementById('resources-edit-modal');
+    const editForm = document.getElementById('resources-edit-form');
+    const editNameInput = document.getElementById('resources-edit-name');
+    const editCategorySelect = document.getElementById('resources-edit-category');
+    const editTagsInput = document.getElementById('resources-edit-tags');
+    const editAttachmentsInput = document.getElementById('resources-edit-attachments');
+    const editExistingAttachments = document.getElementById('resources-edit-existing-attachments');
+    const editCancelBtn = document.getElementById('resources-edit-cancel');
 
     const NEXTCLOUD_KEYS = { config: 'edukanban.nextcloudConfig' };
     const CATEGORY_OVERRIDES_KEY = 'edukanban.categoryNameOverrides';
@@ -233,6 +247,21 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (err) {
             console.warn('getAttachmentBlob', err);
             return null;
+        }
+    }
+
+    async function deleteAttachmentBlob(id) {
+        try {
+            const db = await openAttachmentsDB();
+            return await new Promise((resolve, reject) => {
+                const tx = db.transaction('files', 'readwrite');
+                tx.objectStore('files').delete(id);
+                tx.oncomplete = () => resolve(true);
+                tx.onerror = () => reject(tx.error);
+            });
+        } catch (err) {
+            console.warn('deleteAttachmentBlob', err);
+            return false;
         }
     }
 
@@ -578,11 +607,288 @@ document.addEventListener('DOMContentLoaded', function() {
         return t;
     }
 
+    function generateId() {
+        try {
+            if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+                return window.crypto.randomUUID();
+            }
+        } catch (_) {}
+        return `att-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    }
+
+    function normalizeSearchValue(value) {
+        return String(value || '')
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .trim();
+    }
+
+    function parseTagsInputValue(value) {
+        const parts = String(value || '')
+            .split(',')
+            .map(t => t.trim())
+            .filter(Boolean);
+        return Array.from(new Set(parts));
+    }
+
+    function taskMatchesSearch(task, searchNorm) {
+        if (!searchNorm) return true;
+        const parts = [];
+        if (task && task.task) parts.push(task.task);
+        if (Array.isArray(task.tags) && task.tags.length) parts.push(task.tags.join(' '));
+        if (Array.isArray(task.attachments) && task.attachments.length) {
+            parts.push(task.attachments.map(att => (att && att.name) ? att.name : '').join(' '));
+        }
+        const haystack = normalizeSearchValue(parts.join(' '));
+        return haystack.includes(searchNorm);
+    }
+
+    function getAllTagsFromCategories(allCategories) {
+        const tagsSet = new Set();
+        Object.values(allCategories).forEach(tasks => {
+            if (!Array.isArray(tasks)) return;
+            tasks.forEach(task => {
+                if (task && Array.isArray(task.tags)) {
+                    task.tags.forEach(tag => tagsSet.add(tag));
+                }
+            });
+        });
+        return Array.from(tagsSet).sort();
+    }
+
+    function updateTagFilterDropdown(allCategories, currentValue = '') {
+        if (!filterTagSelect) return;
+        const tags = getAllTagsFromCategories(allCategories);
+        const showAll = (window.i18n && i18n.t) ? i18n.t('show_all') : 'Mostrar todo';
+        const hasCurrent = currentValue && tags.includes(currentValue);
+        const renderedTags = hasCurrent ? tags : [currentValue, ...tags].filter((v, i, a) => v && a.indexOf(v) === i);
+        filterTagSelect.innerHTML = [
+            `<option value="">${showAll}</option>`,
+            ...renderedTags.map(tag => `<option value="${tag}">${tag}</option>`)
+        ].join('');
+        filterTagSelect.value = currentValue || '';
+    }
+
+    function findTaskInCategories(allCategories, taskId) {
+        for (const category of Object.keys(allCategories)) {
+            const list = allCategories[category];
+            if (!Array.isArray(list)) continue;
+            const taskIndex = list.findIndex(t => t && t.id === taskId);
+            if (taskIndex > -1) {
+                return { category, taskIndex, task: list[taskIndex] };
+            }
+        }
+        return null;
+    }
+
+    function saveAllCategories(allCategories) {
+        try { localStorage.setItem(LS.categories, JSON.stringify(allCategories)); } catch (_) {}
+    }
+
+    function getAllAttachmentRefs(allCategories, predicate) {
+        let refs = 0;
+        Object.values(allCategories).forEach(list => {
+            if (!Array.isArray(list)) return;
+            list.forEach(task => {
+                const atts = Array.isArray(task && task.attachments) ? task.attachments : [];
+                atts.forEach(att => {
+                    try {
+                        if (predicate(att)) refs += 1;
+                    } catch (_) {}
+                });
+            });
+        });
+        return refs;
+    }
+
+    async function deleteDropboxFile(path) {
+        const token = localStorage.getItem(LS.token);
+        if (!token || !path) return false;
+        try {
+            const res = await fetch('https://api.dropboxapi.com/2/files/delete_v2', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ path })
+            });
+            return res.ok;
+        } catch (err) {
+            console.warn('delete dropbox file', err);
+            return false;
+        }
+    }
+
+    async function deleteNextcloudFile(relativePath) {
+        const conf = loadNextcloudConfig();
+        if (!isNextcloudConfigured(conf) || !relativePath) return false;
+        const url = buildNextcloudUrl(conf, nextcloudPathToSegments(relativePath));
+        try {
+            const res = await fetch(url, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': makeNextcloudAuthHeader(conf)
+                }
+            });
+            return res.ok;
+        } catch (err) {
+            console.warn('delete nextcloud file', err);
+            return false;
+        }
+    }
+
+    async function prepareAttachmentsFromFiles(fileList) {
+        const files = Array.from(fileList || []);
+        const metas = [];
+        for (const f of files) {
+            const id = generateId();
+            await putAttachmentBlob(id, f);
+            const type = f.type || 'application/octet-stream';
+            metas.push({
+                id,
+                name: f.name || 'archivo',
+                type,
+                size: f.size || 0,
+                isImage: isImageType(type),
+                dropboxPath: null,
+                uploadedAt: null,
+                nextcloudPath: null,
+                nextcloudUploadedAt: null,
+                lastModified: new Date().toISOString()
+            });
+        }
+        return metas;
+    }
+
+    function removeTaskFromResources(taskId) {
+        const raw = JSON.parse(localStorage.getItem(LS.categories) || '{}');
+        const allCategories = migrateObj(raw);
+        const data = findTaskInCategories(allCategories, taskId);
+        if (!data) return;
+        const title = data.task && data.task.task ? data.task.task : '';
+        const msg = (window.i18n && i18n.t)
+            ? i18n.t('confirm_delete_activity', { title })
+            : (title ? `¿Estás seguro de que quieres eliminar la actividad "${title}"?` : '¿Estás seguro de que quieres eliminar esta actividad?');
+        if (!window.confirm(msg)) return;
+        const [removedTask] = allCategories[data.category].splice(data.taskIndex, 1);
+        try {
+            const deletedTasks = JSON.parse(localStorage.getItem(LS.deleted) || '[]');
+            deletedTasks.push({ ...removedTask, deletedOn: new Date().toISOString() });
+            localStorage.setItem(LS.deleted, JSON.stringify(deletedTasks));
+        } catch (_) {}
+        saveAllCategories(allCategories);
+        renderResources();
+    }
+
+    function buildCategoryOptions(currentCategory) {
+        if (!editCategorySelect) return;
+        const names = getCategoryNames();
+        editCategorySelect.innerHTML = CATEGORY_KEYS.map(key => {
+            const label = names[key] || key;
+            const selected = key === currentCategory ? ' selected' : '';
+            return `<option value="${key}"${selected}>${label}</option>`;
+        }).join('');
+        editCategorySelect.value = currentCategory;
+    }
+
+    function renderExistingAttachments(task) {
+        if (!editExistingAttachments) return;
+        const attachments = Array.isArray(task && task.attachments) ? task.attachments : [];
+        if (!attachments.length) {
+            editExistingAttachments.innerHTML = '';
+            return;
+        }
+        const title = (window.i18n && i18n.t) ? i18n.t('attachments') : 'Adjuntos';
+        const delTxt = (window.i18n && i18n.t) ? i18n.t('delete') : 'Eliminar';
+        const items = attachments.map(att => {
+            const safeName = escapeAttr(att && att.name ? att.name : 'archivo');
+            const attId = escapeAttr(att && att.id ? att.id : '');
+            return `<div class="attachment-row" style="display:flex; gap:8px; align-items:center; margin:4px 0;">
+                <span style="flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">📎 ${safeName}</span>
+                <button type="button" class="attachment-remove" data-att-id="${attId}">${delTxt}</button>
+            </div>`;
+        });
+        editExistingAttachments.innerHTML = `<div style="margin-top:6px;"><strong>${title}</strong></div>${items.join('')}`;
+    }
+
+    function closeResourcesEditModal() {
+        if (!editModal) return;
+        editModal.style.display = 'none';
+        editModal.dataset.taskId = '';
+        editModal.dataset.category = '';
+        if (editAttachmentsInput) editAttachmentsInput.value = '';
+    }
+
+    function openResourcesEditModal(taskId) {
+        // Preferir el modal estándar compartido (app.js) si está disponible
+        if (typeof window.openEditTask === 'function') {
+            window.openEditTask(taskId);
+            return;
+        }
+        const raw = JSON.parse(localStorage.getItem(LS.categories) || '{}');
+        const allCategories = migrateObj(raw);
+        const data = findTaskInCategories(allCategories, taskId);
+        if (!data) return;
+        const currentTask = data.task;
+        if (!editModal || !editForm || !editNameInput || !editTagsInput) {
+            return;
+        }
+        editModal.dataset.taskId = taskId;
+        editModal.dataset.category = data.category;
+        editNameInput.value = currentTask.task || '';
+        editTagsInput.value = Array.isArray(currentTask.tags) ? currentTask.tags.join(', ') : '';
+        buildCategoryOptions(data.category);
+        renderExistingAttachments(currentTask);
+        editModal.style.display = 'flex';
+        editNameInput.focus();
+    }
+
+    function hookSharedEditors() {
+        if (window.__resourcesHookedSharedEditors) return;
+        window.__resourcesHookedSharedEditors = true;
+        const wrap = (name) => {
+            const fn = window[name];
+            if (typeof fn !== 'function') return;
+            window[name] = function wrappedSharedEditor(...args) {
+                const result = fn.apply(this, args);
+                try { renderResources(); } catch (_) {}
+                return result;
+            };
+        };
+        [
+            'updateTask',
+            'removeTask',
+            'moveTask',
+            'setTaskOrder',
+            'toggleTaskArchived',
+            'markTaskDone',
+            'splitTaskByTags',
+            'removeAttachment'
+        ].forEach(wrap);
+    }
+
     function renderResources() {
         const raw = JSON.parse(localStorage.getItem(LS.categories) || '{}');
         const allCategories = migrateObj(raw);
         try { localStorage.setItem(LS.categories, JSON.stringify(allCategories)); } catch(_) {}
         const categoryNames = getCategoryNames();
+        let filterTag = '';
+        if (filterTagSelect) {
+            filterTag = filterTagSelect.value || localStorage.getItem(LS.selectedFilterTag) || '';
+        } else {
+            filterTag = localStorage.getItem(LS.selectedFilterTag) || '';
+        }
+        let searchQuery = '';
+        if (filterSearchInput) {
+            searchQuery = filterSearchInput.value || localStorage.getItem(LS.searchQuery) || '';
+            if (!filterSearchInput.value && searchQuery) filterSearchInput.value = searchQuery;
+        } else {
+            searchQuery = localStorage.getItem(LS.searchQuery) || '';
+        }
+        const searchNorm = normalizeSearchValue(searchQuery);
+        updateTagFilterDropdown(allCategories, filterTag);
         const items = [];
         for (const [cat, list] of Object.entries(allCategories)) {
             if (cat === 'archivadas') continue;
@@ -592,21 +898,29 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
         items.sort((a, b) => {
-            const aTime = new Date(a.task.lastModified || 0).getTime();
-            const bTime = new Date(b.task.lastModified || 0).getTime();
+            const aTime = new Date(a.task.sortModifiedAt || a.task.lastModified || 0).getTime();
+            const bTime = new Date(b.task.sortModifiedAt || b.task.lastModified || 0).getTime();
             return bTime - aTime;
         });
+
+        let filteredItems = items;
+        if (filterTag) {
+            filteredItems = filteredItems.filter(({ task }) => Array.isArray(task.tags) && task.tags.includes(filterTag));
+        }
+        if (searchNorm) {
+            filteredItems = filteredItems.filter(({ task }) => taskMatchesSearch(task, searchNorm));
+        }
 
         cleanupObjectUrls();
         container.innerHTML = '';
 
-        if (!items.length) {
+        if (!filteredItems.length) {
             const emptyMsg = (window.i18n && i18n.t) ? i18n.t('no_items') : 'No hay elementos';
             container.innerHTML = `<p>${emptyMsg}</p>`;
             return;
         }
 
-        items.forEach(({ task, category }) => {
+        filteredItems.forEach(({ task, category }) => {
             const taskDiv = document.createElement('div');
             taskDiv.className = 'task resource-item';
             const tagsHtml = (task.tags && task.tags.length)
@@ -617,6 +931,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 : '';
             const attachmentsHtml = renderAttachmentsHtml(task);
             const catLabel = categoryNames[category] || category;
+            const editTxt = (window.i18n && i18n.t) ? i18n.t('edit') : 'Editar';
+            const deleteTxt = (window.i18n && i18n.t) ? i18n.t('delete') : 'Eliminar';
             taskDiv.innerHTML = `
                 <div class="task-main">
                     <span>
@@ -627,12 +943,136 @@ document.addEventListener('DOMContentLoaded', function() {
                         <small class="resource-meta"><span class="category-chip">${catLabel}</span>${formatDateTime(task.lastModified)}</small>
                     </span>
                 </div>
+                <div class="task-actions resource-actions">
+                    <button type="button" class="edit-btn resource-edit" data-task-id="${task.id}" title="${editTxt}" aria-label="${editTxt}">✏️ <span class="btn-label">${editTxt}</span></button>
+                    <button type="button" class="delete-btn resource-delete" data-task-id="${task.id}" title="${deleteTxt}" aria-label="${deleteTxt}">🗑️ <span class="btn-label">${deleteTxt}</span></button>
+                </div>
             `;
             container.appendChild(taskDiv);
             hydrateResourceAttachments(taskDiv, task);
         });
     }
 
+    if (filterTagSelect) {
+        filterTagSelect.addEventListener('change', (e) => {
+            try { localStorage.setItem(LS.selectedFilterTag, e.target.value || ''); } catch (_) {}
+            renderResources();
+        });
+    }
+    if (filterSearchInput) {
+        filterSearchInput.addEventListener('input', (e) => {
+            try { localStorage.setItem(LS.searchQuery, e.target.value || ''); } catch (_) {}
+            renderResources();
+        });
+    }
+    container.addEventListener('click', (e) => {
+            const editBtn = e.target.closest('.resource-edit');
+            if (editBtn && editBtn.dataset.taskId) {
+            openResourcesEditModal(editBtn.dataset.taskId);
+            return;
+        }
+        const deleteBtn = e.target.closest('.resource-delete');
+        if (deleteBtn && deleteBtn.dataset.taskId) {
+            removeTaskFromResources(deleteBtn.dataset.taskId);
+        }
+    });
+
+    if (editCancelBtn) {
+        editCancelBtn.addEventListener('click', () => closeResourcesEditModal());
+    }
+    if (editModal) {
+        editModal.addEventListener('click', (e) => {
+            if (e.target === editModal) closeResourcesEditModal();
+        });
+    }
+    if (editExistingAttachments) {
+        editExistingAttachments.addEventListener('click', async (e) => {
+            const btn = e.target.closest('.attachment-remove');
+            if (!btn || !btn.dataset.attId) return;
+            const taskId = editModal && editModal.dataset ? editModal.dataset.taskId : '';
+            if (!taskId) return;
+            const raw = JSON.parse(localStorage.getItem(LS.categories) || '{}');
+            const allCategories = migrateObj(raw);
+            const data = findTaskInCategories(allCategories, taskId);
+            if (!data) return;
+            const attId = btn.dataset.attId;
+            const attachments = Array.isArray(data.task.attachments) ? data.task.attachments : [];
+            const idx = attachments.findIndex(a => a && a.id === attId);
+            if (idx === -1) return;
+            const att = attachments[idx];
+            const ok = window.confirm('¿Eliminar este adjunto?');
+            if (!ok) return;
+            attachments.splice(idx, 1);
+            data.task.attachments = attachments;
+            const now = new Date().toISOString();
+            data.task.lastModified = now;
+            data.task.sortModifiedAt = now;
+            saveAllCategories(allCategories);
+            // Borrar blobs/remote si ya no hay referencias
+            try { await deleteAttachmentBlob(att.id); } catch (_) {}
+            try {
+                const dropboxRefs = att.dropboxPath
+                    ? getAllAttachmentRefs(allCategories, a => a && a.dropboxPath && a.dropboxPath === att.dropboxPath)
+                    : 0;
+                if (att.dropboxPath && dropboxRefs === 0) {
+                    await deleteDropboxFile(att.dropboxPath);
+                }
+            } catch (_) {}
+            try {
+                const nextRefs = att.nextcloudPath
+                    ? getAllAttachmentRefs(allCategories, a => a && a.nextcloudPath && a.nextcloudPath === att.nextcloudPath)
+                    : 0;
+                if (att.nextcloudPath && nextRefs === 0) {
+                    await deleteNextcloudFile(att.nextcloudPath);
+                }
+            } catch (_) {}
+            renderExistingAttachments(data.task);
+            renderResources();
+        });
+    }
+    if (editForm) {
+        editForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const taskId = editModal && editModal.dataset ? editModal.dataset.taskId : '';
+            if (!taskId) return closeResourcesEditModal();
+            const raw = JSON.parse(localStorage.getItem(LS.categories) || '{}');
+            const allCategories = migrateObj(raw);
+            const data = findTaskInCategories(allCategories, taskId);
+            if (!data) return closeResourcesEditModal();
+
+            const newName = String(editNameInput && editNameInput.value ? editNameInput.value : '').trim();
+            if (!newName) return;
+            const newTags = parseTagsInputValue(editTagsInput ? editTagsInput.value : '');
+            const newCategory = editCategorySelect && editCategorySelect.value ? editCategorySelect.value : data.category;
+
+            const newAttachments = await prepareAttachmentsFromFiles(editAttachmentsInput?.files);
+
+            data.task.task = newName;
+            data.task.tags = newTags;
+            data.task.attachments = (Array.isArray(data.task.attachments) ? data.task.attachments : []).concat(newAttachments);
+            const now = new Date().toISOString();
+            data.task.lastModified = now;
+            data.task.sortModifiedAt = now;
+
+            if (newCategory !== data.category && allCategories[newCategory]) {
+                allCategories[data.category].splice(data.taskIndex, 1);
+                if (newCategory === 'archivadas') {
+                    data.task.completed = true;
+                    data.task.archivedOn = now;
+                } else if (data.category === 'archivadas') {
+                    data.task.completed = false;
+                    delete data.task.archivedOn;
+                }
+                allCategories[newCategory].push(data.task);
+            }
+
+            saveAllCategories(allCategories);
+            closeResourcesEditModal();
+            renderResources();
+        });
+    }
+
+    hookSharedEditors();
     renderResources();
     if (window.i18n && i18n.applyI18nAll) {
         window.__rerenderResources = renderResources;

@@ -194,6 +194,10 @@ header .boton-accion.boton-primario:hover {
   align-items: center;
   overflow: visible;
 }
+.resource-item .task-actions.resource-actions {
+  grid-template-columns: auto auto;
+  justify-content: end;
+}
 .task .task-actions > * {
   flex: 0 0 auto; /* no encoger controles */
 }

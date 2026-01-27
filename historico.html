@@ -39,6 +39,18 @@
         </div>
         <div id="history-summary" class="history-meta"></div>
         <div id="history-container" class="task-container"></div>
+
+        <div id="history-tags-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="history-tags-title" style="display:none;">
+            <div class="modal-content">
+                <h3 id="history-tags-title">Editar etiquetas</h3>
+                <label for="history-tags-input">Etiquetas (separadas por comas)</label>
+                <textarea id="history-tags-input" rows="3" placeholder="Etiquetas (separadas por comas)"></textarea>
+                <div class="sync-actions" style="margin-top:12px;">
+                    <button id="history-tags-save" type="button" class="boton-accion boton-primario">Guardar</button>
+                    <button id="history-tags-cancel" type="button" class="boton-accion">Cancelar</button>
+                </div>
+            </div>
+        </div>
     </main>
 
     <script src="js/i18n.js"></script>

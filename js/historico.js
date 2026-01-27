@@ -10,6 +10,10 @@ document.addEventListener('DOMContentLoaded', function() {
   const container = document.getElementById('history-container');
   const latestBtn = document.getElementById('history-latest');
   const summaryEl = document.getElementById('history-summary');
+  const tagsModal = document.getElementById('history-tags-modal');
+  const tagsInput = document.getElementById('history-tags-input');
+  const tagsSaveBtn = document.getElementById('history-tags-save');
+  const tagsCancelBtn = document.getElementById('history-tags-cancel');
 
   function normalizeKey(k) {
     const m = {
@@ -43,6 +47,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
   function saveAllCategories(obj) {
     try { localStorage.setItem(LS.categories, JSON.stringify(obj)); } catch(_) {}
+  }
+
+  function parseTagsInputValue(value) {
+    const parts = String(value || '')
+      .split(',')
+      .map(t => t.trim())
+      .filter(Boolean);
+    return Array.from(new Set(parts));
   }
 
   function allTasks() {
@@ -141,7 +153,10 @@ document.addEventListener('DOMContentLoaded', function() {
               ${tags.length ? `<small class=\"tags\">${tags.map(t => `<span class=\"tag-chip in-task\">#${t}</span>`).join(' ')}</small>` : ''}
               <small class=\"done-meta\">✔️ ${count} veces • última: ${lastStr}</small>
             </span>
-            <button type="button" class="history-delete" title="Eliminar un realizado de este día" onclick="window.__histDeleteOne('${task.id}','${g.date}')">↩️ Deshacer</button>
+            <div class="task-actions" style="grid-template-columns:auto auto; justify-content:end;">
+              <button type="button" class="history-delete" title="Editar etiquetas" onclick="window.__histEditTags('${task.id}')">🏷️</button>
+              <button type="button" class="history-delete" title="Eliminar un realizado de este día" onclick="window.__histDeleteOne('${task.id}','${g.date}')">↩️</button>
+            </div>
           `;
           container.appendChild(div);
         });
@@ -164,7 +179,10 @@ document.addEventListener('DOMContentLoaded', function() {
           ${tags.length ? `<small class=\"tags\">${tags.map(t => `<span class=\"tag-chip in-task\">#${t}</span>`).join(' ')}</small>` : ''}
           <small class=\"done-meta\">✔️ ${count} veces • última: ${lastStr}</small>
         </span>
-        <button type="button" class="history-delete" title="Eliminar un realizado de este día" onclick="window.__histDeleteOne('${task.id}','${d}')">↩️ Deshacer</button>
+        <div class="task-actions" style="grid-template-columns:auto auto; justify-content:end;">
+          <button type="button" class="history-delete" title="Editar etiquetas" onclick="window.__histEditTags('${task.id}')">🏷️</button>
+          <button type="button" class="history-delete" title="Eliminar un realizado de este día" onclick="window.__histDeleteOne('${task.id}','${d}')">↩️</button>
+        </div>
       `;
       container.appendChild(div);
     });
@@ -185,7 +203,9 @@ document.addEventListener('DOMContentLoaded', function() {
           if (localDateStr(hist[i]) === dateStr) {
             hist.splice(i, 1);
             t.doneHistory = hist;
-            t.lastModified = new Date().toISOString();
+            const now = new Date().toISOString();
+            t.lastModified = now;
+            t.sortModifiedAt = now;
             modified = true;
             break;
           }
@@ -206,6 +226,48 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
       try { console.warn('No se encontró marca para eliminar'); } catch(_){}
     }
+  };
+
+  function updateTaskTags(taskId, newTags) {
+    const cats = getAllCategories();
+    let modified = false;
+    for (const k of Object.keys(cats)) {
+      const arr = cats[k] || [];
+      const idx = arr.findIndex(t => t && t.id === taskId);
+      if (idx !== -1) {
+        const t = arr[idx];
+        const now = new Date().toISOString();
+        t.tags = Array.isArray(newTags) ? newTags : [];
+        t.lastModified = now;
+        t.sortModifiedAt = now;
+        modified = true;
+        break;
+      }
+    }
+    if (modified) saveAllCategories(cats);
+    return modified;
+  }
+
+  function closeTagsModal() {
+    if (!tagsModal) return;
+    tagsModal.style.display = 'none';
+    tagsModal.dataset.taskId = '';
+  }
+
+  function openTagsModal(taskId) {
+    if (!tagsModal || !tagsInput) return;
+    const task = allTasks().find(t => t && t.id === taskId);
+    if (!task) return;
+    const current = Array.isArray(task.tags) ? task.tags.join(', ') : '';
+    tagsModal.dataset.taskId = taskId;
+    tagsInput.value = current;
+    tagsModal.style.display = 'flex';
+    tagsInput.focus();
+    tagsInput.setSelectionRange(tagsInput.value.length, tagsInput.value.length);
+  }
+
+  window.__histEditTags = function(taskId) {
+    openTagsModal(taskId);
   };
 
   function escapeHTML(s) {
@@ -242,4 +304,27 @@ document.addEventListener('DOMContentLoaded', function() {
     try { localStorage.setItem(LS.selectedHistoryDate, dateInput.value || ''); } catch(_) {}
     render();
   });
+
+  if (tagsCancelBtn) {
+    tagsCancelBtn.addEventListener('click', () => {
+      closeTagsModal();
+    });
+  }
+  if (tagsSaveBtn && tagsInput) {
+    tagsSaveBtn.addEventListener('click', () => {
+      const taskId = tagsModal && tagsModal.dataset ? tagsModal.dataset.taskId : '';
+      if (!taskId) return closeTagsModal();
+      const nextTags = parseTagsInputValue(tagsInput.value);
+      if (updateTaskTags(taskId, nextTags)) {
+        updateTagSelect(tagSelect.value || '');
+        render();
+      }
+      closeTagsModal();
+    });
+  }
+  if (tagsModal) {
+    tagsModal.addEventListener('click', (e) => {
+      if (e.target === tagsModal) closeTagsModal();
+    });
+  }
 });
