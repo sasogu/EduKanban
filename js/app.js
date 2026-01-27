@@ -1968,6 +1968,7 @@ function renderTasks() {
     if (!taskContainer) {
         try {
             if (typeof window.__rerenderResources === 'function') window.__rerenderResources();
+            if (typeof window.__rerenderHistorico === 'function') window.__rerenderHistorico();
         } catch (_) {}
         return;
     }

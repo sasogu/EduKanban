@@ -10,15 +10,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!container) return;
     const filterTagSelect = document.getElementById('filter-tag');
     const filterSearchInput = document.getElementById('filter-search');
-    const CATEGORY_KEYS = ['en-preparacion', 'preparadas', 'en-proceso', 'pendientes', 'archivadas'];
-    const editModal = document.getElementById('resources-edit-modal');
-    const editForm = document.getElementById('resources-edit-form');
-    const editNameInput = document.getElementById('resources-edit-name');
-    const editCategorySelect = document.getElementById('resources-edit-category');
-    const editTagsInput = document.getElementById('resources-edit-tags');
-    const editAttachmentsInput = document.getElementById('resources-edit-attachments');
-    const editExistingAttachments = document.getElementById('resources-edit-existing-attachments');
-    const editCancelBtn = document.getElementById('resources-edit-cancel');
 
     const NEXTCLOUD_KEYS = { config: 'edukanban.nextcloudConfig' };
     const CATEGORY_OVERRIDES_KEY = 'edukanban.categoryNameOverrides';
@@ -247,21 +238,6 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (err) {
             console.warn('getAttachmentBlob', err);
             return null;
-        }
-    }
-
-    async function deleteAttachmentBlob(id) {
-        try {
-            const db = await openAttachmentsDB();
-            return await new Promise((resolve, reject) => {
-                const tx = db.transaction('files', 'readwrite');
-                tx.objectStore('files').delete(id);
-                tx.oncomplete = () => resolve(true);
-                tx.onerror = () => reject(tx.error);
-            });
-        } catch (err) {
-            console.warn('deleteAttachmentBlob', err);
-            return false;
         }
     }
 
@@ -607,29 +583,12 @@ document.addEventListener('DOMContentLoaded', function() {
         return t;
     }
 
-    function generateId() {
-        try {
-            if (window.crypto && typeof window.crypto.randomUUID === 'function') {
-                return window.crypto.randomUUID();
-            }
-        } catch (_) {}
-        return `att-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    }
-
     function normalizeSearchValue(value) {
         return String(value || '')
             .toLowerCase()
             .normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '')
             .trim();
-    }
-
-    function parseTagsInputValue(value) {
-        const parts = String(value || '')
-            .split(',')
-            .map(t => t.trim())
-            .filter(Boolean);
-        return Array.from(new Set(parts));
     }
 
     function taskMatchesSearch(task, searchNorm) {
@@ -686,82 +645,6 @@ document.addEventListener('DOMContentLoaded', function() {
         try { localStorage.setItem(LS.categories, JSON.stringify(allCategories)); } catch (_) {}
     }
 
-    function getAllAttachmentRefs(allCategories, predicate) {
-        let refs = 0;
-        Object.values(allCategories).forEach(list => {
-            if (!Array.isArray(list)) return;
-            list.forEach(task => {
-                const atts = Array.isArray(task && task.attachments) ? task.attachments : [];
-                atts.forEach(att => {
-                    try {
-                        if (predicate(att)) refs += 1;
-                    } catch (_) {}
-                });
-            });
-        });
-        return refs;
-    }
-
-    async function deleteDropboxFile(path) {
-        const token = localStorage.getItem(LS.token);
-        if (!token || !path) return false;
-        try {
-            const res = await fetch('https://api.dropboxapi.com/2/files/delete_v2', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ path })
-            });
-            return res.ok;
-        } catch (err) {
-            console.warn('delete dropbox file', err);
-            return false;
-        }
-    }
-
-    async function deleteNextcloudFile(relativePath) {
-        const conf = loadNextcloudConfig();
-        if (!isNextcloudConfigured(conf) || !relativePath) return false;
-        const url = buildNextcloudUrl(conf, nextcloudPathToSegments(relativePath));
-        try {
-            const res = await fetch(url, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': makeNextcloudAuthHeader(conf)
-                }
-            });
-            return res.ok;
-        } catch (err) {
-            console.warn('delete nextcloud file', err);
-            return false;
-        }
-    }
-
-    async function prepareAttachmentsFromFiles(fileList) {
-        const files = Array.from(fileList || []);
-        const metas = [];
-        for (const f of files) {
-            const id = generateId();
-            await putAttachmentBlob(id, f);
-            const type = f.type || 'application/octet-stream';
-            metas.push({
-                id,
-                name: f.name || 'archivo',
-                type,
-                size: f.size || 0,
-                isImage: isImageType(type),
-                dropboxPath: null,
-                uploadedAt: null,
-                nextcloudPath: null,
-                nextcloudUploadedAt: null,
-                lastModified: new Date().toISOString()
-            });
-        }
-        return metas;
-    }
-
     function removeTaskFromResources(taskId) {
         const raw = JSON.parse(localStorage.getItem(LS.categories) || '{}');
         const allCategories = migrateObj(raw);
@@ -782,91 +665,13 @@ document.addEventListener('DOMContentLoaded', function() {
         renderResources();
     }
 
-    function buildCategoryOptions(currentCategory) {
-        if (!editCategorySelect) return;
-        const names = getCategoryNames();
-        editCategorySelect.innerHTML = CATEGORY_KEYS.map(key => {
-            const label = names[key] || key;
-            const selected = key === currentCategory ? ' selected' : '';
-            return `<option value="${key}"${selected}>${label}</option>`;
-        }).join('');
-        editCategorySelect.value = currentCategory;
-    }
-
-    function renderExistingAttachments(task) {
-        if (!editExistingAttachments) return;
-        const attachments = Array.isArray(task && task.attachments) ? task.attachments : [];
-        if (!attachments.length) {
-            editExistingAttachments.innerHTML = '';
-            return;
-        }
-        const title = (window.i18n && i18n.t) ? i18n.t('attachments') : 'Adjuntos';
-        const delTxt = (window.i18n && i18n.t) ? i18n.t('delete') : 'Eliminar';
-        const items = attachments.map(att => {
-            const safeName = escapeAttr(att && att.name ? att.name : 'archivo');
-            const attId = escapeAttr(att && att.id ? att.id : '');
-            return `<div class="attachment-row" style="display:flex; gap:8px; align-items:center; margin:4px 0;">
-                <span style="flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">📎 ${safeName}</span>
-                <button type="button" class="attachment-remove" data-att-id="${attId}">${delTxt}</button>
-            </div>`;
-        });
-        editExistingAttachments.innerHTML = `<div style="margin-top:6px;"><strong>${title}</strong></div>${items.join('')}`;
-    }
-
-    function closeResourcesEditModal() {
-        if (!editModal) return;
-        editModal.style.display = 'none';
-        editModal.dataset.taskId = '';
-        editModal.dataset.category = '';
-        if (editAttachmentsInput) editAttachmentsInput.value = '';
-    }
-
     function openResourcesEditModal(taskId) {
         // Preferir el modal estándar compartido (app.js) si está disponible
         if (typeof window.openEditTask === 'function') {
             window.openEditTask(taskId);
             return;
         }
-        const raw = JSON.parse(localStorage.getItem(LS.categories) || '{}');
-        const allCategories = migrateObj(raw);
-        const data = findTaskInCategories(allCategories, taskId);
-        if (!data) return;
-        const currentTask = data.task;
-        if (!editModal || !editForm || !editNameInput || !editTagsInput) {
-            return;
-        }
-        editModal.dataset.taskId = taskId;
-        editModal.dataset.category = data.category;
-        editNameInput.value = currentTask.task || '';
-        editTagsInput.value = Array.isArray(currentTask.tags) ? currentTask.tags.join(', ') : '';
-        buildCategoryOptions(data.category);
-        renderExistingAttachments(currentTask);
-        editModal.style.display = 'flex';
-        editNameInput.focus();
-    }
-
-    function hookSharedEditors() {
-        if (window.__resourcesHookedSharedEditors) return;
-        window.__resourcesHookedSharedEditors = true;
-        const wrap = (name) => {
-            const fn = window[name];
-            if (typeof fn !== 'function') return;
-            window[name] = function wrappedSharedEditor(...args) {
-                const result = fn.apply(this, args);
-                try { renderResources(); } catch (_) {}
-                return result;
-            };
-        };
-        [
-            'updateTask',
-            'removeTask',
-            'moveTask',
-            'setTaskOrder',
-            'toggleTaskArchived',
-            'markTaskDone',
-            'splitTaskByTags',
-            'removeAttachment'
-        ].forEach(wrap);
+        try { console.warn('openEditTask no disponible en esta vista'); } catch (_) {}
     }
 
     function renderResources() {
@@ -977,102 +782,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    if (editCancelBtn) {
-        editCancelBtn.addEventListener('click', () => closeResourcesEditModal());
-    }
-    if (editModal) {
-        editModal.addEventListener('click', (e) => {
-            if (e.target === editModal) closeResourcesEditModal();
-        });
-    }
-    if (editExistingAttachments) {
-        editExistingAttachments.addEventListener('click', async (e) => {
-            const btn = e.target.closest('.attachment-remove');
-            if (!btn || !btn.dataset.attId) return;
-            const taskId = editModal && editModal.dataset ? editModal.dataset.taskId : '';
-            if (!taskId) return;
-            const raw = JSON.parse(localStorage.getItem(LS.categories) || '{}');
-            const allCategories = migrateObj(raw);
-            const data = findTaskInCategories(allCategories, taskId);
-            if (!data) return;
-            const attId = btn.dataset.attId;
-            const attachments = Array.isArray(data.task.attachments) ? data.task.attachments : [];
-            const idx = attachments.findIndex(a => a && a.id === attId);
-            if (idx === -1) return;
-            const att = attachments[idx];
-            const ok = window.confirm('¿Eliminar este adjunto?');
-            if (!ok) return;
-            attachments.splice(idx, 1);
-            data.task.attachments = attachments;
-            const now = new Date().toISOString();
-            data.task.lastModified = now;
-            data.task.sortModifiedAt = now;
-            saveAllCategories(allCategories);
-            // Borrar blobs/remote si ya no hay referencias
-            try { await deleteAttachmentBlob(att.id); } catch (_) {}
-            try {
-                const dropboxRefs = att.dropboxPath
-                    ? getAllAttachmentRefs(allCategories, a => a && a.dropboxPath && a.dropboxPath === att.dropboxPath)
-                    : 0;
-                if (att.dropboxPath && dropboxRefs === 0) {
-                    await deleteDropboxFile(att.dropboxPath);
-                }
-            } catch (_) {}
-            try {
-                const nextRefs = att.nextcloudPath
-                    ? getAllAttachmentRefs(allCategories, a => a && a.nextcloudPath && a.nextcloudPath === att.nextcloudPath)
-                    : 0;
-                if (att.nextcloudPath && nextRefs === 0) {
-                    await deleteNextcloudFile(att.nextcloudPath);
-                }
-            } catch (_) {}
-            renderExistingAttachments(data.task);
-            renderResources();
-        });
-    }
-    if (editForm) {
-        editForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const taskId = editModal && editModal.dataset ? editModal.dataset.taskId : '';
-            if (!taskId) return closeResourcesEditModal();
-            const raw = JSON.parse(localStorage.getItem(LS.categories) || '{}');
-            const allCategories = migrateObj(raw);
-            const data = findTaskInCategories(allCategories, taskId);
-            if (!data) return closeResourcesEditModal();
-
-            const newName = String(editNameInput && editNameInput.value ? editNameInput.value : '').trim();
-            if (!newName) return;
-            const newTags = parseTagsInputValue(editTagsInput ? editTagsInput.value : '');
-            const newCategory = editCategorySelect && editCategorySelect.value ? editCategorySelect.value : data.category;
-
-            const newAttachments = await prepareAttachmentsFromFiles(editAttachmentsInput?.files);
-
-            data.task.task = newName;
-            data.task.tags = newTags;
-            data.task.attachments = (Array.isArray(data.task.attachments) ? data.task.attachments : []).concat(newAttachments);
-            const now = new Date().toISOString();
-            data.task.lastModified = now;
-            data.task.sortModifiedAt = now;
-
-            if (newCategory !== data.category && allCategories[newCategory]) {
-                allCategories[data.category].splice(data.taskIndex, 1);
-                if (newCategory === 'archivadas') {
-                    data.task.completed = true;
-                    data.task.archivedOn = now;
-                } else if (data.category === 'archivadas') {
-                    data.task.completed = false;
-                    delete data.task.archivedOn;
-                }
-                allCategories[newCategory].push(data.task);
-            }
-
-            saveAllCategories(allCategories);
-            closeResourcesEditModal();
-            renderResources();
-        });
-    }
-
-    hookSharedEditors();
     renderResources();
     if (window.i18n && i18n.applyI18nAll) {
         window.__rerenderResources = renderResources;

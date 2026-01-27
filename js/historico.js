@@ -10,10 +10,6 @@ document.addEventListener('DOMContentLoaded', function() {
   const container = document.getElementById('history-container');
   const latestBtn = document.getElementById('history-latest');
   const summaryEl = document.getElementById('history-summary');
-  const tagsModal = document.getElementById('history-tags-modal');
-  const tagsInput = document.getElementById('history-tags-input');
-  const tagsSaveBtn = document.getElementById('history-tags-save');
-  const tagsCancelBtn = document.getElementById('history-tags-cancel');
 
   function normalizeKey(k) {
     const m = {
@@ -248,26 +244,22 @@ document.addEventListener('DOMContentLoaded', function() {
     return modified;
   }
 
-  function closeTagsModal() {
-    if (!tagsModal) return;
-    tagsModal.style.display = 'none';
-    tagsModal.dataset.taskId = '';
-  }
-
-  function openTagsModal(taskId) {
-    if (!tagsModal || !tagsInput) return;
+  window.__histEditTags = function(taskId) {
+    if (typeof window.openEditTask === 'function') {
+      window.openEditTask(taskId);
+      return;
+    }
+    // Fallback mínimo si app.js no estuviera cargado
     const task = allTasks().find(t => t && t.id === taskId);
     if (!task) return;
     const current = Array.isArray(task.tags) ? task.tags.join(', ') : '';
-    tagsModal.dataset.taskId = taskId;
-    tagsInput.value = current;
-    tagsModal.style.display = 'flex';
-    tagsInput.focus();
-    tagsInput.setSelectionRange(tagsInput.value.length, tagsInput.value.length);
-  }
-
-  window.__histEditTags = function(taskId) {
-    openTagsModal(taskId);
+    const raw = window.prompt('Etiquetas (separadas por comas):', current);
+    if (raw === null) return;
+    const nextTags = parseTagsInputValue(raw);
+    if (updateTaskTags(taskId, nextTags)) {
+      updateTagSelect(tagSelect.value || '');
+      render();
+    }
   };
 
   function escapeHTML(s) {
@@ -287,6 +279,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (initialDate) dateInput.value = initialDate;
   updateTagSelect(localStorage.getItem(LS.selectedHistoryTag) || '');
   render();
+  window.__rerenderHistorico = render;
 
   // Eventos
   dateInput.addEventListener('change', () => {
@@ -304,27 +297,4 @@ document.addEventListener('DOMContentLoaded', function() {
     try { localStorage.setItem(LS.selectedHistoryDate, dateInput.value || ''); } catch(_) {}
     render();
   });
-
-  if (tagsCancelBtn) {
-    tagsCancelBtn.addEventListener('click', () => {
-      closeTagsModal();
-    });
-  }
-  if (tagsSaveBtn && tagsInput) {
-    tagsSaveBtn.addEventListener('click', () => {
-      const taskId = tagsModal && tagsModal.dataset ? tagsModal.dataset.taskId : '';
-      if (!taskId) return closeTagsModal();
-      const nextTags = parseTagsInputValue(tagsInput.value);
-      if (updateTaskTags(taskId, nextTags)) {
-        updateTagSelect(tagSelect.value || '');
-        render();
-      }
-      closeTagsModal();
-    });
-  }
-  if (tagsModal) {
-    tagsModal.addEventListener('click', (e) => {
-      if (e.target === tagsModal) closeTagsModal();
-    });
-  }
 });

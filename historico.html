@@ -40,20 +40,78 @@
         <div id="history-summary" class="history-meta"></div>
         <div id="history-container" class="task-container"></div>
 
-        <div id="history-tags-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="history-tags-title" style="display:none;">
+        <!-- Modal estándar compartido con el tablero -->
+        <div id="popup-tarea" class="modal">
             <div class="modal-content">
-                <h3 id="history-tags-title">Editar etiquetas</h3>
-                <label for="history-tags-input">Etiquetas (separadas por comas)</label>
-                <textarea id="history-tags-input" rows="3" placeholder="Etiquetas (separadas por comas)"></textarea>
-                <div class="sync-actions" style="margin-top:12px;">
-                    <button id="history-tags-save" type="button" class="boton-accion boton-primario">Guardar</button>
-                    <button id="history-tags-cancel" type="button" class="boton-accion">Cancelar</button>
+                <form id="popup-task-form">
+                    <textarea id="popup-task-name" placeholder="Nueva actividad" rows="8"></textarea>
+                    <select id="popup-task-category">
+                        <option value="en-preparacion">En preparación</option>
+                        <option value="preparadas">Preparadas</option>
+                        <option value="en-proceso">En proceso</option>
+                        <option value="pendientes">Pendientes</option>
+                    </select>
+                    <label for="popup-task-order">Orden (A–Z)</label>
+                    <select id="popup-task-order">
+                        <option value=""></option>
+                        <option value="A">A</option>
+                        <option value="B">B</option>
+                        <option value="C">C</option>
+                        <option value="D">D</option>
+                        <option value="E">E</option>
+                        <option value="F">F</option>
+                        <option value="G">G</option>
+                        <option value="H">H</option>
+                        <option value="I">I</option>
+                        <option value="J">J</option>
+                        <option value="K">K</option>
+                        <option value="L">L</option>
+                        <option value="M">M</option>
+                        <option value="N">N</option>
+                        <option value="O">O</option>
+                        <option value="P">P</option>
+                        <option value="Q">Q</option>
+                        <option value="R">R</option>
+                        <option value="S">S</option>
+                        <option value="T">T</option>
+                        <option value="U">U</option>
+                        <option value="V">V</option>
+                        <option value="W">W</option>
+                        <option value="X">X</option>
+                        <option value="Y">Y</option>
+                        <option value="Z">Z</option>
+                    </select>
+                    <textarea id="popup-task-tags" placeholder="Etiquetas (separadas por comas)" rows="3"></textarea>
+                    <datalist id="all-tags-list"></datalist>
+                    <div id="tag-suggestions" class="tag-suggestions"></div>
+                    <label for="popup-task-reminder">Recordatorio (fecha y hora)</label>
+                    <input type="datetime-local" id="popup-task-reminder">
+                    <label for="popup-task-attachments">Adjuntos</label>
+                    <input type="file" id="popup-task-attachments" multiple>
+                    <div id="popup-existing-attachments" class="attachments"></div>
+                    <button type="button" id="popup-attach-reuse-toggle" class="boton-accion">🔁 Reutilizar adjunto</button>
+                    <div id="popup-attach-reuse-panel" class="reuse-panel" style="display:none"></div>
+                    <div class="acciones-popup">
+                        <button type="submit">Añadir</button>
+                        <button type="button" id="cancelar-popup">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div id="confirm-modal" class="modal">
+            <div class="modal-content">
+                <div id="confirm-message" class="confirm-message">¿Confirmas esta acción?</div>
+                <div class="acciones-popup">
+                    <button type="button" id="confirm-accept" class="boton-peligro">Eliminar</button>
+                    <button type="button" id="confirm-cancel">Cancelar</button>
                 </div>
             </div>
         </div>
     </main>
 
     <script src="js/i18n.js"></script>
+    <script src="js/app.js"></script>
     <script src="js/historico.js"></script>
     <script src="js/sw-register.js"></script>
 </body>
