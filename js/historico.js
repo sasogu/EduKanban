@@ -58,6 +58,24 @@ document.addEventListener('DOMContentLoaded', function() {
     return Object.values(cats).flat();
   }
 
+  function extractDoneTs(entry) {
+    try {
+      if (typeof entry === 'string') return entry; // legacy: ISO string
+      if (entry && typeof entry === 'object') {
+        const ts = entry.ts || entry.date || entry.iso || entry.at || '';
+        return typeof ts === 'string' ? ts : '';
+      }
+      return '';
+    } catch (_) { return ''; }
+  }
+
+  function extractDoneTag(entry) {
+    try {
+      if (entry && typeof entry === 'object' && typeof entry.tag === 'string') return entry.tag;
+      return null; // legacy / sin etiqueta
+    } catch (_) { return null; }
+  }
+
   function localDateStr(iso) {
     try {
       const d = new Date(iso);
@@ -67,11 +85,25 @@ document.addEventListener('DOMContentLoaded', function() {
     } catch (_) { return ''; }
   }
 
-  function collectHistoryDates() {
+  function shouldIncludeDoneEntry(task, entry, filterTag) {
+    if (!filterTag) return true;
+    const tag = extractDoneTag(entry);
+    if (tag === filterTag) return true;
+    // legacy: sin tag -> contar para cualquier etiqueta actual de la tarea
+    if (tag == null && Array.isArray(task.tags) && task.tags.includes(filterTag)) return true;
+    return false;
+  }
+
+  function collectHistoryDates(filterTag = '') {
     const set = new Set();
     allTasks().forEach(t => {
       const hist = Array.isArray(t.doneHistory) ? t.doneHistory : [];
-      hist.forEach(h => { const ds = localDateStr(h); if (ds) set.add(ds); });
+      hist.forEach(h => {
+        if (!shouldIncludeDoneEntry(t, h, filterTag)) return;
+        const ts = extractDoneTs(h);
+        const ds = localDateStr(ts);
+        if (ds) set.add(ds);
+      });
     });
     return Array.from(set).sort(); // asc
   }
@@ -97,9 +129,11 @@ document.addEventListener('DOMContentLoaded', function() {
     allTasks().forEach(t => {
       const hist = Array.isArray(t.doneHistory) ? t.doneHistory : [];
       // contar cuántas veces ese día
-      const times = hist.filter(h => localDateStr(h) === dateStr);
+      const times = hist
+        .filter(h => shouldIncludeDoneEntry(t, h, filterTag))
+        .map(h => extractDoneTs(h))
+        .filter(ts => localDateStr(ts) === dateStr);
       if (times.length === 0) return;
-      if (filterTag && (!Array.isArray(t.tags) || !t.tags.includes(filterTag))) return;
       const lastTs = times[times.length - 1];
       res.push({ task: t, count: times.length, last: lastTs });
     });
@@ -110,7 +144,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Agrupa por fecha (más reciente primero) y aplica filtro de etiqueta
   function groupByDate(filterTag = '') {
-    const dates = collectHistoryDates();
+    const dates = collectHistoryDates(filterTag);
     dates.sort((a, b) => a.localeCompare(b));
     dates.reverse();
     return dates.map(ds => ({ date: ds, items: tasksDoneOnDate(ds, filterTag) }))
@@ -185,7 +219,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   // Elimina una marca de realizado de un día concreto (la más reciente de ese día)
-  function removeOneDoneForDate(taskId, dateStr) {
+  function removeOneDoneForDate(taskId, dateStr, filterTag = '') {
     const cats = getAllCategories();
     let modified = false;
     for (const k of Object.keys(cats)) {
@@ -196,7 +230,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const hist = Array.isArray(t.doneHistory) ? t.doneHistory : [];
         // busca la última ocurrencia de ese día
         for (let i = hist.length - 1; i >= 0; i--) {
-          if (localDateStr(hist[i]) === dateStr) {
+          if (!shouldIncludeDoneEntry(t, hist[i], filterTag)) continue;
+          const ts = extractDoneTs(hist[i]);
+          if (localDateStr(ts) === dateStr) {
             hist.splice(i, 1);
             t.doneHistory = hist;
             const now = new Date().toISOString();
@@ -217,7 +253,8 @@ document.addEventListener('DOMContentLoaded', function() {
   window.__histDeleteOne = function(taskId, dateStr) {
     const msg = '¿Eliminar una marca de realizado de este día?';
     if (!window.confirm(msg)) return;
-    if (removeOneDoneForDate(taskId, dateStr)) {
+    const tag = tagSelect ? (tagSelect.value || '') : '';
+    if (removeOneDoneForDate(taskId, dateStr, tag)) {
       render();
     } else {
       try { console.warn('No se encontró marca para eliminar'); } catch(_){}
@@ -272,12 +309,12 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   // Inicialización
-  const dates = collectHistoryDates();
   // valor inicial: usar el guardado; si no hay, mostrar todo desglosado
   const savedDate = localStorage.getItem(LS.selectedHistoryDate) || '';
   const initialDate = savedDate;
   if (initialDate) dateInput.value = initialDate;
-  updateTagSelect(localStorage.getItem(LS.selectedHistoryTag) || '');
+  const initialTag = localStorage.getItem(LS.selectedHistoryTag) || '';
+  updateTagSelect(initialTag);
   render();
   window.__rerenderHistorico = render;
 
@@ -291,7 +328,8 @@ document.addEventListener('DOMContentLoaded', function() {
     render();
   });
   latestBtn.addEventListener('click', () => {
-    const ds = collectHistoryDates();
+    const tag = tagSelect ? (tagSelect.value || '') : '';
+    const ds = collectHistoryDates(tag);
     if (!ds.length) return;
     dateInput.value = ds[ds.length - 1];
     try { localStorage.setItem(LS.selectedHistoryDate, dateInput.value || ''); } catch(_) {}

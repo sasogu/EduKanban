@@ -980,6 +980,64 @@ async function removeTask(taskId) {
     if (isNextcloudConfigured()) syncToNextcloud(false);
 }
 
+// --- HISTÓRICO POR ETIQUETA (doneHistory) ---
+function __getActiveFilterTag() {
+    try {
+        const el = document.getElementById('filter-tag');
+        const v = el ? (el.value || '') : '';
+        if (v) return v;
+    } catch (_) {}
+    try { return localStorage.getItem(LS.selectedFilterTag) || ''; } catch (_) { return ''; }
+}
+
+function __extractDoneTs(entry) {
+    try {
+        if (typeof entry === 'string') return entry; // legacy: ISO string
+        if (entry && typeof entry === 'object') {
+            const ts = entry.ts || entry.date || entry.iso || entry.at || '';
+            return typeof ts === 'string' ? ts : '';
+        }
+        return '';
+    } catch (_) { return ''; }
+}
+
+function __extractDoneTag(entry) {
+    try {
+        if (entry && typeof entry === 'object' && typeof entry.tag === 'string') return entry.tag;
+        return null; // legacy / sin etiqueta
+    } catch (_) { return null; }
+}
+
+function __getDoneEvents(task, filterTag = '') {
+    const raw = Array.isArray(task && task.doneHistory) ? task.doneHistory : [];
+    const events = [];
+    for (const h of raw) {
+        const ts = __extractDoneTs(h);
+        if (!ts) continue;
+        const time = new Date(ts).getTime();
+        if (!isFinite(time)) continue;
+        const tag = __extractDoneTag(h); // string | null
+        if (!filterTag) {
+            events.push({ ts, time, tag });
+            continue;
+        }
+        // Si hay filtro:
+        // - entradas nuevas: solo cuentan si su tag coincide con el filtro
+        // - entradas legacy (sin tag): se comportan como antes (cuentan para cualquier etiqueta de la tarea)
+        if (tag === filterTag) events.push({ ts, time, tag });
+        else if (tag == null && Array.isArray(task.tags) && task.tags.includes(filterTag)) events.push({ ts, time, tag });
+    }
+    return events;
+}
+
+function __getDoneCountAndLastIso(task, filterTag = '') {
+    const events = __getDoneEvents(task, filterTag);
+    if (!events.length) return { count: 0, lastIso: '' };
+    let max = events[0];
+    for (let i = 1; i < events.length; i++) if (events[i].time > max.time) max = events[i];
+    return { count: events.length, lastIso: max.ts };
+}
+
 function toggleTaskCompletion(taskId) {
     const taskData = findTask(taskId);
     if (taskData) {
@@ -987,7 +1045,11 @@ function toggleTaskCompletion(taskId) {
         // Nuevo: marcar como realizado sin archivar, guardando historial
         const prevSort = task.sortModifiedAt || task.lastModified || new Date(0).toISOString();
         task.doneHistory = Array.isArray(task.doneHistory) ? task.doneHistory : [];
-        task.doneHistory.push(new Date().toISOString());
+        // Guardar el "hecho" asociado a la etiqueta activa (si existe)
+        const activeTag = __getActiveFilterTag();
+        const taskTags = Array.isArray(task.tags) ? task.tags.filter(Boolean) : [];
+        const tagForEvent = activeTag || (taskTags.length === 1 ? taskTags[0] : '');
+        task.doneHistory.push({ ts: new Date().toISOString(), tag: tagForEvent });
         task.lastModified = new Date().toISOString();
         // Mantener el orden visual: no tocar la clave de ordenación
         task.sortModifiedAt = prevSort;
@@ -2087,8 +2149,8 @@ function renderTasks() {
         filteredTasks = filteredTasks.slice().sort(cmpTasks);
 
         let tasksHTML = filteredTasks.map(task => {
-            const doneCount = Array.isArray(task.doneHistory) ? task.doneHistory.length : 0;
-            const lastDone = doneCount ? new Date(task.doneHistory[doneCount - 1]).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' }) : '';
+            const { count: doneCount, lastIso } = __getDoneCountAndLastIso(task, filterTag);
+            const lastDone = doneCount && lastIso ? new Date(lastIso).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' }) : '';
             const doneMeta = doneCount ? `<small class="done-meta">✔️ ${doneCount} ${(window.i18n&&i18n.t)?i18n.t('times'):'veces'}${lastDone ? ` • ${(window.i18n&&i18n.t)?i18n.t('last'):'Última'}: ${lastDone}` : ''}</small>` : '';
             const tagsHtml = (task.tags && task.tags.length)
                 ? `<small class="tags">${task.tags.map(t => '<span class="tag-chip in-task">#'+t+'</span>').join(' ')}</small>`
@@ -2769,15 +2831,14 @@ function collectHistoryGroupsLimited(filterTag = '', maxDays = 7, maxPerDay = 10
         const byDate = new Map();
         for (const tasks of Object.values(categories)) {
             for (const t of tasks) {
-                if (filterTag && (!Array.isArray(t.tags) || !t.tags.includes(filterTag))) continue;
-                const hist = Array.isArray(t.doneHistory) ? t.doneHistory : [];
-                for (const ts of hist) {
-                    const ds = __localDateStr(ts);
+                const events = __getDoneEvents(t, filterTag);
+                for (const ev of events) {
+                    const ds = __localDateStr(ev.ts);
                     if (!ds) continue;
                     if (!byDate.has(ds)) byDate.set(ds, new Map());
                     const perTask = byDate.get(ds);
                     const arr = perTask.get(t.id) || [];
-                    arr.push(ts);
+                    arr.push(ev.ts);
                     perTask.set(t.id, arr);
                 }
             }
