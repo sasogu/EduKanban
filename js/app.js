@@ -2031,6 +2031,7 @@ function renderTasks() {
         try {
             if (typeof window.__rerenderResources === 'function') window.__rerenderResources();
             if (typeof window.__rerenderHistorico === 'function') window.__rerenderHistorico();
+            if (typeof window.__rerenderArchive === 'function') window.__rerenderArchive();
         } catch (_) {}
         return;
     }

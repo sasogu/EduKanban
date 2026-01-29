@@ -621,6 +621,7 @@ document.addEventListener('DOMContentLoaded', function() {
             taskDiv.className = 'task';
             const unarchiveTxt = (window.i18n&&i18n.t)?i18n.t('unarchive'):'Desarchivar';
             const deletePermTxt = (window.i18n&&i18n.t)?i18n.t('delete_permanently'):'Eliminar Permanentemente';
+            const editTxt = (window.i18n&&i18n.t)?i18n.t('edit'):'Editar';
             const attachmentsHtml = renderAttachmentsHtml(taskObj);
             taskDiv.innerHTML = `
                 <input type="checkbox" ${taskObj.completed ? 'checked' : ''} disabled>
@@ -629,8 +630,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     ${attachmentsHtml}
                 </span>
                 <small class="archived-meta">Archivada: ${formatArchivedDate(taskObj)}</small>
-                <button onclick="unarchiveTask('${taskObj.id}')">${unarchiveTxt}</button>
-                <button onclick="deletePermanently('${taskObj.id}')">${deletePermTxt}</button>
+                <button type="button" class="edit-btn" onclick="openEditTask('${taskObj.id}')">${editTxt}</button>
+                <button type="button" onclick="unarchiveTask('${taskObj.id}')">${unarchiveTxt}</button>
+                <button type="button" onclick="deletePermanently('${taskObj.id}')">${deletePermTxt}</button>
             `;
             archiveContainer.appendChild(taskDiv);
             hydrateArchivedAttachments(taskDiv, taskObj);
