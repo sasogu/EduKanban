@@ -395,6 +395,23 @@ button:hover { background: #1f2937; }
 .attachments > .attachment-video-wrap { grid-column: 1 / -1; }
 .attachments > .attachment-video { grid-column: 1 / -1; }
 
+/* En la vista de recursos, limitar el ancho de los vídeos */
+#resources-container .attachments {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+#resources-container .attachment-video-wrap {
+    width: auto;
+    max-width: 800px;
+    margin: 0 auto;
+}
+#resources-container .attachment-video {
+    width: auto;
+    max-width: 100%;
+}
+
 @media (max-width: 600px) {
   .attachment-audio { height: 28px; }
   /* Controles más compactos en móvil */
