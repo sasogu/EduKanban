@@ -4,12 +4,14 @@ document.addEventListener('DOMContentLoaded', function() {
         token: 'edukanban.dropbox_access_token',
         deleted: 'edukanban.deletedTasks',
         selectedFilterTag: 'edukanban.selectedFilterTag',
-        searchQuery: 'edukanban.searchQuery'
+        searchQuery: 'edukanban.searchQuery',
+        tagFilterMode: 'edukanban.tagFilterMode'
     };
     const container = document.getElementById('resources-container');
     if (!container) return;
     const filterTagSelect = document.getElementById('filter-tag');
     const filterSearchInput = document.getElementById('filter-search');
+    const filterTagModeSelect = document.getElementById('filter-tag-mode');
 
     const NEXTCLOUD_KEYS = { config: 'edukanban.nextcloudConfig' };
     const CATEGORY_OVERRIDES_KEY = 'edukanban.categoryNameOverrides';
@@ -603,6 +605,45 @@ document.addEventListener('DOMContentLoaded', function() {
         return haystack.includes(searchNorm);
     }
 
+    function readSelectedTagsFromStorage() {
+        const raw = localStorage.getItem(LS.selectedFilterTag);
+        if (!raw) return [];
+        const trimmed = String(raw).trim();
+
+        // Nuevo formato: JSON array
+        if (trimmed.startsWith('[')) {
+            try {
+                const parsed = JSON.parse(trimmed);
+                if (Array.isArray(parsed)) {
+                    return parsed.map(String).map(s => s.trim()).filter(Boolean);
+                }
+            } catch (_) {
+                // fallback abajo
+            }
+        }
+
+        // Legacy: string
+        return trimmed ? [trimmed] : [];
+    }
+
+    function persistSelectedTagsToStorage(selectedTags) {
+        const clean = Array.isArray(selectedTags)
+            ? [...new Set(selectedTags.map(String).map(s => s.trim()).filter(Boolean))]
+            : [];
+        try {
+            localStorage.setItem(LS.selectedFilterTag, JSON.stringify(clean));
+        } catch (_) {}
+    }
+
+    function getTagFilterMode() {
+        const mode = localStorage.getItem(LS.tagFilterMode);
+        return mode === 'and' ? 'and' : 'or';
+    }
+
+    function setTagFilterMode(mode) {
+        try { localStorage.setItem(LS.tagFilterMode, mode === 'and' ? 'and' : 'or'); } catch (_) {}
+    }
+
     function getAllTagsFromCategories(allCategories) {
         const tagsSet = new Set();
         Object.values(allCategories).forEach(tasks => {
@@ -616,8 +657,87 @@ document.addEventListener('DOMContentLoaded', function() {
         return Array.from(tagsSet).sort();
     }
 
+    function renderTagFilterCheckboxes(allTags) {
+        // En recursos, #filter-tag es un contenedor (div) dentro de <details id="tag-filter">
+        const host = document.getElementById('filter-tag');
+        if (!host) return;
+
+        const searchInput = document.getElementById('filter-tag-search');
+        const clearBtn = document.getElementById('filter-tag-clear');
+        const countEl = document.getElementById('tag-filter-count');
+
+        const selected = new Set(readSelectedTagsFromStorage());
+        const q = (searchInput?.value || '').trim().toLowerCase();
+
+        const visible = (Array.isArray(allTags) ? allTags : []).filter(t => {
+            const s = String(t || '');
+            return s && (!q || s.toLowerCase().includes(q));
+        });
+
+        host.innerHTML = '';
+        for (const tag of visible) {
+            const safe = String(tag)
+                .replace(/\s+/g, '-')
+                .replace(/[^a-zA-Z0-9\-]/g, '')
+                .toLowerCase();
+            const id = `tag-${safe}`;
+
+            const label = document.createElement('label');
+            label.className = 'tag-filter-item';
+
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.value = tag;
+            cb.id = id;
+            cb.checked = selected.has(tag);
+
+            const text = document.createElement('span');
+            text.className = 'tag-filter-text';
+            text.textContent = tag;
+
+            label.appendChild(cb);
+            label.appendChild(text);
+            host.appendChild(label);
+        }
+
+        if (countEl) countEl.textContent = selected.size ? `(${selected.size})` : '';
+
+        // Bindings (idempotentes)
+        if (searchInput && !searchInput.dataset.bound) {
+            searchInput.dataset.bound = '1';
+            searchInput.addEventListener('input', () => {
+                renderTagFilterCheckboxes(allTags);
+            });
+        }
+
+        if (clearBtn && !clearBtn.dataset.bound) {
+            clearBtn.dataset.bound = '1';
+            clearBtn.addEventListener('click', () => {
+                persistSelectedTagsToStorage([]);
+                if (searchInput) searchInput.value = '';
+                renderTagFilterCheckboxes(allTags);
+                renderResources();
+            });
+        }
+
+        if (!host.dataset.bound) {
+            host.dataset.bound = '1';
+            host.addEventListener('change', (e) => {
+                const t = e.target;
+                if (!(t instanceof HTMLInputElement) || t.type !== 'checkbox') return;
+                const next = new Set(readSelectedTagsFromStorage());
+                if (t.checked) next.add(t.value);
+                else next.delete(t.value);
+                persistSelectedTagsToStorage(Array.from(next));
+                renderTagFilterCheckboxes(allTags);
+                renderResources();
+            });
+        }
+    }
+
     function updateTagFilterDropdown(allCategories, currentValue = '') {
-        if (!filterTagSelect) return;
+        // Compat: si alguien reintroduce un <select>, mantenemos la función.
+        if (!filterTagSelect || filterTagSelect.tagName !== 'SELECT') return;
         const tags = getAllTagsFromCategories(allCategories);
         const showAll = (window.i18n && i18n.t) ? i18n.t('show_all') : 'Mostrar todo';
         const hasCurrent = currentValue && tags.includes(currentValue);
@@ -679,12 +799,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const allCategories = migrateObj(raw);
         try { localStorage.setItem(LS.categories, JSON.stringify(allCategories)); } catch(_) {}
         const categoryNames = getCategoryNames();
-        let filterTag = '';
-        if (filterTagSelect) {
-            filterTag = filterTagSelect.value || localStorage.getItem(LS.selectedFilterTag) || '';
-        } else {
-            filterTag = localStorage.getItem(LS.selectedFilterTag) || '';
-        }
+        const selectedTags = readSelectedTagsFromStorage();
+        const tagMode = getTagFilterMode();
         let searchQuery = '';
         if (filterSearchInput) {
             searchQuery = filterSearchInput.value || localStorage.getItem(LS.searchQuery) || '';
@@ -693,7 +809,14 @@ document.addEventListener('DOMContentLoaded', function() {
             searchQuery = localStorage.getItem(LS.searchQuery) || '';
         }
         const searchNorm = normalizeSearchValue(searchQuery);
-        updateTagFilterDropdown(allCategories, filterTag);
+        const allTags = getAllTagsFromCategories(allCategories);
+        renderTagFilterCheckboxes(allTags);
+
+        // Si seguimos teniendo <select> (por compat), lo mantenemos sincronizado con legacy
+        if (filterTagSelect && filterTagSelect.tagName === 'SELECT') {
+            const legacy = localStorage.getItem(LS.selectedFilterTag) || '';
+            updateTagFilterDropdown(allCategories, legacy);
+        }
         const items = [];
         for (const [cat, list] of Object.entries(allCategories)) {
             if (cat === 'archivadas') continue;
@@ -709,8 +832,12 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         let filteredItems = items;
-        if (filterTag) {
-            filteredItems = filteredItems.filter(({ task }) => Array.isArray(task.tags) && task.tags.includes(filterTag));
+        if (selectedTags.length) {
+            filteredItems = filteredItems.filter(({ task }) => {
+                const tags = Array.isArray(task.tags) ? task.tags : [];
+                if (tagMode === 'and') return selectedTags.every(t => tags.includes(t));
+                return selectedTags.some(t => tags.includes(t));
+            });
         }
         if (searchNorm) {
             filteredItems = filteredItems.filter(({ task }) => taskMatchesSearch(task, searchNorm));
@@ -758,7 +885,16 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    if (filterTagSelect) {
+    // Rehidratar modo OR/AND (si existe el selector)
+    if (filterTagModeSelect) {
+        filterTagModeSelect.value = getTagFilterMode();
+        filterTagModeSelect.addEventListener('change', () => {
+            setTagFilterMode(filterTagModeSelect.value);
+            renderResources();
+        });
+    }
+
+    if (filterTagSelect && filterTagSelect.tagName === 'SELECT') {
         filterTagSelect.addEventListener('change', (e) => {
             try { localStorage.setItem(LS.selectedFilterTag, e.target.value || ''); } catch (_) {}
             renderResources();

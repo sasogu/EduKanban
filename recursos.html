@@ -22,14 +22,50 @@
         </nav>
     </header>
 
-    <main>
-        <label id="filter-tag-label" for="filter-tag">Filtrar por etiqueta:</label>
-        <select id="filter-tag">
-            <option value="">-- Filtrar por etiqueta --</option>
-        </select>
-        <label id="filter-search-label" for="filter-search" style="margin-left:12px;">Buscar:</label>
-        <input id="filter-search" type="search" placeholder="Buscar...">
-        <div id="resources-container" class="resources-container"></div>
+    <main class="board-layout">
+        <aside class="board-sidebar" aria-label="Filtros" id="board-sidebar">
+            <div class="sidebar-header">
+                <h3 class="sidebar-title">Filtros</h3>
+                <button id="sidebar-toggle" type="button" class="boton-accion sidebar-toggle" aria-expanded="true" aria-controls="board-sidebar">⟨⟩</button>
+            </div>
+
+            <div class="sidebar-iconbar" aria-label="Accesos rápidos" role="toolbar">
+                <button id="sidebar-open-tags" type="button" class="sidebar-icon" title="Etiquetas" aria-label="Etiquetas">🏷️</button>
+                <button id="sidebar-open-search" type="button" class="sidebar-icon" title="Buscar" aria-label="Buscar">🔎</button>
+            </div>
+
+            <section class="sidebar-section">
+                <label id="filter-tag-label" for="filter-tag-search">Etiquetas</label>
+                <details id="tag-filter" class="tag-filter" open>
+                    <summary class="tag-filter-summary">Seleccionar <span id="tag-filter-count" class="tag-filter-count"></span></summary>
+                    <div class="tag-filter-body">
+                        <input id="filter-tag-search" type="search" class="tag-filter-search" placeholder="Buscar etiqueta…" autocomplete="off">
+                        <div id="filter-tag" class="tag-filter-list" role="group" aria-label="Etiquetas"></div>
+                        <div class="tag-filter-actions">
+                            <button id="filter-tag-clear" type="button" class="boton-accion">Limpiar</button>
+                        </div>
+                    </div>
+                </details>
+                <small id="filter-tag-help" class="filter-help">Marca varias. Vacío = sin filtro.</small>
+            </section>
+
+            <section class="sidebar-section">
+                <label for="filter-tag-mode" class="filter-mode-label">Modo etiquetas</label>
+                <select id="filter-tag-mode" class="filter-mode-select" aria-label="Modo de filtrado por etiquetas">
+                    <option value="or">OR (cualquiera)</option>
+                    <option value="and">AND (todas)</option>
+                </select>
+            </section>
+
+            <section class="sidebar-section">
+                <label id="filter-search-label" for="filter-search">Buscar</label>
+                <input id="filter-search" type="search" placeholder="Buscar...">
+            </section>
+        </aside>
+
+        <section class="board-main" aria-label="Recursos">
+            <div id="resources-container" class="resources-container"></div>
+        </section>
 
         <!-- Modal estándar compartido con el tablero -->
         <div id="popup-tarea" class="modal">

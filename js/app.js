@@ -4247,7 +4247,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Iniciar el flujo de autenticación de Dropbox
     handleAuthCallback();
 
-    // Sidebar colapsable (solo tablero)
+    // Sidebar colapsable (tablero y otras vistas que usen main.board-layout)
     try {
         const layout = document.querySelector('main.board-layout');
         const toggleBtn = document.getElementById('sidebar-toggle');
