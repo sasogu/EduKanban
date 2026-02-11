@@ -23,18 +23,78 @@ body {
 html, body { background: var(--color-bg); color: var(--color-text); }
 body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 
-/* Filtro por etiqueta (multi-select)
-   - En escritorio mostramos varias filas para que se vean muchas etiquetas.
-   - En móvil evitamos un control enorme: dejamos pocas filas (sigue siendo multiselección). */
-#filter-tag {
-  min-width: 240px;
-  max-width: 420px;
-  height: auto;
+/* Filtro por etiqueta (checkboxes)
+   - Usamos <details> para poder colapsar/expandir.
+   - La lista es un grid de chips con checkbox (más usable que un select múltiple). */
+.tag-filter {
+  display: inline-block;
+  vertical-align: top;
+  min-width: 260px;
+  max-width: 520px;
+  margin-left: 12px;
 }
-
-#filter-tag[multiple] { 
-  min-height: 10.5em; /* ~8-10 filas dependiendo del line-height del navegador */
+.tag-filter-summary {
+  cursor: pointer;
+  user-select: none;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: #fff;
+  font-weight: 600;
 }
+.tag-filter-summary:hover { border-color: var(--color-primary); }
+.tag-filter-count {
+  margin-left: 6px;
+  color: var(--color-muted);
+  font-weight: 500;
+}
+.tag-filter-body {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: #fff;
+}
+.tag-filter-search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  margin-bottom: 10px;
+}
+.tag-filter-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  max-height: 240px;
+  overflow: auto;
+  padding-right: 4px;
+}
+.tag-filter-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: #f9fafb;
+}
+.tag-filter-item:hover { border-color: var(--color-primary); }
+.tag-filter-item input { margin: 0; }
+.tag-filter-tag {
+  display: inline-block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 240px;
+}
+.tag-filter-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+.tag-filter-actions .boton-accion { padding: 6px 10px; margin-bottom: 0; }
 
 .filter-help {
   display: inline-block;
@@ -47,10 +107,12 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
 .filter-mode-select { min-width: 170px; }
 
 @media (max-width: 699px) {
-  #filter-tag[multiple] {
-    min-height: 6.5em; /* ~5-6 filas en móvil para no “comerse” la pantalla */
+  .tag-filter {
+    display: block;
+    margin: 10px 12px 0 12px;
     max-width: calc(100% - 24px);
   }
+  .tag-filter-list { grid-template-columns: 1fr 1fr; max-height: 200px; }
   .filter-mode-label { display: block; margin: 10px 12px 4px 12px; }
   .filter-mode-select { width: calc(100% - 24px); margin: 0 12px; }
   .filter-help { display: block; margin: 6px 12px 0 12px; }

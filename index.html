@@ -29,14 +29,24 @@
         </nav>
     </header>
     <main>
-   <label id="filter-tag-label" for="filter-tag">Filtrar por etiqueta:</label>
-    <select id="filter-tag" multiple size="10" aria-describedby="filter-tag-help"></select>
+   <label id="filter-tag-label" for="filter-tag-search">Filtrar por etiqueta:</label>
+    <details id="tag-filter" class="tag-filter" open>
+        <summary class="tag-filter-summary">Etiquetas <span id="tag-filter-count" class="tag-filter-count"></span></summary>
+        <div class="tag-filter-body">
+            <input id="filter-tag-search" type="search" class="tag-filter-search" placeholder="Buscar etiqueta…" autocomplete="off">
+            <div id="filter-tag" class="tag-filter-list" role="group" aria-label="Etiquetas"></div>
+            <div class="tag-filter-actions">
+                <button id="filter-tag-clear" type="button" class="boton-accion">Limpiar</button>
+            </div>
+        </div>
+    </details>
+
     <label for="filter-tag-mode" class="filter-mode-label" style="margin-left:12px;">Modo:</label>
     <select id="filter-tag-mode" class="filter-mode-select" aria-label="Modo de filtrado por etiquetas">
         <option value="or">OR (cualquiera)</option>
         <option value="and">AND (todas)</option>
     </select>
-    <small id="filter-tag-help" class="filter-help">Ctrl/Cmd+clic para elegir varias. Vacío = sin filtro.</small>
+    <small id="filter-tag-help" class="filter-help">Marca varias etiquetas. Vacío = sin filtro.</small>
     <label id="filter-search-label" for="filter-search" style="margin-left:12px;">Buscar:</label>
     <input id="filter-search" type="search" placeholder="Buscar...">
     <label id="filter-column-label" style="margin-left:12px;">Ver columnas:</label>

@@ -998,6 +998,36 @@ function __readSelectedFilterTagsFromSelect(el) {
     }
 }
 
+function __isTagFilterCheckboxPanel() {
+    try {
+        const el = document.getElementById('filter-tag');
+        return !!(el && el.tagName && el.tagName.toLowerCase() === 'div');
+    } catch (_) {
+        return false;
+    }
+}
+
+function __readSelectedFilterTagsFromCheckboxPanel() {
+    try {
+        const container = document.getElementById('filter-tag');
+        if (!container) return [];
+        const checked = Array.from(container.querySelectorAll('input[type="checkbox"][data-tag]:checked'))
+            .map(i => i.dataset.tag)
+            .filter(Boolean);
+        return Array.from(new Set(checked));
+    } catch (_) {
+        return [];
+    }
+}
+
+function __writeSelectedFilterTagsToStorage(values) {
+    try {
+        const arr = Array.isArray(values) ? values.map(String).map(s => s.trim()).filter(Boolean) : [];
+        if (arr.length) localStorage.setItem(LS.selectedFilterTag, JSON.stringify(arr));
+        else localStorage.removeItem(LS.selectedFilterTag);
+    } catch (_) {}
+}
+
 function __readSelectedFilterTagsFromStorage() {
     try {
         const raw = localStorage.getItem(LS.selectedFilterTag);
@@ -1021,6 +1051,11 @@ function __getActiveFilterTag() {
 }
 
 function __getActiveFilterTags() {
+    if (__isTagFilterCheckboxPanel()) {
+        const fromPanel = __readSelectedFilterTagsFromCheckboxPanel();
+        if (fromPanel.length) return fromPanel;
+        return __readSelectedFilterTagsFromStorage();
+    }
     const el = document.getElementById('filter-tag');
     const fromSelect = __readSelectedFilterTagsFromSelect(el);
     if (fromSelect.length) return fromSelect;
@@ -2078,20 +2113,25 @@ function renderTasks() {
         return;
     }
     const locale = (window.i18n && i18n.getLocale) ? i18n.getLocale() : 'es-ES';
-    // Mantener filtro activo: ahora soporta múltiple selección (array en LS, fallback a string)
+    // Mantener filtro activo: panel de checkboxes o select (compat)
     let filterTags = [];
     if (filterTagSelect) {
-        filterTags = __readSelectedFilterTagsFromSelect(filterTagSelect);
-        if (!filterTags.length) filterTags = __readSelectedFilterTagsFromStorage();
-        // Si el select no tiene selección inicial pero LS sí, sincronizar UI
-        if (filterTagSelect.multiple && filterTags.length && (!filterTagSelect.selectedOptions || !filterTagSelect.selectedOptions.length)) {
-            try {
-                Array.from(filterTagSelect.options || []).forEach(opt => {
-                    opt.selected = filterTags.includes(opt.value);
-                });
-            } catch (_) {}
-        } else if (!filterTagSelect.multiple && filterTags.length && !filterTagSelect.value) {
-            try { filterTagSelect.value = filterTags[0] || ''; } catch (_) {}
+        if (filterTagSelect.tagName && filterTagSelect.tagName.toLowerCase() === 'div') {
+            filterTags = __readSelectedFilterTagsFromCheckboxPanel();
+            if (!filterTags.length) filterTags = __readSelectedFilterTagsFromStorage();
+        } else {
+            filterTags = __readSelectedFilterTagsFromSelect(filterTagSelect);
+            if (!filterTags.length) filterTags = __readSelectedFilterTagsFromStorage();
+            // Si el select no tiene selección inicial pero LS sí, sincronizar UI
+            if (filterTagSelect.multiple && filterTags.length && (!filterTagSelect.selectedOptions || !filterTagSelect.selectedOptions.length)) {
+                try {
+                    Array.from(filterTagSelect.options || []).forEach(opt => {
+                        opt.selected = filterTags.includes(opt.value);
+                    });
+                } catch (_) {}
+            } else if (!filterTagSelect.multiple && filterTags.length && !filterTagSelect.value) {
+                try { filterTagSelect.value = filterTags[0] || ''; } catch (_) {}
+            }
         }
     } else {
         filterTags = __readSelectedFilterTagsFromStorage();
@@ -2827,6 +2867,11 @@ function getAllTags() {
 function updateTagFilterDropdown(currentValue = '') {
     const filterTagSelect = document.getElementById('filter-tag');
     if (!filterTagSelect) return;
+    // Nuevo UI: #filter-tag es un contenedor (panel de checkboxes)
+    if (filterTagSelect.tagName && filterTagSelect.tagName.toLowerCase() === 'div') {
+        renderTagFilterCheckboxes();
+        return;
+    }
     const tags = getAllTags();
 
     // Selección previa: ahora soporta array (multi) en LS, fallback a string legacy.
@@ -2869,6 +2914,49 @@ function updateTagFilterDropdown(currentValue = '') {
     } else {
         filterTagSelect.value = (selected[0] || currentValue || '');
     }
+}
+
+function renderTagFilterCheckboxes() {
+    const container = document.getElementById('filter-tag');
+    if (!container) return;
+    if (!(container.tagName && container.tagName.toLowerCase() === 'div')) return;
+
+    const tags = getAllTags();
+    const selected = __readSelectedFilterTagsFromStorage();
+    const searchEl = document.getElementById('filter-tag-search');
+    const q = normalizeSearchValue(searchEl ? searchEl.value : '');
+    const visible = q ? tags.filter(t => normalizeSearchValue(t).includes(q)) : tags;
+
+    container.innerHTML = visible.map(tag => {
+        const checked = selected.includes(tag) ? ' checked' : '';
+        return `
+          <label class="tag-filter-item">
+            <input type="checkbox" data-tag="${tag}"${checked}>
+            <span class="tag-filter-tag">#${tag}</span>
+          </label>
+        `;
+    }).join('');
+
+    // Contador “seleccionadas”
+    try {
+        const countEl = document.getElementById('tag-filter-count');
+        if (countEl) countEl.textContent = selected.length ? `(${selected.length})` : '';
+    } catch (_) {}
+
+    // Bind events en los checkboxes
+    container.querySelectorAll('input[type="checkbox"][data-tag]').forEach(cb => {
+        if (cb.dataset.bound) return;
+        cb.addEventListener('change', () => {
+            const values = __readSelectedFilterTagsFromCheckboxPanel();
+            __writeSelectedFilterTagsToStorage(values);
+            try {
+                const countEl = document.getElementById('tag-filter-count');
+                if (countEl) countEl.textContent = values.length ? `(${values.length})` : '';
+            } catch (_) {}
+            renderTasks();
+        });
+        cb.dataset.bound = '1';
+    });
 }
 
 // Filtro de columnas: mostrar solo una o todas
@@ -3949,8 +4037,13 @@ document.addEventListener('DOMContentLoaded', function() {
         const filterTagSelect = document.getElementById('filter-tag');
         let activeFilterTag = '';
         if (filterTagSelect) {
-            const selected = __readSelectedFilterTagsFromSelect(filterTagSelect);
-            activeFilterTag = selected[0] || '';
+            if (filterTagSelect.tagName && filterTagSelect.tagName.toLowerCase() === 'div') {
+                const selected = __readSelectedFilterTagsFromCheckboxPanel();
+                activeFilterTag = selected[0] || '';
+            } else {
+                const selected = __readSelectedFilterTagsFromSelect(filterTagSelect);
+                activeFilterTag = selected[0] || '';
+            }
         }
         if (!activeFilterTag) {
             // LS puede ser JSON array o string legacy
@@ -4160,16 +4253,29 @@ document.addEventListener('DOMContentLoaded', function() {
         document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') closeImageLightbox(); });
     }
 
-    document.getElementById('filter-tag')?.addEventListener('change', (e) => {
-        const el = e.currentTarget;
-        const values = __readSelectedFilterTagsFromSelect(el);
-        try {
-            // Guardamos array en JSON; si está vacío, limpiamos para mantener comportamiento "sin filtro"
-            if (values.length) localStorage.setItem(LS.selectedFilterTag, JSON.stringify(values));
-            else localStorage.removeItem(LS.selectedFilterTag);
-        } catch (_) {}
-        renderTasks();
-    });
+    // Filtro de etiquetas (nuevo UI por checkboxes)
+    const tagContainer = document.getElementById('filter-tag');
+    if (tagContainer && tagContainer.tagName && tagContainer.tagName.toLowerCase() === 'div') {
+        document.getElementById('filter-tag-search')?.addEventListener('input', () => {
+            renderTagFilterCheckboxes();
+        });
+        document.getElementById('filter-tag-clear')?.addEventListener('click', () => {
+            __writeSelectedFilterTagsToStorage([]);
+            // reset búsqueda
+            const s = document.getElementById('filter-tag-search');
+            if (s) s.value = '';
+            renderTagFilterCheckboxes();
+            renderTasks();
+        });
+    } else {
+        // Compatibilidad: select
+        document.getElementById('filter-tag')?.addEventListener('change', (e) => {
+            const el = e.currentTarget;
+            const values = __readSelectedFilterTagsFromSelect(el);
+            __writeSelectedFilterTagsToStorage(values);
+            renderTasks();
+        });
+    }
 
     document.getElementById('filter-tag-mode')?.addEventListener('change', (e) => {
         const mode = (e.currentTarget && e.currentTarget.value === 'and') ? 'and' : 'or';
