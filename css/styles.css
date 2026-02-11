@@ -27,11 +27,10 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
    - Usamos <details> para poder colapsar/expandir.
    - La lista es un grid de chips con checkbox (más usable que un select múltiple). */
 .tag-filter {
-  display: inline-block;
-  vertical-align: top;
-  min-width: 260px;
-  max-width: 520px;
-  margin-left: 12px;
+  display: block;
+  min-width: 0;
+  max-width: none;
+  margin-left: 0;
 }
 .tag-filter-summary {
   cursor: pointer;
@@ -107,15 +106,11 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
 .filter-mode-select { min-width: 170px; }
 
 @media (max-width: 699px) {
-  .tag-filter {
-    display: block;
-    margin: 10px 12px 0 12px;
-    max-width: calc(100% - 24px);
-  }
+  .tag-filter { margin: 0; max-width: 100%; }
   .tag-filter-list { grid-template-columns: 1fr 1fr; max-height: 200px; }
-  .filter-mode-label { display: block; margin: 10px 12px 4px 12px; }
-  .filter-mode-select { width: calc(100% - 24px); margin: 0 12px; }
-  .filter-help { display: block; margin: 6px 12px 0 12px; }
+  .filter-mode-label { display: block; margin: 0 0 6px 0; }
+  .filter-mode-select { width: 100%; margin: 0; }
+  .filter-help { display: block; margin: 6px 0 0 0; }
 }
 
 header {
@@ -147,6 +142,47 @@ header {
 
 /* Fondo blanco en el contenido para continuidad visual con la pestaña activa */
 main { background: var(--color-surface); }
+
+/* Layout del tablero: sidebar izquierda + tablero */
+.board-layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 14px;
+  padding: 12px;
+  align-items: start;
+}
+.board-sidebar {
+  position: sticky;
+  top: 10px;
+  align-self: start;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+.sidebar-title {
+  margin: 4px 0 10px;
+  font-size: 1.05rem;
+  text-align: left;
+  color: var(--color-text);
+}
+.sidebar-section { margin-top: 12px; }
+.sidebar-section label {
+  display: block;
+  text-align: left;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.board-main { min-width: 0; }
+
+@media (max-width: 699px) {
+  .board-layout {
+    grid-template-columns: 1fr;
+    padding: 8px;
+  }
+  .board-sidebar { position: static; }
+}
 
 /* Logo en el header */
 header .logo {
