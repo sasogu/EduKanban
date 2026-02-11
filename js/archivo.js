@@ -379,15 +379,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const items = attachments.map(att => {
             const attId = escapeAttr(att.id || '');
             const safeName = escapeAttr(att.name || 'archivo');
-            if (isImageAttachment(att)) {
-                return `<img class="attachment-img" data-att-id="${attId}" alt="${safeName}">`;
-            }
-            if (isAudioAttachment(att)) {
-                return `<div class="attachment-audio-wrap"><audio class="attachment-audio" data-att-id="${attId}" controls preload="metadata"></audio></div>`;
-            }
-            if (isVideoAttachment(att)) {
-                return `<div class="attachment-video-wrap"><video class="attachment-video" data-att-id="${attId}" controls preload="metadata"></video></div>`;
-            }
             const extra = isPdfAttachment(att) ? ` <a class="attachment-dl" data-att-id="${attId}" href="#" title="Descargar">⬇️</a>` : '';
             return `<span class="attachment-wrap"><a class="attachment-file" data-att-id="${attId}" href="#" title="${safeName}">📎 ${safeName}</a>${extra}</span>`;
         });
@@ -400,84 +391,13 @@ document.addEventListener('DOMContentLoaded', function() {
         for (const att of attachments) {
             const selectorId = att.id ? att.id.replace(/"/g, '\\"') : '';
             const idSel = `[data-att-id="${selectorId}"]`;
-            const imgEl = taskEl.querySelector(`img.attachment-img${idSel}`);
-            const audioEl = taskEl.querySelector(`audio.attachment-audio${idSel}`);
-            const videoEl = taskEl.querySelector(`video.attachment-video${idSel}`);
             const fileEl = taskEl.querySelector(`a.attachment-file${idSel}`);
             const dlEl = taskEl.querySelector(`a.attachment-dl${idSel}`);
 
-            if (!imgEl && !audioEl && !videoEl && !fileEl && !dlEl) continue;
+            if (!fileEl && !dlEl) continue;
 
             const { url, blob } = await getAttachmentUrl(att);
             const unavailableMsg = 'Adjunto no disponible';
-
-            const ensureMediaSrc = (mediaEl, type, mediaUrl, hasBlob) => {
-                if (!mediaEl || !mediaUrl) return;
-                mediaEl.pause?.();
-                if (!hasBlob) {
-                    try { mediaEl.crossOrigin = mediaEl.crossOrigin || 'anonymous'; } catch (_) {}
-                    try { mediaEl.setAttribute('crossorigin', 'anonymous'); } catch (_) {}
-                }
-                mediaEl.removeAttribute('src');
-                mediaEl.innerHTML = '';
-                if (att && att.type) {
-                    try {
-                        const srcEl = document.createElement('source');
-                        srcEl.src = mediaUrl;
-                        srcEl.type = att.type;
-                        if (!hasBlob) srcEl.setAttribute('crossorigin', 'anonymous');
-                        mediaEl.appendChild(srcEl);
-                    } catch (_) {}
-                    mediaEl.setAttribute('data-mime', att.type);
-                }
-                mediaEl.src = mediaUrl;
-                mediaEl.controls = true;
-                mediaEl.preload = 'metadata';
-                mediaEl.style.display = 'block';
-                try { mediaEl.load(); } catch (_) {}
-                if (!mediaEl.dataset.errBound) {
-                    mediaEl.addEventListener('error', () => {
-                        console.warn('Archivo media load error', att && att.id, mediaEl.error);
-                    }, { once: true });
-                    mediaEl.dataset.errBound = '1';
-                }
-            };
-
-            if (imgEl) {
-                if (url) {
-                    imgEl.src = url;
-                    imgEl.style.cursor = 'zoom-in';
-                    if (!imgEl.dataset.bound) {
-                        imgEl.addEventListener('click', () => window.open(url, '_blank'));
-                        imgEl.dataset.bound = '1';
-                    }
-                } else {
-                    const span = document.createElement('span');
-                    span.textContent = unavailableMsg;
-                    imgEl.replaceWith(span);
-                }
-            }
-
-            if (audioEl) {
-                if (url) {
-                    ensureMediaSrc(audioEl, 'audio', url, !!blob);
-                } else {
-                    const span = document.createElement('span');
-                    span.textContent = 'Audio no disponible';
-                    if (audioEl.parentElement) audioEl.parentElement.replaceWith(span);
-                }
-            }
-
-            if (videoEl) {
-                if (url) {
-                    ensureMediaSrc(videoEl, 'video', url, !!blob);
-                    try { videoEl.setAttribute('playsinline', ''); } catch (_) {}
-                } else {
-                    const span = document.createElement('span');
-                    span.textContent = 'Vídeo no disponible';
-                    if (videoEl.parentElement) videoEl.parentElement.replaceWith(span);
-                }
-            }
 
             if (fileEl) {
                 if (url) {
