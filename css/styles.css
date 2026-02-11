@@ -23,6 +23,34 @@ body {
 html, body { background: var(--color-bg); color: var(--color-text); }
 body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 
+/* Filtro por etiqueta (multi-select)
+   - En escritorio mostramos varias filas para que se vean muchas etiquetas.
+   - En móvil evitamos un control enorme: dejamos pocas filas (sigue siendo multiselección). */
+#filter-tag {
+  min-width: 240px;
+  max-width: 420px;
+  height: auto;
+}
+
+#filter-tag[multiple] { 
+  min-height: 10.5em; /* ~8-10 filas dependiendo del line-height del navegador */
+}
+
+.filter-help {
+  display: inline-block;
+  margin-left: 8px;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 699px) {
+  #filter-tag[multiple] {
+    min-height: 6.5em; /* ~5-6 filas en móvil para no “comerse” la pantalla */
+    max-width: calc(100% - 24px);
+  }
+  .filter-help { display: block; margin: 6px 12px 0 12px; }
+}
+
 header {
     background: var(--color-surface); /* fondo claro */
     color: var(--color-text); /* texto oscuro para contraste */
