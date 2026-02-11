@@ -43,11 +43,16 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
   font-size: 0.9rem;
 }
 
+.filter-mode-label { display: inline-block; color: var(--color-muted); font-size: 0.95rem; }
+.filter-mode-select { min-width: 170px; }
+
 @media (max-width: 699px) {
   #filter-tag[multiple] {
     min-height: 6.5em; /* ~5-6 filas en móvil para no “comerse” la pantalla */
     max-width: calc(100% - 24px);
   }
+  .filter-mode-label { display: block; margin: 10px 12px 4px 12px; }
+  .filter-mode-select { width: calc(100% - 24px); margin: 0 12px; }
   .filter-help { display: block; margin: 6px 12px 0 12px; }
 }
 

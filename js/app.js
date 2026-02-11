@@ -32,6 +32,7 @@ const LS = {
   nextcloudConfig: 'edukanban.nextcloudConfig',
   nextcloudLastSync: 'edukanban.nextcloudLastSync',
   selectedFilterTag: 'edukanban.selectedFilterTag',
+    tagFilterMode: 'edukanban.tagFilterMode', // 'or' | 'and'
   searchQuery: 'edukanban.searchQuery',
   visibleColumn: 'edukanban.visibleColumn', // compat: antes guardaba un string; ahora guarda JSON array
   notificationsEnabled: 'edukanban.notificationsEnabled',
@@ -2063,6 +2064,7 @@ function taskMatchesSearch(task, searchNorm) {
 function renderTasks() {
     const taskContainer = document.getElementById('task-container');
     const filterTagSelect = document.getElementById('filter-tag');
+    const filterTagModeSelect = document.getElementById('filter-tag-mode');
     const filterSearchInput = document.getElementById('filter-search');
     const filterColumnSelect = document.getElementById('filter-column');
     const filterColumnGroup = document.getElementById('filter-column-group');
@@ -2093,6 +2095,19 @@ function renderTasks() {
         }
     } else {
         filterTags = __readSelectedFilterTagsFromStorage();
+    }
+
+    // Modo de filtrado por etiquetas: OR (cualquiera) / AND (todas)
+    let tagFilterMode = 'or';
+    try {
+        const v = (filterTagModeSelect && filterTagModeSelect.value) ? filterTagModeSelect.value : (localStorage.getItem(LS.tagFilterMode) || 'or');
+        tagFilterMode = (v === 'and') ? 'and' : 'or';
+    } catch (_) {
+        tagFilterMode = 'or';
+    }
+    // Rehidratar UI si hace falta
+    if (filterTagModeSelect && filterTagModeSelect.value !== tagFilterMode) {
+        try { filterTagModeSelect.value = tagFilterMode; } catch (_) {}
     }
     let searchQuery = '';
     if (filterSearchInput) {
@@ -2191,10 +2206,17 @@ function renderTasks() {
         const categoryDiv = document.createElement('div');
         categoryDiv.className = 'category';
 
-        // Filtrar tareas por etiquetas seleccionadas (OR)
-        let filteredTasks = (filterTags && filterTags.length)
-            ? tasks.filter(task => Array.isArray(task.tags) && filterTags.some(t => task.tags.includes(t)))
-            : tasks;
+        // Filtrar tareas por etiquetas seleccionadas
+        // - OR: la tarea debe tener cualquiera
+        // - AND: la tarea debe tener todas
+        let filteredTasks = tasks;
+        if (filterTags && filterTags.length) {
+            if (tagFilterMode === 'and') {
+                filteredTasks = tasks.filter(task => Array.isArray(task.tags) && filterTags.every(t => task.tags.includes(t)));
+            } else {
+                filteredTasks = tasks.filter(task => Array.isArray(task.tags) && filterTags.some(t => task.tags.includes(t)));
+            }
+        }
         if (searchNorm) {
             filteredTasks = filteredTasks.filter(task => taskMatchesSearch(task, searchNorm));
         }
@@ -4146,6 +4168,12 @@ document.addEventListener('DOMContentLoaded', function() {
             if (values.length) localStorage.setItem(LS.selectedFilterTag, JSON.stringify(values));
             else localStorage.removeItem(LS.selectedFilterTag);
         } catch (_) {}
+        renderTasks();
+    });
+
+    document.getElementById('filter-tag-mode')?.addEventListener('change', (e) => {
+        const mode = (e.currentTarget && e.currentTarget.value === 'and') ? 'and' : 'or';
+        try { localStorage.setItem(LS.tagFilterMode, mode); } catch (_) {}
         renderTasks();
     });
     document.getElementById('filter-search')?.addEventListener('input', (e) => {
