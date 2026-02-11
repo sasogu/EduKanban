@@ -29,8 +29,17 @@
         </nav>
     </header>
     <main class="board-layout">
-        <aside class="board-sidebar" aria-label="Filtros">
-            <h3 class="sidebar-title">Filtros</h3>
+        <aside class="board-sidebar" aria-label="Filtros" id="board-sidebar">
+            <div class="sidebar-header">
+                <h3 class="sidebar-title">Filtros</h3>
+                <button id="sidebar-toggle" type="button" class="boton-accion sidebar-toggle" aria-expanded="true" aria-controls="board-sidebar">⟨⟩</button>
+            </div>
+
+            <div class="sidebar-iconbar" aria-label="Accesos rápidos" role="toolbar">
+                <button id="sidebar-open-tags" type="button" class="sidebar-icon" title="Etiquetas" aria-label="Etiquetas">🏷️</button>
+                <button id="sidebar-open-search" type="button" class="sidebar-icon" title="Buscar" aria-label="Buscar">🔎</button>
+                <button id="sidebar-open-columns" type="button" class="sidebar-icon" title="Columnas" aria-label="Columnas">🧱</button>
+            </div>
 
             <section class="sidebar-section">
                 <label id="filter-tag-label" for="filter-tag-search">Etiquetas</label>

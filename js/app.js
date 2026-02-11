@@ -33,6 +33,7 @@ const LS = {
   nextcloudLastSync: 'edukanban.nextcloudLastSync',
   selectedFilterTag: 'edukanban.selectedFilterTag',
     tagFilterMode: 'edukanban.tagFilterMode', // 'or' | 'and'
+        sidebarCollapsed: 'edukanban.sidebarCollapsed',
   searchQuery: 'edukanban.searchQuery',
   visibleColumn: 'edukanban.visibleColumn', // compat: antes guardaba un string; ahora guarda JSON array
   notificationsEnabled: 'edukanban.notificationsEnabled',
@@ -4245,6 +4246,71 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Iniciar el flujo de autenticación de Dropbox
     handleAuthCallback();
+
+    // Sidebar colapsable (solo tablero)
+    try {
+        const layout = document.querySelector('main.board-layout');
+        const toggleBtn = document.getElementById('sidebar-toggle');
+        if (layout && toggleBtn) {
+            const applyCollapsed = (collapsed) => {
+                const isCollapsed = !!collapsed;
+                layout.classList.toggle('sidebar-collapsed', isCollapsed);
+                toggleBtn.setAttribute('aria-expanded', String(!isCollapsed));
+                toggleBtn.title = isCollapsed ? 'Expandir filtros' : 'Colapsar filtros';
+                toggleBtn.textContent = isCollapsed ? '⟩' : '⟨⟩';
+            };
+            let startCollapsed = false;
+            try { startCollapsed = (localStorage.getItem(LS.sidebarCollapsed) === '1'); } catch (_) {}
+            // En móvil no colapsamos
+            const isMobile = window.matchMedia && window.matchMedia('(max-width: 699px)').matches;
+            applyCollapsed(startCollapsed && !isMobile);
+
+            toggleBtn.addEventListener('click', () => {
+                const currently = layout.classList.contains('sidebar-collapsed');
+                const next = !currently;
+                applyCollapsed(next);
+                try { localStorage.setItem(LS.sidebarCollapsed, next ? '1' : '0'); } catch (_) {}
+            });
+
+            const expandAndFocus = (target) => {
+                // Expandir si está colapsada
+                if (layout.classList.contains('sidebar-collapsed')) {
+                    applyCollapsed(false);
+                    try { localStorage.setItem(LS.sidebarCollapsed, '0'); } catch (_) {}
+                }
+                // Abrir details de etiquetas si toca y enfocar
+                if (target === 'tags') {
+                    const det = document.getElementById('tag-filter');
+                    if (det) det.open = true;
+                    const inp = document.getElementById('filter-tag-search');
+                    if (inp) inp.focus();
+                } else if (target === 'search') {
+                    const s = document.getElementById('filter-search');
+                    if (s) s.focus();
+                } else if (target === 'columns') {
+                    const group = document.getElementById('filter-column-group');
+                    const first = group ? group.querySelector('input[type="checkbox"]') : null;
+                    if (first) first.focus();
+                }
+            };
+
+            document.getElementById('sidebar-open-tags')?.addEventListener('click', () => expandAndFocus('tags'));
+            document.getElementById('sidebar-open-search')?.addEventListener('click', () => expandAndFocus('search'));
+            document.getElementById('sidebar-open-columns')?.addEventListener('click', () => expandAndFocus('columns'));
+
+            // Si cambias tamaño a móvil/escritorio, re-aplicar regla
+            if (window.matchMedia) {
+                const mq = window.matchMedia('(max-width: 699px)');
+                if (mq && mq.addEventListener) {
+                    mq.addEventListener('change', () => {
+                        let desired = false;
+                        try { desired = (localStorage.getItem(LS.sidebarCollapsed) === '1'); } catch (_) {}
+                        applyCollapsed(desired && !mq.matches);
+                    });
+                }
+            }
+        }
+    } catch (_) {}
 
     // Cerrar lightbox al hacer click fuera o con Escape
     const lb = document.getElementById('image-lightbox');
