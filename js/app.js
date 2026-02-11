@@ -981,13 +981,49 @@ async function removeTask(taskId) {
 }
 
 // --- HISTÓRICO POR ETIQUETA (doneHistory) ---
-function __getActiveFilterTag() {
+function __readSelectedFilterTagsFromSelect(el) {
     try {
-        const el = document.getElementById('filter-tag');
-        const v = el ? (el.value || '') : '';
-        if (v) return v;
-    } catch (_) {}
-    try { return localStorage.getItem(LS.selectedFilterTag) || ''; } catch (_) { return ''; }
+        if (!el) return [];
+        // multiple select
+        if (el.multiple) {
+            const values = Array.from(el.selectedOptions || []).map(o => o.value).filter(v => v);
+            return Array.from(new Set(values));
+        }
+        // single select (fallback)
+        const v = el.value || '';
+        return v ? [v] : [];
+    } catch (_) {
+        return [];
+    }
+}
+
+function __readSelectedFilterTagsFromStorage() {
+    try {
+        const raw = localStorage.getItem(LS.selectedFilterTag);
+        if (!raw) return [];
+        // Nuevo: JSON array
+        if (raw.trim().startsWith('[')) {
+            const arr = JSON.parse(raw);
+            if (Array.isArray(arr)) return arr.map(String).map(s => s.trim()).filter(Boolean);
+        }
+        // Antiguo: string
+        return [String(raw).trim()].filter(Boolean);
+    } catch (_) {
+        return [];
+    }
+}
+
+function __getActiveFilterTag() {
+    // Compatibilidad: devolver 1 etiqueta (la primera seleccionada)
+    const tags = __getActiveFilterTags();
+    return tags[0] || '';
+}
+
+function __getActiveFilterTags() {
+    const el = document.getElementById('filter-tag');
+    const fromSelect = __readSelectedFilterTagsFromSelect(el);
+    if (fromSelect.length) return fromSelect;
+    return __readSelectedFilterTagsFromStorage();
 }
 
 function __extractDoneTs(entry) {
@@ -1008,30 +1044,34 @@ function __extractDoneTag(entry) {
     } catch (_) { return null; }
 }
 
-function __getDoneEvents(task, filterTag = '') {
+function __getDoneEvents(task, filterTags = []) {
     const raw = Array.isArray(task && task.doneHistory) ? task.doneHistory : [];
     const events = [];
+    const tags = Array.isArray(filterTags) ? filterTags.filter(Boolean) : [];
     for (const h of raw) {
         const ts = __extractDoneTs(h);
         if (!ts) continue;
         const time = new Date(ts).getTime();
         if (!isFinite(time)) continue;
         const tag = __extractDoneTag(h); // string | null
-        if (!filterTag) {
+        if (!tags.length) {
             events.push({ ts, time, tag });
             continue;
         }
-        // Si hay filtro:
-        // - entradas nuevas: solo cuentan si su tag coincide con el filtro
-        // - entradas legacy (sin tag): se comportan como antes (cuentan para cualquier etiqueta de la tarea)
-        if (tag === filterTag) events.push({ ts, time, tag });
-        else if (tag == null && Array.isArray(task.tags) && task.tags.includes(filterTag)) events.push({ ts, time, tag });
+        // Si hay filtros:
+        // - entradas nuevas: cuentan si su tag coincide con CUALQUIERA de las etiquetas seleccionadas
+        // - entradas legacy (sin tag): cuentan si la tarea contiene CUALQUIERA de las etiquetas seleccionadas
+        if (tag && tags.includes(tag)) {
+            events.push({ ts, time, tag });
+        } else if (tag == null && Array.isArray(task.tags) && tags.some(t => task.tags.includes(t))) {
+            events.push({ ts, time, tag });
+        }
     }
     return events;
 }
 
-function __getDoneCountAndLastIso(task, filterTag = '') {
-    const events = __getDoneEvents(task, filterTag);
+function __getDoneCountAndLastIso(task, filterTags = []) {
+    const events = __getDoneEvents(task, filterTags);
     if (!events.length) return { count: 0, lastIso: '' };
     let max = events[0];
     for (let i = 1; i < events.length; i++) if (events[i].time > max.time) max = events[i];
@@ -2036,12 +2076,23 @@ function renderTasks() {
         return;
     }
     const locale = (window.i18n && i18n.getLocale) ? i18n.getLocale() : 'es-ES';
-    // Mantener filtro activo: tomar el valor actual o el guardado en localStorage
-    let filterTag = '';
+    // Mantener filtro activo: ahora soporta múltiple selección (array en LS, fallback a string)
+    let filterTags = [];
     if (filterTagSelect) {
-        filterTag = filterTagSelect.value || localStorage.getItem(LS.selectedFilterTag) || '';
+        filterTags = __readSelectedFilterTagsFromSelect(filterTagSelect);
+        if (!filterTags.length) filterTags = __readSelectedFilterTagsFromStorage();
+        // Si el select no tiene selección inicial pero LS sí, sincronizar UI
+        if (filterTagSelect.multiple && filterTags.length && (!filterTagSelect.selectedOptions || !filterTagSelect.selectedOptions.length)) {
+            try {
+                Array.from(filterTagSelect.options || []).forEach(opt => {
+                    opt.selected = filterTags.includes(opt.value);
+                });
+            } catch (_) {}
+        } else if (!filterTagSelect.multiple && filterTags.length && !filterTagSelect.value) {
+            try { filterTagSelect.value = filterTags[0] || ''; } catch (_) {}
+        }
     } else {
-        filterTag = localStorage.getItem(LS.selectedFilterTag) || '';
+        filterTags = __readSelectedFilterTagsFromStorage();
     }
     let searchQuery = '';
     if (filterSearchInput) {
@@ -2140,9 +2191,9 @@ function renderTasks() {
         const categoryDiv = document.createElement('div');
         categoryDiv.className = 'category';
 
-        // Filtrar tareas por etiqueta seleccionada
-        let filteredTasks = filterTag
-            ? tasks.filter(task => task.tags && task.tags.includes(filterTag))
+        // Filtrar tareas por etiquetas seleccionadas (OR)
+        let filteredTasks = (filterTags && filterTags.length)
+            ? tasks.filter(task => Array.isArray(task.tags) && filterTags.some(t => task.tags.includes(t)))
             : tasks;
         if (searchNorm) {
             filteredTasks = filteredTasks.filter(task => taskMatchesSearch(task, searchNorm));
@@ -2150,7 +2201,7 @@ function renderTasks() {
         filteredTasks = filteredTasks.slice().sort(cmpTasks);
 
         let tasksHTML = filteredTasks.map(task => {
-            const { count: doneCount, lastIso } = __getDoneCountAndLastIso(task, filterTag);
+            const { count: doneCount, lastIso } = __getDoneCountAndLastIso(task, filterTags);
             const lastDone = doneCount && lastIso ? new Date(lastIso).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' }) : '';
             const doneMeta = doneCount ? `<small class="done-meta">✔️ ${doneCount} ${(window.i18n&&i18n.t)?i18n.t('times'):'veces'}${lastDone ? ` • ${(window.i18n&&i18n.t)?i18n.t('last'):'Última'}: ${lastDone}` : ''}</small>` : '';
             const tagsHtml = (task.tags && task.tags.length)
@@ -3848,10 +3899,14 @@ document.addEventListener('DOMContentLoaded', function() {
         const tagsInput = document.getElementById('popup-task-tags');
         const filterTagSelect = document.getElementById('filter-tag');
         let activeFilterTag = '';
-        if (filterTagSelect && filterTagSelect.value) {
-            activeFilterTag = filterTagSelect.value;
-        } else {
-            try { activeFilterTag = localStorage.getItem(LS.selectedFilterTag) || ''; } catch (_) {}
+        if (filterTagSelect) {
+            const selected = __readSelectedFilterTagsFromSelect(filterTagSelect);
+            activeFilterTag = selected[0] || '';
+        }
+        if (!activeFilterTag) {
+            // LS puede ser JSON array o string legacy
+            const selected = __readSelectedFilterTagsFromStorage();
+            activeFilterTag = selected[0] || '';
         }
         if (tagsInput && activeFilterTag) {
             const current = parseTagsInputValue(tagsInput.value);
@@ -4057,7 +4112,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     document.getElementById('filter-tag')?.addEventListener('change', (e) => {
-        try { localStorage.setItem(LS.selectedFilterTag, e.target.value || ''); } catch (_) {}
+        const el = e.currentTarget;
+        const values = __readSelectedFilterTagsFromSelect(el);
+        try {
+            // Guardamos array en JSON; si está vacío, limpiamos para mantener comportamiento "sin filtro"
+            if (values.length) localStorage.setItem(LS.selectedFilterTag, JSON.stringify(values));
+            else localStorage.removeItem(LS.selectedFilterTag);
+        } catch (_) {}
         renderTasks();
     });
     document.getElementById('filter-search')?.addEventListener('input', (e) => {
