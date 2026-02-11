@@ -2323,7 +2323,7 @@ function renderTasks() {
     }
 
     // Actualiza filtros (conservando selección) y autocompletado en cada render
-    updateTagFilterDropdown(filterTag);
+    updateTagFilterDropdown((filterTags && filterTags.length) ? filterTags[0] : '');
     updateColumnFilterDropdown(filterColumns, catNames);
     refreshCategorySelectOptions(catNames);
     updateTagDatalist();
@@ -2807,19 +2807,46 @@ function updateTagFilterDropdown(currentValue = '') {
     if (!filterTagSelect) return;
     const tags = getAllTags();
 
-    // Construir opciones con "Mostrar todo" al principio
-    const showAll = (window.i18n && i18n.t) ? i18n.t('show_all') : 'Mostrar todo';
-    let optionsHtml = `<option value="">${showAll}</option>`;
+    // Selección previa: ahora soporta array (multi) en LS, fallback a string legacy.
+    let selected = [];
+    try {
+        if (filterTagSelect.multiple) {
+            selected = __readSelectedFilterTagsFromSelect(filterTagSelect);
+            if (!selected.length) selected = __readSelectedFilterTagsFromStorage();
+        } else {
+            const v = currentValue || filterTagSelect.value || '';
+            if (v) selected = [v];
+            else selected = __readSelectedFilterTagsFromStorage();
+        }
+    } catch (_) {}
 
-    // Si hay un valor actual que ya no existe en las etiquetas, añadirlo para conservar selección
-    const hasCurrent = currentValue && tags.includes(currentValue);
-    const renderedTags = hasCurrent ? tags : [currentValue, ...tags].filter((v, i, a) => v && a.indexOf(v) === i);
+    // Construir opciones. En multi-select NO ponemos la opción "Mostrar todo" porque estorba (y llevaría a confusión).
+    const showAll = (window.i18n && i18n.t) ? i18n.t('show_all') : 'Mostrar todo';
+    let optionsHtml = '';
+    if (!filterTagSelect.multiple) {
+        optionsHtml += `<option value="">${showAll}</option>`;
+    }
+
+    // Conservar selección aunque ya no exista como etiqueta (p.ej. datos antiguos)
+    const extraSelected = (Array.isArray(selected) ? selected : [])
+        .map(s => String(s || '').trim())
+        .filter(Boolean)
+        .filter(s => !tags.includes(s));
+    const renderedTags = [...extraSelected, ...tags];
 
     optionsHtml += renderedTags.map(tag => `<option value="${tag}">${tag}</option>`).join('');
-
     filterTagSelect.innerHTML = optionsHtml;
-    // Restaurar selección previa
-    filterTagSelect.value = currentValue || '';
+
+    // Restaurar selección
+    if (filterTagSelect.multiple) {
+        try {
+            Array.from(filterTagSelect.options || []).forEach(opt => {
+                opt.selected = selected.includes(opt.value);
+            });
+        } catch (_) {}
+    } else {
+        filterTagSelect.value = (selected[0] || currentValue || '');
+    }
 }
 
 // Filtro de columnas: mostrar solo una o todas
