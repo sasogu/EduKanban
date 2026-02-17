@@ -819,7 +819,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         const items = [];
         for (const [cat, list] of Object.entries(allCategories)) {
-            if (cat === 'archivadas') continue;
             if (!Array.isArray(list)) continue;
             for (const t of list) {
                 items.push({ task: t, category: cat });
