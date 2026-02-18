@@ -749,6 +749,32 @@ document.addEventListener('DOMContentLoaded', function() {
         filterTagSelect.value = currentValue || '';
     }
 
+    function buildOrderOptions(selected) {
+        const opts = [''].concat(Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i)));
+        const selUp = (selected || '').toUpperCase();
+        return opts.map(code => {
+            const label = code || '—';
+            const sel = (selUp === code) ? ' selected' : '';
+            return `<option value="${code}"${sel}>${label}</option>`;
+        }).join('');
+    }
+
+    function compareTasksByOrder(a, b) {
+        const A = (a.orderCode || '').toUpperCase();
+        const B = (b.orderCode || '').toUpperCase();
+        const aHas = A.length > 0;
+        const bHas = B.length > 0;
+        if (aHas && !bHas) return -1;
+        if (!aHas && bHas) return 1;
+        if (aHas && bHas) {
+            if (A < B) return -1;
+            if (A > B) return 1;
+        }
+        const ta = new Date(a.sortModifiedAt || a.lastModified || 0).getTime();
+        const tb = new Date(b.sortModifiedAt || b.lastModified || 0).getTime();
+        return tb - ta;
+    }
+
     function findTaskInCategories(allCategories, taskId) {
         for (const category of Object.keys(allCategories)) {
             const list = allCategories[category];
@@ -763,6 +789,26 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function saveAllCategories(allCategories) {
         try { localStorage.setItem(LS.categories, JSON.stringify(allCategories)); } catch (_) {}
+    }
+
+    function setResourceTaskOrder(taskId, code) {
+        const raw = JSON.parse(localStorage.getItem(LS.categories) || '{}');
+        const allCategories = migrateObj(raw);
+        const data = findTaskInCategories(allCategories, taskId);
+        if (!data || !data.task) return;
+        const normalized = String(code || '').trim().toUpperCase();
+        data.task.orderCode = /^[A-Z]$/.test(normalized) ? normalized : '';
+        const now = new Date().toISOString();
+        data.task.lastModified = now;
+        data.task.sortModifiedAt = now;
+        saveAllCategories(allCategories);
+        renderResources();
+        if (typeof window.syncToDropbox === 'function') {
+            try { window.syncToDropbox(false); } catch (_) {}
+        }
+        if (typeof window.syncToNextcloud === 'function') {
+            try { window.syncToNextcloud(false); } catch (_) {}
+        }
     }
 
     function removeTaskFromResources(taskId) {
@@ -824,11 +870,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 items.push({ task: t, category: cat });
             }
         }
-        items.sort((a, b) => {
-            const aTime = new Date(a.task.sortModifiedAt || a.task.lastModified || 0).getTime();
-            const bTime = new Date(b.task.sortModifiedAt || b.task.lastModified || 0).getTime();
-            return bTime - aTime;
-        });
+        items.sort((a, b) => compareTasksByOrder(a.task, b.task));
 
         let filteredItems = items;
         if (selectedTags.length) {
@@ -875,6 +917,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     </span>
                 </div>
                 <div class="task-actions resource-actions">
+                    <select class="order-select resource-order" data-task-id="${task.id}" aria-label="Orden (A–Z)" title="Orden (A–Z)">
+                        ${buildOrderOptions(task.orderCode)}
+                    </select>
                     <button type="button" class="edit-btn resource-edit" data-task-id="${task.id}" title="${editTxt}" aria-label="${editTxt}">✏️ <span class="btn-label">${editTxt}</span></button>
                     <button type="button" class="delete-btn resource-delete" data-task-id="${task.id}" title="${deleteTxt}" aria-label="${deleteTxt}">🗑️ <span class="btn-label">${deleteTxt}</span></button>
                 </div>
@@ -906,14 +951,20 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     container.addEventListener('click', (e) => {
-            const editBtn = e.target.closest('.resource-edit');
-            if (editBtn && editBtn.dataset.taskId) {
+        const editBtn = e.target.closest('.resource-edit');
+        if (editBtn && editBtn.dataset.taskId) {
             openResourcesEditModal(editBtn.dataset.taskId);
             return;
         }
         const deleteBtn = e.target.closest('.resource-delete');
         if (deleteBtn && deleteBtn.dataset.taskId) {
             removeTaskFromResources(deleteBtn.dataset.taskId);
+        }
+    });
+    container.addEventListener('change', (e) => {
+        const orderSelect = e.target.closest('.resource-order');
+        if (orderSelect && orderSelect.dataset.taskId) {
+            setResourceTaskOrder(orderSelect.dataset.taskId, orderSelect.value);
         }
     });
 
