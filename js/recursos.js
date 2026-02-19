@@ -792,6 +792,16 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function setResourceTaskOrder(taskId, code) {
+        // Si la función global del tablero está disponible, reutilizarla para
+        // mantener sincronizado el estado en memoria de app.js y localStorage.
+        if (typeof window.setTaskOrder === 'function') {
+            try {
+                window.setTaskOrder(taskId, code);
+                renderResources();
+                return;
+            } catch (_) {}
+        }
+
         const raw = JSON.parse(localStorage.getItem(LS.categories) || '{}');
         const allCategories = migrateObj(raw);
         const data = findTaskInCategories(allCategories, taskId);

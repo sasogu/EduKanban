@@ -12,6 +12,11 @@
     <header>
         <div class="header-top">
             <img src="icons/logolargo.png" alt="EduKanban" class="logo"/>
+            <div class="acciones">
+                <button id="abrir-popup-tarea" type="button" class="boton-accion boton-primario">➕ Nueva Actividad</button>
+                <button id="open-admin" type="button" class="boton-accion" aria-haspopup="dialog" aria-controls="admin-modal">⚙️ Administración</button>
+                <button id="media-pitch-toggle" type="button" class="boton-accion" aria-pressed="false">🎼 Mantener tono: No</button>
+            </div>
         </div>
         <nav class="main-nav" role="tablist">
             <a href="index.html" class="tab" role="tab" aria-selected="false">Tablero</a>
@@ -134,6 +139,129 @@
                     <button type="button" id="confirm-cancel">Cancelar</button>
                 </div>
             </div>
+        </div>
+
+        <div id="admin-modal" class="modal">
+            <div class="modal-content">
+                <h2>Administración</h2>
+                <div class="grupo-botones" id="lang-group">
+                    <h3>Idioma</h3>
+                    <select id="lang-select">
+                        <option value="es">Español</option>
+                        <option value="val">Valencià</option>
+                    </select>
+                </div>
+                <div class="grupo-botones" id="category-names-group">
+                    <h3>Nombres de columnas</h3>
+                    <label for="category-name-en-preparacion">En preparación</label>
+                    <input type="text" id="category-name-en-preparacion" data-category-key="en-preparacion" maxlength="80" />
+                    <label for="category-name-preparadas">Preparadas</label>
+                    <input type="text" id="category-name-preparadas" data-category-key="preparadas" maxlength="80" />
+                    <label for="category-name-en-proceso">En proceso</label>
+                    <input type="text" id="category-name-en-proceso" data-category-key="en-proceso" maxlength="80" />
+                    <label for="category-name-pendientes">Pendientes</label>
+                    <input type="text" id="category-name-pendientes" data-category-key="pendientes" maxlength="80" />
+                    <button type="button" id="category-names-reset" class="boton-accion">Restaurar nombres por defecto</button>
+                </div>
+                <div class="grupo-botones" id="sync-group-modal">
+                    <h3>Sincronización</h3>
+                    <div class="sync-provider" id="dropbox-sync-section">
+                        <h4>Dropbox</h4>
+                        <p class="sync-helper">Sincroniza automáticamente tus datos mediante OAuth.</p>
+                        <button id="dropbox-login" type="button" class="boton-accion">Conectar con Dropbox</button>
+                        <button id="dropbox-sync" type="button" class="boton-accion" style="display:none;">Sincronizar</button>
+                    </div>
+                    <div class="sync-provider" id="nextcloud-sync-section">
+                        <h4>Nextcloud (WebDAV)</h4>
+                        <p class="sync-helper">Introduce la URL de tu servidor, usuario y contraseña o token de aplicación.</p>
+                        <label for="nextcloud-url">URL de Nextcloud</label>
+                        <input id="nextcloud-url" type="url" placeholder="https://cloud.ejemplo.com" autocomplete="url">
+                        <label for="nextcloud-username">Usuario</label>
+                        <input id="nextcloud-username" type="text" placeholder="usuario" autocomplete="username">
+                        <label for="nextcloud-password">Contraseña o token de aplicación</label>
+                        <input id="nextcloud-password" type="password" placeholder="••••••" autocomplete="current-password">
+                        <label for="nextcloud-folder">Carpeta (opcional)</label>
+                        <input id="nextcloud-folder" type="text" placeholder="/Apps/EduKanban">
+                        <div class="sync-actions">
+                            <button id="nextcloud-save" type="button" class="boton-accion">Guardar ajustes</button>
+                            <button id="nextcloud-sync" type="button" class="boton-accion" style="display:none;">Sincronizar</button>
+                            <button id="nextcloud-disconnect" type="button" class="boton-accion boton-peligro" style="display:none;">Desconectar</button>
+                        </div>
+                        <div id="nextcloud-status" class="sync-status" role="status" aria-live="polite"></div>
+                    </div>
+                </div>
+                <div class="grupo-botones" id="backup-group">
+                    <h3>Copia de seguridad</h3>
+                    <button id="backup-export" type="button" class="boton-accion">📤 Exportar copia</button>
+                    <button id="backup-import" type="button" class="boton-accion">📥 Importar copia</button>
+                    <input id="backup-file-input" type="file" accept="application/json" style="display:none" />
+                </div>
+                <div class="grupo-botones" id="shortcuts-group">
+                    <h3>Atajos de teclado</h3>
+                    <button id="abrir-atajos" type="button" class="boton-accion" aria-haspopup="dialog" aria-controls="atajos-modal">⌨️ Ver atajos</button>
+                </div>
+                <div class="acciones-popup">
+                    <button type="button" id="admin-close">Guardar</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="atajos-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="atajos-titulo">
+            <div class="modal-content atajos-modal-content">
+                <h2 id="atajos-titulo">Atajos de teclado</h2>
+                <p>Puedes consultar estos atajos cuando quieras acelerar tu trabajo.</p>
+                <ul class="keyboard-shortcuts">
+                    <li>
+                        <div class="shortcut-keys">
+                            <kbd>Alt</kbd>
+                            <span class="shortcut-plus">+</span>
+                            <kbd>N</kbd>
+                        </div>
+                        <p class="shortcut-desc">Abrir el formulario para crear una nueva actividad.</p>
+                    </li>
+                    <li>
+                        <div class="shortcut-keys">
+                            <kbd>Alt</kbd>
+                            <span class="shortcut-plus">+</span>
+                            <kbd>↑</kbd>
+                        </div>
+                        <p class="shortcut-desc">Subir en 0,10&times; la velocidad del último audio o vídeo activo.</p>
+                    </li>
+                    <li>
+                        <div class="shortcut-keys">
+                            <kbd>Alt</kbd>
+                            <span class="shortcut-plus">+</span>
+                            <kbd>↓</kbd>
+                        </div>
+                        <p class="shortcut-desc">Bajar en 0,10&times; la velocidad del último audio o vídeo activo.</p>
+                    </li>
+                    <li>
+                        <div class="shortcut-keys">
+                            <kbd>.</kbd>
+                        </div>
+                        <p class="shortcut-desc">Con el audio o vídeo enfocado, subir la velocidad en 0,10&times;.</p>
+                    </li>
+                    <li>
+                        <div class="shortcut-keys">
+                            <kbd>,</kbd>
+                        </div>
+                        <p class="shortcut-desc">Con el audio o vídeo enfocado, bajar la velocidad en 0,10&times;.</p>
+                    </li>
+                    <li>
+                        <div class="shortcut-keys">
+                            <kbd>Esc</kbd>
+                        </div>
+                        <p class="shortcut-desc">Cerrar modales abiertos (nueva tarea, atajos, visor de imágenes, confirmaciones).</p>
+                    </li>
+                </ul>
+                <div class="acciones-popup">
+                    <button type="button" id="atajos-cerrar" class="boton-accion">Cerrar</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="image-lightbox" class="modal image-lightbox" style="display:none">
+            <img id="image-lightbox-img" alt="preview" />
         </div>
     </main>
 
