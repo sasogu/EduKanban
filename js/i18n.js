@@ -419,7 +419,7 @@
     if (bi) bi.textContent = '📥 ' + t('import_backup');
     // Filtros
     const filterTag = document.getElementById('filter-tag');
-    if (filterTag && filterTag.options.length) {
+    if (filterTag && filterTag.tagName === 'SELECT' && filterTag.options.length) {
       // Actualización diferida: renderTasks volverá a poblar con show_all
     }
     // Popup
