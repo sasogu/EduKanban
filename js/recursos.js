@@ -394,10 +394,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 return `<img class="attachment-img" data-att-id="${attId}" alt="${safeName}">`;
             }
             if (isAudioAttachment(att)) {
-                return `<div class="attachment-audio-wrap"><audio class="attachment-audio" data-att-id="${attId}" controls preload="metadata"></audio></div>`;
+                return `<div class="attachment-audio-wrap"><audio class="attachment-audio" data-att-id="${attId}" controls preload="metadata"></audio><div class="media-controls"><span class="audio-speed"><button type="button" class="audio-speed-down" data-att-id="${attId}" title="Más lento">−</button><span class="audio-speed-label" data-att-id="${attId}">1x</span><button type="button" class="audio-speed-up" data-att-id="${attId}" title="Más rápido">+</button></span></div></div>`;
             }
             if (isVideoAttachment(att)) {
-                return `<div class="attachment-video-wrap"><video class="attachment-video" data-att-id="${attId}" controls preload="metadata"></video></div>`;
+                return `<div class="attachment-video-wrap"><video class="attachment-video" data-att-id="${attId}" controls preload="metadata"></video><div class="media-controls"><span class="video-speed"><button type="button" class="video-speed-down" data-att-id="${attId}" title="Más lento">−</button><span class="video-speed-label" data-att-id="${attId}">1x</span><button type="button" class="video-speed-up" data-att-id="${attId}" title="Más rápido">+</button></span></div></div>`;
             }
             const extra = isPdfAttachment(att) ? ` <a class="attachment-dl" data-att-id="${attId}" href="#" title="Descargar">⬇️</a>` : '';
             return `<span class="attachment-wrap"><a class="attachment-file" data-att-id="${attId}" href="#" title="${safeName}">📎 ${safeName}</a>${extra}</span>`;
@@ -472,6 +472,9 @@ document.addEventListener('DOMContentLoaded', function() {
             if (audioEl) {
                 if (url) {
                     ensureMediaSrc(audioEl, url, !!blob);
+                    if (typeof window.bindPitchPersistence === 'function') {
+                        window.bindPitchPersistence(audioEl);
+                    }
                 } else {
                     const span = document.createElement('span');
                     span.textContent = 'Audio no disponible';
@@ -483,11 +486,82 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (url) {
                     ensureMediaSrc(videoEl, url, !!blob);
                     try { videoEl.setAttribute('playsinline', ''); } catch (_) {}
+                    if (typeof window.bindPitchPersistence === 'function') {
+                        window.bindPitchPersistence(videoEl);
+                    }
                 } else {
                     const span = document.createElement('span');
                     span.textContent = 'Vídeo no disponible';
                     if (videoEl.parentElement) videoEl.parentElement.replaceWith(span);
                 }
+            }
+
+            const speedDownBtn = taskEl.querySelector(`button.audio-speed-down${idSel}`);
+            const speedUpBtn = taskEl.querySelector(`button.audio-speed-up${idSel}`);
+            const speedLabel = taskEl.querySelector(`span.audio-speed-label${idSel}`);
+            const updateSpeedLabel = () => {
+                try {
+                    if (audioEl && speedLabel) {
+                        speedLabel.textContent = `${(audioEl.playbackRate || 1).toFixed(2).replace(/\.00$/, '').replace(/0$/, '')}x`;
+                    }
+                } catch (_) {}
+            };
+            if (audioEl) {
+                updateSpeedLabel();
+                if (!audioEl.dataset.speedLabelBound) {
+                    audioEl.addEventListener('ratechange', updateSpeedLabel);
+                    audioEl.dataset.speedLabelBound = '1';
+                }
+            }
+            if (speedDownBtn && !speedDownBtn.dataset.bound) {
+                speedDownBtn.addEventListener('click', () => {
+                    if (!audioEl || typeof window.adjustMediaPlaybackRate !== 'function') return;
+                    const step = Number(window.MEDIA_RATE_STEP) || 0.05;
+                    window.adjustMediaPlaybackRate(audioEl, -step, updateSpeedLabel);
+                });
+                speedDownBtn.dataset.bound = '1';
+            }
+            if (speedUpBtn && !speedUpBtn.dataset.bound) {
+                speedUpBtn.addEventListener('click', () => {
+                    if (!audioEl || typeof window.adjustMediaPlaybackRate !== 'function') return;
+                    const step = Number(window.MEDIA_RATE_STEP) || 0.05;
+                    window.adjustMediaPlaybackRate(audioEl, step, updateSpeedLabel);
+                });
+                speedUpBtn.dataset.bound = '1';
+            }
+
+            const vSpeedDownBtn = taskEl.querySelector(`button.video-speed-down${idSel}`);
+            const vSpeedUpBtn = taskEl.querySelector(`button.video-speed-up${idSel}`);
+            const vSpeedLabel = taskEl.querySelector(`span.video-speed-label${idSel}`);
+            const updateVideoSpeedLabel = () => {
+                try {
+                    if (videoEl && vSpeedLabel) {
+                        vSpeedLabel.textContent = `${(videoEl.playbackRate || 1).toFixed(2).replace(/\.00$/, '').replace(/0$/, '')}x`;
+                    }
+                } catch (_) {}
+            };
+            if (videoEl) {
+                updateVideoSpeedLabel();
+                if (!videoEl.dataset.speedLabelBound) {
+                    videoEl.addEventListener('ratechange', updateVideoSpeedLabel);
+                    videoEl.dataset.speedLabelBound = '1';
+                }
+            }
+            if (vSpeedDownBtn && !vSpeedDownBtn.dataset.bound) {
+                vSpeedDownBtn.addEventListener('click', () => {
+                    if (!videoEl || typeof window.adjustMediaPlaybackRate !== 'function') return;
+                    const step = Number(window.MEDIA_RATE_STEP) || 0.05;
+                    window.adjustMediaPlaybackRate(videoEl, -step, updateVideoSpeedLabel);
+                });
+                vSpeedDownBtn.dataset.bound = '1';
+            }
+            if (vSpeedUpBtn && !vSpeedUpBtn.dataset.bound) {
+                vSpeedUpBtn.addEventListener('click', () => {
+                    if (!videoEl || typeof window.adjustMediaPlaybackRate !== 'function') return;
+                    const step = Number(window.MEDIA_RATE_STEP) || 0.05;
+                    window.adjustMediaPlaybackRate(videoEl, step, updateVideoSpeedLabel);
+                });
+                vSpeedUpBtn.dataset.bound = '1';
             }
 
             if (fileEl) {
