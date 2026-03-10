@@ -2852,6 +2852,19 @@ function closeImageLightbox() {
     if (img) img.src = '';
 }
 
+function escapeHtmlText(value) {
+    return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+function escapeHtmlAttr(value) {
+    return escapeHtmlText(value)
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 // --- UTILIDADES DE ETIQUETAS (VISIBLES GLOBALMENTE) ---
 function getAllTags() {
     const tagsSet = new Set();
@@ -2930,10 +2943,12 @@ function renderTagFilterCheckboxes() {
 
     container.innerHTML = visible.map(tag => {
         const checked = selected.includes(tag) ? ' checked' : '';
+        const safeTagAttr = escapeHtmlAttr(tag);
+        const safeTagText = escapeHtmlText(tag);
         return `
           <label class="tag-filter-item">
-            <input type="checkbox" data-tag="${tag}"${checked}>
-            <span class="tag-filter-tag">#${tag}</span>
+            <input type="checkbox" data-tag="${safeTagAttr}"${checked}>
+            <span class="tag-filter-tag">#${safeTagText}</span>
           </label>
         `;
     }).join('');
