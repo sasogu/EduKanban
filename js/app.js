@@ -2203,8 +2203,30 @@ function normalizeSearchValue(value) {
         .trim();
 }
 
-function taskMatchesSearch(task, searchNorm) {
-    if (!searchNorm) return true;
+function parseSearchQuery(query) {
+    const raw = String(query || '').trim();
+    const tokens = raw ? raw.split(/\s+/).filter(Boolean) : [];
+    const parsed = { raw, textTerms: [], tagTerms: [], categoryTerms: [], hasTerms: [] };
+    tokens.forEach(token => {
+        const idx = token.indexOf(':');
+        if (idx > 0) {
+            const key = normalizeSearchValue(token.slice(0, idx));
+            const value = normalizeSearchValue(token.slice(idx + 1));
+            if (!value) return;
+            if (key === 'tag') parsed.tagTerms.push(value);
+            else if (key === 'cat') parsed.categoryTerms.push(value);
+            else if (key === 'has') parsed.hasTerms.push(value);
+            else parsed.textTerms.push(normalizeSearchValue(token));
+            return;
+        }
+        parsed.textTerms.push(normalizeSearchValue(token));
+    });
+    parsed.hasActiveTerms = parsed.textTerms.length > 0 || parsed.tagTerms.length > 0 || parsed.categoryTerms.length > 0 || parsed.hasTerms.length > 0;
+    return parsed;
+}
+
+function taskMatchesSearch(task, parsedSearch, categoryKey = '') {
+    if (!parsedSearch || !parsedSearch.hasActiveTerms) return true;
     const parts = [];
     if (task && task.task) parts.push(task.task);
     if (Array.isArray(task.tags) && task.tags.length) parts.push(task.tags.join(' '));
@@ -2212,7 +2234,88 @@ function taskMatchesSearch(task, searchNorm) {
         parts.push(task.attachments.map(att => att && att.name ? att.name : '').join(' '));
     }
     const haystack = normalizeSearchValue(parts.join(' '));
-    return haystack.includes(searchNorm);
+    const normalizedTags = Array.isArray(task?.tags) ? task.tags.map(tag => normalizeSearchValue(tag)) : [];
+    const normalizedCategory = (Array.isArray(categoryKey) ? categoryKey : [categoryKey])
+        .map(value => normalizeSearchValue(value || ''))
+        .filter(Boolean)
+        .join(' ');
+    const hasAttachment = Array.isArray(task?.attachments) && task.attachments.length > 0;
+    const hasReminder = !!task?.reminderAt;
+
+    if (parsedSearch.textTerms.length && !parsedSearch.textTerms.every(term => haystack.includes(term))) return false;
+    if (parsedSearch.tagTerms.length && !parsedSearch.tagTerms.every(term => normalizedTags.some(tag => tag.includes(term)))) return false;
+    if (parsedSearch.categoryTerms.length && !parsedSearch.categoryTerms.every(term => normalizedCategory.includes(term))) return false;
+    if (parsedSearch.hasTerms.length) {
+        const hasMap = {
+            attachment: hasAttachment,
+            attachments: hasAttachment,
+            adjunto: hasAttachment,
+            adjuntos: hasAttachment,
+            reminder: hasReminder,
+            recordatorio: hasReminder
+        };
+        if (!parsedSearch.hasTerms.every(term => !!hasMap[term])) return false;
+    }
+    return true;
+}
+
+function highlightSearchMatches(html, parsedSearch) {
+    if (!parsedSearch || !parsedSearch.textTerms.length || typeof document === 'undefined') return html;
+    const terms = Array.from(new Set(parsedSearch.textTerms)).filter(Boolean).sort((a, b) => b.length - a.length);
+    if (!terms.length) return html;
+    const wrap = document.createElement('div');
+    wrap.innerHTML = html;
+    const walker = document.createTreeWalker(wrap, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    nodes.forEach((node) => {
+        const original = node.nodeValue || '';
+        const normalized = normalizeSearchValue(original);
+        if (!normalized) return;
+        const matches = [];
+        terms.forEach((term) => {
+            let start = 0;
+            while (start < normalized.length) {
+                const idx = normalized.indexOf(term, start);
+                if (idx === -1) break;
+                matches.push([idx, idx + term.length]);
+                start = idx + term.length;
+            }
+        });
+        if (!matches.length) return;
+        matches.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+        const merged = [];
+        matches.forEach(([from, to]) => {
+            const last = merged[merged.length - 1];
+            if (!last || from > last[1]) merged.push([from, to]);
+            else last[1] = Math.max(last[1], to);
+        });
+
+        const fragment = document.createDocumentFragment();
+        let sourceIndex = 0;
+        let normalizedIndex = 0;
+        merged.forEach(([from, to]) => {
+            while (sourceIndex < original.length && normalizedIndex < from) {
+                const ch = original[sourceIndex];
+                fragment.appendChild(document.createTextNode(ch));
+                if (normalizeSearchValue(ch)) normalizedIndex += normalizeSearchValue(ch).length;
+                sourceIndex += 1;
+            }
+            const markStart = sourceIndex;
+            while (sourceIndex < original.length && normalizedIndex < to) {
+                const ch = original[sourceIndex];
+                if (normalizeSearchValue(ch)) normalizedIndex += normalizeSearchValue(ch).length;
+                sourceIndex += 1;
+            }
+            const mark = document.createElement('mark');
+            mark.className = 'search-highlight';
+            mark.textContent = original.slice(markStart, sourceIndex);
+            fragment.appendChild(mark);
+        });
+        if (sourceIndex < original.length) fragment.appendChild(document.createTextNode(original.slice(sourceIndex)));
+        node.parentNode.replaceChild(fragment, node);
+    });
+    return wrap.innerHTML;
 }
 
 // --- RENDERIZADO EN EL DOM (SIN BOTÓN DE ELIMINAR) ---
@@ -2276,7 +2379,7 @@ function renderTasks() {
     } else {
         searchQuery = readScopedSearchQuery();
     }
-    const searchNorm = normalizeSearchValue(searchQuery);
+    const parsedSearch = parseSearchQuery(searchQuery);
     // Columns: ahora puede ser múltiple. Si LS guarda string antiguo, lo convertimos a array.
     let filterColumns = [];
     if (filterColumnSelect) {
@@ -2377,8 +2480,8 @@ function renderTasks() {
                 filteredTasks = tasks.filter(task => Array.isArray(task.tags) && filterTags.some(t => task.tags.includes(t)));
             }
         }
-        if (searchNorm) {
-            filteredTasks = filteredTasks.filter(task => taskMatchesSearch(task, searchNorm));
+        if (parsedSearch.hasActiveTerms) {
+            filteredTasks = filteredTasks.filter(task => taskMatchesSearch(task, parsedSearch, [category, catNames[category] || category]));
         }
         filteredTasks = filteredTasks.slice().sort(cmpTasks);
 
@@ -2412,12 +2515,13 @@ function renderTasks() {
                 .map(c => '<option value="'+c+'">'+catNames[c]+'</option>')
                 .join('');
 
+            const taskTextHtml = highlightSearchMatches(convertirEnlaces(task.task), parsedSearch);
             return `
             <div class="task ${task.completed ? 'completed' : ''}" draggable="true" data-id="${task.id}">
                 <div class="task-main">
                     <input type="checkbox" aria-label="${(window.i18n&&i18n.t)?i18n.t('archive'):'Archivar'}" title="${(window.i18n&&i18n.t)?i18n.t('archive'):'Archivar'}" onchange="toggleTaskArchived('${task.id}')">
                     <span>
-                        ${convertirEnlaces(task.task)}
+                        ${taskTextHtml}
                         ${tagsHtml}
                         ${reminderHtml}
                         ${doneMeta}

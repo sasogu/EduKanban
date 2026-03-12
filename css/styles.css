@@ -535,6 +535,12 @@ button:hover { background: #1f2937; }
   color: var(--color-muted);
   font-size: 12px;
 }
+.search-highlight {
+  background: #fde68a;
+  color: inherit;
+  padding: 0 2px;
+  border-radius: 3px;
+}
 .category-chip {
   display: inline-flex;
   align-items: center;

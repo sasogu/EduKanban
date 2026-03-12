@@ -77,7 +77,7 @@ Este documento recoge mejoras propuestas para abordar poco a poco, con foco en i
 - Criterio de cierre: Navegación predecible con colecciones grandes.
 - Estado: Implementado con primera/última página, numeración compacta alrededor de la página activa y contador visible.
 
-### [ ] 5. Búsqueda enriquecida
+### [x] 5. Búsqueda enriquecida
 - Prioridad: Media
 - Impacto: Alto
 - Riesgo: Medio
@@ -91,6 +91,7 @@ Este documento recoge mejoras propuestas para abordar poco a poco, con foco en i
   - Valorar operadores simples: `tag:`, `cat:`, `has:attachment`.
   - Resaltar coincidencias en resultados.
 - Criterio de cierre: Búsquedas habituales resueltas desde una sola caja de texto.
+- Estado: Implementado con operadores `tag:`, `cat:` y `has:attachment|reminder`, más resaltado visual de términos libres.
 
 ## Fase 2: Impacto medio
 
