@@ -9,9 +9,17 @@ document.addEventListener('DOMContentLoaded', function() {
     };
     const container = document.getElementById('resources-container');
     if (!container) return;
+    const PAGE_SIZE = 10;
+    let currentPage = 1;
     const filterTagSelect = document.getElementById('filter-tag');
     const filterSearchInput = document.getElementById('filter-search');
     const filterTagModeSelect = document.getElementById('filter-tag-mode');
+    const paginationEl = document.createElement('nav');
+    paginationEl.id = 'resources-pagination';
+    paginationEl.className = 'resources-pagination';
+    paginationEl.setAttribute('aria-label', 'Paginacion de recursos');
+    paginationEl.hidden = true;
+    container.insertAdjacentElement('afterend', paginationEl);
 
     const NEXTCLOUD_KEYS = { config: 'edukanban.nextcloudConfig' };
     const CATEGORY_OVERRIDES_KEY = 'edukanban.categoryNameOverrides';
@@ -787,6 +795,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (clearBtn && !clearBtn.dataset.bound) {
             clearBtn.dataset.bound = '1';
             clearBtn.addEventListener('click', () => {
+                currentPage = 1;
                 persistSelectedTagsToStorage([]);
                 if (searchInput) searchInput.value = '';
                 renderTagFilterCheckboxes(allTags);
@@ -799,6 +808,7 @@ document.addEventListener('DOMContentLoaded', function() {
             host.addEventListener('change', (e) => {
                 const t = e.target;
                 if (!(t instanceof HTMLInputElement) || t.type !== 'checkbox') return;
+                currentPage = 1;
                 const next = new Set(readSelectedTagsFromStorage());
                 if (t.checked) next.add(t.value);
                 else next.delete(t.value);
@@ -924,6 +934,28 @@ document.addEventListener('DOMContentLoaded', function() {
         try { console.warn('openEditTask no disponible en esta vista'); } catch (_) {}
     }
 
+    function renderResourcesPagination(totalItems, paginate) {
+        if (!paginate || totalItems <= PAGE_SIZE) {
+            paginationEl.hidden = true;
+            paginationEl.innerHTML = '';
+            return;
+        }
+
+        const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+        currentPage = Math.min(Math.max(1, currentPage), totalPages);
+        const prevDisabled = currentPage <= 1 ? ' disabled' : '';
+        const nextDisabled = currentPage >= totalPages ? ' disabled' : '';
+        const startItem = ((currentPage - 1) * PAGE_SIZE) + 1;
+        const endItem = Math.min(currentPage * PAGE_SIZE, totalItems);
+
+        paginationEl.hidden = false;
+        paginationEl.innerHTML = `
+            <button type="button" class="boton-accion resources-page-btn" data-page-action="prev"${prevDisabled}>Anterior</button>
+            <span class="resources-page-status">Mostrando ${startItem}-${endItem} de ${totalItems} recursos. Pagina ${currentPage} de ${totalPages}.</span>
+            <button type="button" class="boton-accion resources-page-btn" data-page-action="next"${nextDisabled}>Siguiente</button>
+        `;
+    }
+
     function renderResources() {
         const raw = JSON.parse(localStorage.getItem(LS.categories) || '{}');
         const allCategories = migrateObj(raw);
@@ -967,11 +999,23 @@ document.addEventListener('DOMContentLoaded', function() {
         if (searchNorm) {
             filteredItems = filteredItems.filter(({ task }) => taskMatchesSearch(task, searchNorm));
         }
+        const hasActiveFilters = selectedTags.length > 0 || !!searchNorm;
+        const paginate = !hasActiveFilters;
+        const totalItems = filteredItems.length;
+        if (paginate) {
+            const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+            currentPage = Math.min(Math.max(1, currentPage), totalPages);
+            const start = (currentPage - 1) * PAGE_SIZE;
+            filteredItems = filteredItems.slice(start, start + PAGE_SIZE);
+        } else {
+            currentPage = 1;
+        }
 
         cleanupObjectUrls();
         container.innerHTML = '';
 
         if (!filteredItems.length) {
+            renderResourcesPagination(totalItems, paginate);
             const emptyMsg = (window.i18n && i18n.t) ? i18n.t('no_items') : 'No hay elementos';
             container.innerHTML = `<p>${emptyMsg}</p>`;
             return;
@@ -1011,12 +1055,15 @@ document.addEventListener('DOMContentLoaded', function() {
             container.appendChild(taskDiv);
             hydrateResourceAttachments(taskDiv, task);
         });
+
+        renderResourcesPagination(totalItems, paginate);
     }
 
     // Rehidratar modo OR/AND (si existe el selector)
     if (filterTagModeSelect) {
         filterTagModeSelect.value = getTagFilterMode();
         filterTagModeSelect.addEventListener('change', () => {
+            currentPage = 1;
             setTagFilterMode(filterTagModeSelect.value);
             renderResources();
         });
@@ -1024,16 +1071,26 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (filterTagSelect && filterTagSelect.tagName === 'SELECT') {
         filterTagSelect.addEventListener('change', (e) => {
+            currentPage = 1;
             try { localStorage.setItem(LS.selectedFilterTag, e.target.value || ''); } catch (_) {}
             renderResources();
         });
     }
     if (filterSearchInput) {
         filterSearchInput.addEventListener('input', (e) => {
+            currentPage = 1;
             try { localStorage.setItem(LS.searchQuery, e.target.value || ''); } catch (_) {}
             renderResources();
         });
     }
+    paginationEl.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-page-action]');
+        if (!btn || btn.disabled) return;
+        const action = btn.dataset.pageAction;
+        if (action === 'prev' && currentPage > 1) currentPage -= 1;
+        if (action === 'next') currentPage += 1;
+        renderResources();
+    });
     container.addEventListener('click', (e) => {
         const editBtn = e.target.closest('.resource-edit');
         if (editBtn && editBtn.dataset.taskId) {

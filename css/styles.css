@@ -306,6 +306,22 @@ header .boton-accion.boton-primario:hover {
     width: 100%;
     box-sizing: border-box;
 }
+.resources-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 0 16px 20px;
+}
+.resources-page-status {
+    color: var(--color-muted);
+    font-size: 0.95rem;
+}
+.resources-page-btn[disabled] {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
 /* Cuando se filtra a una sola columna, ocupar todo el ancho en cualquier breakpoint */
 #task-container.single-column { grid-template-columns: 1fr !important; }
 /* Cuando se filtran exactamente dos columnas, que ambas ocupen todo el ancho */
