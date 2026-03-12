@@ -82,6 +82,10 @@ El projecte conté els següents fitxers i directoris:
 
 Les contribucions són benvingudes. Si desitges millorar l’aplicació, per favor obri un issue o envia un pull request.
 
+## Roadmap
+
+Les millores planificades i el backlog tècnic estan documentats en `ROADMAP.md`.
+
 ## Descàrrec de responsabilitat
 
 Aquest programari es proporciona «tal qual», sense cap garantia explícita ni implícita. Els autors no ens fem responsables dels possibles danys o pèrdues derivades de l’ús d’aquesta aplicació. L’ús és sota la teua pròpia responsabilitat.
@@ -169,6 +173,10 @@ El proyecto contiene los siguientes archivos y directorios:
 
 ## Contribuciones
 Las contribuciones son bienvenidas. Si deseas mejorar la aplicación, por favor abre un issue o envía un pull request.
+
+## Roadmap
+
+Las mejoras planificadas y el backlog técnico están documentados en `ROADMAP.md`.
 
 ## Descargo de responsabilidad
 

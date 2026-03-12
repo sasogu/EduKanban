@@ -57,6 +57,10 @@ let localLastSync = localStorage.getItem(LS.lastSync);
 let nextcloudConfig = loadNextcloudConfig();
 let nextcloudLastSync = localStorage.getItem(LS.nextcloudLastSync);
 let syncInterval = null;
+let dropboxStatusTone = 'info';
+let dropboxStatusMessage = '';
+let nextcloudStatusTone = 'info';
+let nextcloudStatusMessage = '';
 // Flujo de redirect dinámico; constante obsoleta tras rebranding
 const DROPBOX_REDIRECT_URI = 'about:blank';
 
@@ -197,12 +201,79 @@ function formatDateTimeForLocale(isoString) {
 
 function setNextcloudStatus(message, tone = 'info') {
     const statusEl = document.getElementById('nextcloud-status');
-    if (!statusEl) return;
-    statusEl.textContent = message || '';
-    statusEl.classList.remove('status-success', 'status-error', 'status-warning');
-    if (tone === 'success') statusEl.classList.add('status-success');
-    else if (tone === 'error') statusEl.classList.add('status-error');
-    else if (tone === 'warning') statusEl.classList.add('status-warning');
+    nextcloudStatusTone = tone;
+    nextcloudStatusMessage = message || '';
+    if (statusEl) {
+        statusEl.textContent = nextcloudStatusMessage;
+        statusEl.classList.remove('status-success', 'status-error', 'status-warning');
+        if (tone === 'success') statusEl.classList.add('status-success');
+        else if (tone === 'error') statusEl.classList.add('status-error');
+        else if (tone === 'warning') statusEl.classList.add('status-warning');
+    }
+    updateSyncSummary();
+}
+
+function setDropboxStatus(message, tone = 'info') {
+    const statusEl = document.getElementById('dropbox-status');
+    dropboxStatusTone = tone;
+    dropboxStatusMessage = message || '';
+    if (statusEl) {
+        statusEl.textContent = dropboxStatusMessage;
+        statusEl.classList.remove('status-success', 'status-error', 'status-warning');
+        if (tone === 'success') statusEl.classList.add('status-success');
+        else if (tone === 'error') statusEl.classList.add('status-error');
+        else if (tone === 'warning') statusEl.classList.add('status-warning');
+    }
+    updateSyncSummary();
+}
+
+function updateSyncSummary() {
+    const summaryEl = document.getElementById('sync-summary');
+    if (!summaryEl) return;
+
+    const online = navigator.onLine;
+    const dropboxConnected = !!accessToken;
+    const nextcloudConnected = isNextcloudConfigured();
+    const hasProvider = dropboxConnected || nextcloudConnected;
+    let tone = 'info';
+    let text = '';
+
+    if (!online) {
+        tone = 'warning';
+        text = 'Sin conexión. La sincronización está pausada hasta recuperar red.';
+    } else if (!hasProvider) {
+        tone = 'warning';
+        text = 'Sincronización no configurada. Conecta Dropbox o Nextcloud desde Administración.';
+    } else {
+        const parts = [];
+        if (dropboxConnected) {
+            const last = localLastSync ? formatDateTimeForLocale(localLastSync) : '';
+            parts.push(last ? `Dropbox conectado. Última sync: ${last}.` : 'Dropbox conectado. Pendiente de primera sincronización.');
+        } else {
+            parts.push('Dropbox no conectado.');
+        }
+
+        if (nextcloudConnected) {
+            const last = nextcloudLastSync ? formatDateTimeForLocale(nextcloudLastSync) : '';
+            parts.push(last ? `Nextcloud conectado. Última sync: ${last}.` : 'Nextcloud configurado. Pendiente de primera sincronización.');
+        } else {
+            parts.push('Nextcloud no configurado.');
+        }
+
+        if (dropboxStatusTone === 'error' || nextcloudStatusTone === 'error') tone = 'error';
+        else if (dropboxStatusTone === 'warning' || nextcloudStatusTone === 'warning') tone = 'warning';
+        else if (dropboxStatusTone === 'success' || nextcloudStatusTone === 'success' || localLastSync || nextcloudLastSync) tone = 'success';
+
+        text = parts.join(' ');
+        if (dropboxStatusMessage && dropboxStatusTone === 'error') text += ` Dropbox: ${dropboxStatusMessage}`;
+        if (nextcloudStatusMessage && nextcloudStatusTone === 'error') text += ` Nextcloud: ${nextcloudStatusMessage}`;
+    }
+
+    summaryEl.textContent = text;
+    summaryEl.classList.remove('status-success', 'status-error', 'status-warning');
+    if (tone === 'success') summaryEl.classList.add('status-success');
+    else if (tone === 'error') summaryEl.classList.add('status-error');
+    else if (tone === 'warning') summaryEl.classList.add('status-warning');
 }
 
 function getResolvedNextcloudBase(conf) {
@@ -3124,9 +3195,14 @@ function updateDropboxButtons() {
     if (accessToken) {
         loginBtn.style.display = 'none';
         syncBtn.style.display = 'inline-block';
+        const readyMsg = localLastSync
+            ? `Última sincronización: ${formatDateTimeForLocale(localLastSync)}`
+            : 'Conectado. Ejecuta sincronización para descargar o subir cambios.';
+        setDropboxStatus(readyMsg, localLastSync ? 'success' : 'info');
     } else {
         loginBtn.style.display = 'inline-block';
         syncBtn.style.display = 'none';
+        setDropboxStatus('Dropbox no conectado.', 'warning');
     }
 }
 
@@ -3144,6 +3220,8 @@ function updateSyncGroupVisibility() {
     if (online) {
         updateDropboxButtons();
         updateNextcloudFormFromConfig({ keepPasswordField: true });
+    } else {
+        updateSyncSummary();
     }
 }
 
@@ -3281,6 +3359,7 @@ function mergeDeletedTasks(localDeleted, remoteDeleted) {
 async function syncToDropbox(showAlert = true) {
     if (!accessToken) return false;
     try {
+        setDropboxStatus('Sincronizando con Dropbox…', 'info');
         // 1) Subir primero los adjuntos pendientes para que el JSON ya incluya dropboxPath
         const attachmentsUpdated = await uploadPendingAttachmentsToDropbox();
 
@@ -3300,6 +3379,7 @@ async function syncToDropbox(showAlert = true) {
             localStorage.removeItem(LS.token);
             updateDropboxButtons();
             try { localStorage.setItem(LS.pendingDropboxAction, 'upload'); } catch (e) {}
+            setDropboxStatus('Sesión de Dropbox caducada. Es necesaria reconexión.', 'error');
             showReconnectIndicator((window.i18n&&i18n.t)?i18n.t('reconnecting'):'Reconectando con Dropbox…');
             scheduleDropboxReauth('upload-401');
             return false;
@@ -3308,16 +3388,22 @@ async function syncToDropbox(showAlert = true) {
             const metadata = await response.json();
             localLastSync = metadata.server_modified;
             localStorage.setItem(LS.lastSync, localLastSync);
+            setDropboxStatus(`Última sincronización: ${formatDateTimeForLocale(localLastSync)}`, 'success');
             if (showAlert) showToast((window.i18n && i18n.t) ? i18n.t('toast_dropbox_uploaded') : '✅ Actividades subidas a Dropbox');
             return true;
         }
-    } catch (e) { console.error('Error en syncToDropbox', e); }
+        setDropboxStatus(`Error ${response.status} al subir datos a Dropbox.`, 'error');
+    } catch (e) {
+        console.error('Error en syncToDropbox', e);
+        setDropboxStatus('Error de red al subir datos a Dropbox.', 'error');
+    }
     return false;
 }
 
 async function syncFromDropbox(force = false) {
     if (!accessToken) return false;
     try {
+        setDropboxStatus('Comprobando cambios en Dropbox…', 'info');
         // Consultar metadata únicamente del archivo de EduKanban
         let meta = await fetch('https://api.dropboxapi.com/2/files/get_metadata', {
             method: 'POST', headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
@@ -3328,11 +3414,16 @@ async function syncFromDropbox(force = false) {
             localStorage.removeItem(LS.token);
             updateDropboxButtons();
             try { localStorage.setItem(LS.pendingDropboxAction, 'download'); } catch (e) {}
+            setDropboxStatus('Sesión de Dropbox caducada. Es necesaria reconexión.', 'error');
             showReconnectIndicator((window.i18n&&i18n.t)?i18n.t('reconnecting'):'Reconectando con Dropbox…');
             scheduleDropboxReauth('meta-401');
             return false;
         }
-        if (!meta.ok) return meta.status === 409 ? await syncToDropbox(false) : false;
+        if (!meta.ok) {
+            if (meta.status === 409) return await syncToDropbox(false);
+            setDropboxStatus(`Error ${meta.status} al consultar Dropbox.`, 'error');
+            return false;
+        }
         const remoteMeta = await meta.json();
         if (force || !localLastSync || new Date(remoteMeta.server_modified) > new Date(localLastSync)) {
             // Descargar desde el archivo de EduKanban
@@ -3344,6 +3435,7 @@ async function syncFromDropbox(force = false) {
                 localStorage.removeItem(LS.token);
                 updateDropboxButtons();
                 try { localStorage.setItem(LS.pendingDropboxAction, 'download'); } catch (e) {}
+                setDropboxStatus('Sesión de Dropbox caducada. Es necesaria reconexión.', 'error');
                 showReconnectIndicator((window.i18n&&i18n.t)?i18n.t('reconnecting'):'Reconectando con Dropbox…');
                 scheduleDropboxReauth('download-401');
                 return false;
@@ -3365,11 +3457,18 @@ async function syncFromDropbox(force = false) {
                     renderTasks();
                     localLastSync = remoteMeta.server_modified;
                     localStorage.setItem(LS.lastSync, localLastSync);
+                    setDropboxStatus(`Última sincronización: ${formatDateTimeForLocale(localLastSync)}`, 'success');
                     return true;
                 }
             }
+            setDropboxStatus(`Error ${res.status} al descargar datos de Dropbox.`, 'error');
+            return false;
         }
-    } catch (e) { console.error('Error en syncFromDropbox', e); }
+        setDropboxStatus(`Última sincronización: ${formatDateTimeForLocale(localLastSync || remoteMeta.server_modified)}`, 'success');
+    } catch (e) {
+        console.error('Error en syncFromDropbox', e);
+        if (accessToken) setDropboxStatus('Error de red al contactar con Dropbox.', 'error');
+    }
     return false;
 }
 
@@ -3382,6 +3481,8 @@ async function performFullSync() {
         return false;
     }
     console.log('🔄 Iniciando sincronización completa...');
+    if (hasDropbox) setDropboxStatus('Sincronización completa en curso…', 'info');
+    if (hasNextcloud) setNextcloudStatus('Sincronización completa en curso…', 'info');
     showToast('Sincronizando...');
     let success = true;
 
@@ -4042,6 +4143,76 @@ document.addEventListener('DOMContentLoaded', function() {
         if (focusTarget) focusTarget.focus();
     };
 
+    const getShortcutTarget = (event) => {
+        if (event && event.target && event.target.nodeType === 1) return event.target;
+        return document.activeElement;
+    };
+
+    const isTypingTarget = (target) => {
+        const el = target instanceof Element ? target : document.activeElement;
+        if (!el) return false;
+        const tag = (el.tagName || '').toLowerCase();
+        return tag === 'input' || tag === 'textarea' || tag === 'select' || !!el.isContentEditable;
+    };
+
+    const focusGlobalSearch = () => {
+        const searchInput = document.getElementById('filter-search');
+        if (!searchInput) return false;
+        const sidebar = document.getElementById('board-sidebar');
+        const layout = document.querySelector('main.board-layout');
+        if (sidebar && layout && layout.classList.contains('sidebar-collapsed')) {
+            layout.classList.remove('sidebar-collapsed');
+            const toggleBtn = document.getElementById('sidebar-toggle');
+            if (toggleBtn) {
+                toggleBtn.setAttribute('aria-expanded', 'true');
+                toggleBtn.title = 'Colapsar filtros';
+                toggleBtn.textContent = '⟨⟩';
+            }
+            try { localStorage.setItem(LS.sidebarCollapsed, '0'); } catch (_) {}
+        }
+        searchInput.focus();
+        searchInput.select?.();
+        return true;
+    };
+
+    const openNewTaskShortcut = () => {
+        if (!popup) return false;
+        resetPopupFormMode();
+        popup.style.display = 'flex';
+        const input = document.getElementById('popup-task-name');
+        if (input) input.focus();
+        return true;
+    };
+
+    const closeVisibleOverlays = () => {
+        let handled = false;
+        const confirmModal = document.getElementById('confirm-modal');
+        const adminModal = document.getElementById('admin-modal');
+        if (shortcutsModal && shortcutsModal.style.display === 'flex') {
+            closeShortcutsModal();
+            handled = true;
+        }
+        if (popup && popup.style.display === 'flex') {
+            resetPopupFormMode();
+            popup.style.display = 'none';
+            handled = true;
+        }
+        if (adminModal && adminModal.style.display === 'flex') {
+            adminModal.style.display = 'none';
+            handled = true;
+        }
+        if (confirmModal && confirmModal.style.display === 'flex') {
+            confirmModal.style.display = 'none';
+            handled = true;
+        }
+        const lb = document.getElementById('image-lightbox');
+        if (lb && lb.style.display === 'flex' && typeof closeImageLightbox === 'function') {
+            closeImageLightbox();
+            handled = true;
+        }
+        return handled;
+    };
+
     if (abrirPopupBtn) abrirPopupBtn.addEventListener('click', () => {
         resetPopupFormMode();
         popup.style.display = 'flex';
@@ -4223,39 +4394,30 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Atajo de teclado para añadir nueva tarea (Ctrl+N o Cmd+N)
     document.addEventListener('keydown', function(e) {
-        // Solo activar si NO estamos en un input, textarea o select
-        const tag = document.activeElement.tagName.toLowerCase();
-        if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+        const target = getShortcutTarget(e);
+        const typing = isTypingTarget(target);
+        const key = (e.key || '').toLowerCase();
 
-        // Atajo: Alt+N (menos conflictivo y funciona en ambos navegadores)
-        if (e.altKey && e.key.toLowerCase() === 'n') {
-            e.preventDefault();
-            const popup = document.getElementById('popup-tarea');
-            if (popup) {
-                resetPopupFormMode();
-                popup.style.display = 'flex';
-                const input = document.getElementById('popup-task-name');
-                if (input) input.focus();
+        if (e.key === 'Escape') {
+            if (closeVisibleOverlays()) e.preventDefault();
+            return;
+        }
+
+        if (!typing && !e.ctrlKey && !e.metaKey) {
+            if (!e.altKey && key === '/') {
+                if (focusGlobalSearch()) e.preventDefault();
+                return;
             }
-        }
-    });
-
-    document.addEventListener('keydown', (e) => {
-        if (e.key !== 'Escape') return;
-        let handled = false;
-        if (shortcutsModal && shortcutsModal.style.display === 'flex') {
-            closeShortcutsModal();
-            handled = true;
-        }
-        if (popup && popup.style.display === 'flex') {
-            resetPopupFormMode();
-            popup.style.display = 'none';
-            handled = true;
-        }
-        if (handled) {
+            if (key === 'n') {
+                // Mantener compatibilidad con Alt+N y aceptar también N a secas.
+                if (!e.shiftKey && openNewTaskShortcut()) {
+                    e.preventDefault();
+                }
+            }
+        } else if (e.altKey && key === 'n' && !typing) {
             e.preventDefault();
+            openNewTaskShortcut();
         }
     });
 

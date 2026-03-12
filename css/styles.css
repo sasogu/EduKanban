@@ -265,6 +265,20 @@ header .acciones {
 }
 /* Evita que las reglas genéricas de .acciones alteren el header */
 header .acciones { flex-direction: row; flex-wrap: wrap; }
+.sync-summary {
+    flex: 1 1 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    background: #f8fafc;
+    color: var(--color-muted);
+    text-align: left;
+    font-size: 0.95rem;
+    line-height: 1.35;
+}
+.sync-summary.status-success { color: #166534; border-color: #bbf7d0; background: #f0fdf4; }
+.sync-summary.status-error { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
+.sync-summary.status-warning { color: #92400e; border-color: #fde68a; background: #fffbeb; }
 /* En pantallas grandes, los botones del header no ocupan ancho completo */
 @media (min-width: 601px) {
   header .acciones .boton-accion {
@@ -1026,6 +1040,7 @@ textarea {
     min-height: 20px;
     font-size: 13px;
     color: #4b5563;
+    margin-top: 8px;
 }
 .sync-status.status-success { color: #166534; }
 .sync-status.status-error { color: #b91c1c; }

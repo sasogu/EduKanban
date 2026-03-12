@@ -18,6 +18,7 @@
                 <button id="abrir-popup-tarea" type="button" class="boton-accion boton-primario">➕ Nueva Actividad</button>
                 <button id="open-admin" type="button" class="boton-accion" aria-haspopup="dialog" aria-controls="admin-modal">⚙️ Administración</button>
                 <button id="media-pitch-toggle" type="button" class="boton-accion" aria-pressed="false">🎼 Mantener tono: No</button>
+                <div id="sync-summary" class="sync-summary" role="status" aria-live="polite"></div>
             </div>
         </div>
         <nav class="main-nav" role="tablist">
@@ -192,6 +193,7 @@
                     <p class="sync-helper">Sincroniza automáticamente tus datos mediante OAuth.</p>
                     <button id="dropbox-login" type="button" class="boton-accion">Conectar con Dropbox</button>
                     <button id="dropbox-sync" type="button" class="boton-accion" style="display:none;">Sincronizar</button>
+                    <div id="dropbox-status" class="sync-status" role="status" aria-live="polite"></div>
                 </div>
                 <div class="sync-provider" id="nextcloud-sync-section">
                     <h4>Nextcloud (WebDAV)</h4>
@@ -233,14 +235,18 @@
         <div class="modal-content atajos-modal-content">
             <h2 id="atajos-titulo">Atajos de teclado</h2>
             <p>Puedes consultar estos atajos cuando quieras acelerar tu trabajo.</p>
-            <ul class="keyboard-shortcuts">
+                <ul class="keyboard-shortcuts">
+                    <li>
+                        <div class="shortcut-keys">
+                            <kbd>N</kbd>
+                        </div>
+                    <p class="shortcut-desc">Abrir el formulario para crear una nueva actividad. Alt+N sigue funcionando como compatibilidad.</p>
+                </li>
                 <li>
                     <div class="shortcut-keys">
-                        <kbd>Alt</kbd>
-                        <span class="shortcut-plus">+</span>
-                        <kbd>N</kbd>
+                        <kbd>/</kbd>
                     </div>
-                    <p class="shortcut-desc">Abrir el formulario para crear una nueva actividad.</p>
+                    <p class="shortcut-desc">Llevar el foco a la búsqueda principal cuando no estás escribiendo en un campo.</p>
                 </li>
                 <li>
                     <div class="shortcut-keys">
@@ -274,7 +280,7 @@
                     <div class="shortcut-keys">
                         <kbd>Esc</kbd>
                     </div>
-                    <p class="shortcut-desc">Cerrar modales abiertos (nueva tarea, atajos, visor de imágenes, confirmaciones).</p>
+                    <p class="shortcut-desc">Cerrar modales y paneles visibles (nueva tarea, administración, atajos, visor de imágenes, confirmaciones).</p>
                 </li>
             </ul>
             <div class="acciones-popup">
