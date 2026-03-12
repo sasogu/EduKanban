@@ -974,16 +974,40 @@ document.addEventListener('DOMContentLoaded', function() {
         const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
         currentPage = Math.min(Math.max(1, currentPage), totalPages);
         writeStoredCurrentPage(currentPage);
+        paginationEl.dataset.totalPages = String(totalPages);
         const prevDisabled = currentPage <= 1 ? ' disabled' : '';
         const nextDisabled = currentPage >= totalPages ? ' disabled' : '';
         const startItem = ((currentPage - 1) * PAGE_SIZE) + 1;
         const endItem = Math.min(currentPage * PAGE_SIZE, totalItems);
+        const firstDisabled = currentPage === 1 ? ' disabled' : '';
+        const lastDisabled = currentPage === totalPages ? ' disabled' : '';
+        const pageButtons = [];
+        const visiblePages = new Set([1, totalPages, currentPage - 1, currentPage, currentPage + 1]);
+        const orderedPages = Array.from(visiblePages)
+            .filter(page => page >= 1 && page <= totalPages)
+            .sort((a, b) => a - b);
+
+        let lastRendered = 0;
+        orderedPages.forEach((page) => {
+            if (page - lastRendered > 1) {
+                pageButtons.push('<span class="resources-page-ellipsis" aria-hidden="true">…</span>');
+            }
+            const currentAttr = page === currentPage ? ' aria-current="page"' : '';
+            const activeClass = page === currentPage ? ' is-active' : '';
+            pageButtons.push(
+                `<button type="button" class="boton-accion resources-page-btn resources-page-number${activeClass}" data-page-action="goto" data-page-number="${page}"${currentAttr}>${page}</button>`
+            );
+            lastRendered = page;
+        });
 
         paginationEl.hidden = false;
         paginationEl.innerHTML = `
+            <button type="button" class="boton-accion resources-page-btn" data-page-action="first"${firstDisabled}>Primera</button>
             <button type="button" class="boton-accion resources-page-btn" data-page-action="prev"${prevDisabled}>Anterior</button>
+            <div class="resources-page-numbers" role="group" aria-label="Páginas de recursos">${pageButtons.join('')}</div>
             <span class="resources-page-status">Mostrando ${startItem}-${endItem} de ${totalItems} recursos. Pagina ${currentPage} de ${totalPages}.</span>
             <button type="button" class="boton-accion resources-page-btn" data-page-action="next"${nextDisabled}>Siguiente</button>
+            <button type="button" class="boton-accion resources-page-btn" data-page-action="last"${lastDisabled}>Última</button>
         `;
     }
 
@@ -1123,8 +1147,13 @@ document.addEventListener('DOMContentLoaded', function() {
         const btn = e.target.closest('[data-page-action]');
         if (!btn || btn.disabled) return;
         const action = btn.dataset.pageAction;
+        const targetPage = parseInt(btn.dataset.pageNumber || '', 10);
+        const totalPages = parseInt(paginationEl.dataset.totalPages || '1', 10) || 1;
+        if (action === 'first') currentPage = 1;
         if (action === 'prev' && currentPage > 1) currentPage -= 1;
+        if (action === 'goto' && Number.isFinite(targetPage) && targetPage > 0) currentPage = targetPage;
         if (action === 'next') currentPage += 1;
+        if (action === 'last') currentPage = totalPages;
         writeStoredCurrentPage(currentPage);
         renderResources();
     });

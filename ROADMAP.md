@@ -62,7 +62,7 @@ Este documento recoge mejoras propuestas para abordar poco a poco, con foco en i
 - Criterio de cierre: Al recargar, la app vuelve al contexto esperado en cada vista.
 - Estado: Implementado con búsqueda persistida por vista, página actual de recursos y estado abierto/cerrado del panel de etiquetas.
 
-### [ ] 4. Paginación avanzada en recursos
+### [x] 4. Paginación avanzada en recursos
 - Prioridad: Media
 - Impacto: Medio
 - Riesgo: Bajo
@@ -75,6 +75,7 @@ Este documento recoge mejoras propuestas para abordar poco a poco, con foco en i
   - Añadir “ir a primera/última”.
   - Mostrar contador total de páginas.
 - Criterio de cierre: Navegación predecible con colecciones grandes.
+- Estado: Implementado con primera/última página, numeración compacta alrededor de la página activa y contador visible.
 
 ### [ ] 5. Búsqueda enriquecida
 - Prioridad: Media

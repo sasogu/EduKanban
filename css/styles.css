@@ -328,6 +328,25 @@ header .boton-accion.boton-primario:hover {
     flex-wrap: wrap;
     padding: 0 16px 20px;
 }
+.resources-page-numbers {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.resources-page-number {
+    min-width: 40px;
+    padding-inline: 10px;
+}
+.resources-page-number.is-active,
+.resources-page-number[aria-current="page"] {
+    background: var(--color-primary);
+    color: #fff;
+}
+.resources-page-ellipsis {
+    color: var(--color-muted);
+    font-size: 1rem;
+}
 .resources-page-status {
     color: var(--color-muted);
     font-size: 0.95rem;
