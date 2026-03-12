@@ -3410,20 +3410,19 @@ async function validateToken() {
 
 // --- REAUTENTICACIÓN AUTOMÁTICA CON DROPBOX ---
 function getDropboxRedirectUri() {
-    // Usar una URI de redirección fija (raíz del sitio) para que coincida con
-    // las URIs registradas en la app de Dropbox. Antes la función devolvía
-    // la ruta completa de la página actual, lo que causaba errores cuando
-    // se intentaba reautenticar desde páginas distintas a la principal.
-    // Si quieres personalizarla, cambia DROPBOX_REDIRECT_URI arriba.
+    // Si quieres fijar una URI exacta registrada en Dropbox, usa
+    // DROPBOX_REDIRECT_URI. Si no, usamos la página actual para mantener
+    // compatibilidad con configuraciones previas.
     try {
-        // Si se ha configurado explícitamente DROPBOX_REDIRECT_URI y no es 'about:blank', usarla
         if (typeof DROPBOX_REDIRECT_URI === 'string' && DROPBOX_REDIRECT_URI && DROPBOX_REDIRECT_URI !== 'about:blank') {
             return DROPBOX_REDIRECT_URI;
         }
     } catch (_) {}
-    // Default: la raíz del origen (por ejemplo https://tudominio/)
     const origin = window.location.origin || (window.location.protocol + '//' + window.location.host);
-    return origin + '/';
+    const cleanPath = (window.location.pathname || '/').split('?')[0].split('#')[0];
+    if (cleanPath.endsWith('index.html')) return origin + cleanPath.replace(/index\.html$/, '');
+    if (cleanPath === '/' || cleanPath === '') return origin + '/';
+    return origin + cleanPath;
 }
 
 function startDropboxAuth() {
