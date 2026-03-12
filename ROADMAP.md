@@ -213,7 +213,11 @@ Este documento recoge mejoras propuestas para abordar poco a poco, con foco en i
   - Definir estrategia de resolución de conflictos.
   - Separar sync manual de sync automática.
   - Añadir reintentos controlados y estados transitorios visibles.
+  - Sustituir la integración directa navegador -> Nextcloud por un proxy/backend propio en el mismo origen de la app.
+  - Mover al backend las operaciones WebDAV (`PROPFIND`, `MKCOL`, `GET`, `PUT`, `DELETE`) para eliminar la dependencia de CORS en Nextcloud.
+  - Evitar exponer credenciales de Nextcloud en el navegador.
 - Criterio de cierre: La sincronización falla de forma entendible y recuperable.
+- Nota técnica: La integración actual con Nextcloud desde el navegador depende de CORS y de métodos WebDAV cross-origin. La vía recomendada para producción es un backend/proxy propio, no abrir CORS en el servidor Nextcloud.
 
 ### 14. Revisión del service worker
 - Prioridad: Media
