@@ -1,11 +1,15 @@
 document.addEventListener('DOMContentLoaded', function() {
+    const PAGE_SCOPE = 'resources';
+    const scopedUiKey = (name) => `edukanban.${PAGE_SCOPE}.${name}`;
     const LS = {
         categories: 'edukanban.categories',
         token: 'edukanban.dropbox_access_token',
         deleted: 'edukanban.deletedTasks',
         selectedFilterTag: 'edukanban.selectedFilterTag',
-        searchQuery: 'edukanban.searchQuery',
-        tagFilterMode: 'edukanban.tagFilterMode'
+        searchQuery: scopedUiKey('searchQuery'),
+        legacySearchQuery: 'edukanban.searchQuery',
+        tagFilterMode: 'edukanban.tagFilterMode',
+        currentPage: scopedUiKey('currentPage')
     };
     const container = document.getElementById('resources-container');
     if (!container) return;
@@ -41,6 +45,29 @@ document.addEventListener('DOMContentLoaded', function() {
             try { return decodeURIComponent(escape(atob(b64))); } catch(__) { return ''; }
         }
     }
+
+    function readStoredSearchQuery() {
+        try {
+            return localStorage.getItem(LS.searchQuery) || localStorage.getItem(LS.legacySearchQuery) || '';
+        } catch (_) {
+            return '';
+        }
+    }
+
+    function readStoredCurrentPage() {
+        try {
+            const raw = parseInt(localStorage.getItem(LS.currentPage) || '1', 10);
+            return Number.isFinite(raw) && raw > 0 ? raw : 1;
+        } catch (_) {
+            return 1;
+        }
+    }
+
+    function writeStoredCurrentPage(page) {
+        try { localStorage.setItem(LS.currentPage, String(page > 0 ? page : 1)); } catch (_) {}
+    }
+
+    currentPage = readStoredCurrentPage();
 
     function loadNextcloudConfig() {
         try {
@@ -796,6 +823,7 @@ document.addEventListener('DOMContentLoaded', function() {
             clearBtn.dataset.bound = '1';
             clearBtn.addEventListener('click', () => {
                 currentPage = 1;
+                writeStoredCurrentPage(1);
                 persistSelectedTagsToStorage([]);
                 if (searchInput) searchInput.value = '';
                 renderTagFilterCheckboxes(allTags);
@@ -809,6 +837,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const t = e.target;
                 if (!(t instanceof HTMLInputElement) || t.type !== 'checkbox') return;
                 currentPage = 1;
+                writeStoredCurrentPage(1);
                 const next = new Set(readSelectedTagsFromStorage());
                 if (t.checked) next.add(t.value);
                 else next.delete(t.value);
@@ -936,6 +965,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function renderResourcesPagination(totalItems, paginate) {
         if (!paginate || totalItems <= PAGE_SIZE) {
+            writeStoredCurrentPage(1);
             paginationEl.hidden = true;
             paginationEl.innerHTML = '';
             return;
@@ -943,6 +973,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
         currentPage = Math.min(Math.max(1, currentPage), totalPages);
+        writeStoredCurrentPage(currentPage);
         const prevDisabled = currentPage <= 1 ? ' disabled' : '';
         const nextDisabled = currentPage >= totalPages ? ' disabled' : '';
         const startItem = ((currentPage - 1) * PAGE_SIZE) + 1;
@@ -965,10 +996,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const tagMode = getTagFilterMode();
         let searchQuery = '';
         if (filterSearchInput) {
-            searchQuery = filterSearchInput.value || localStorage.getItem(LS.searchQuery) || '';
+            searchQuery = filterSearchInput.value || readStoredSearchQuery();
             if (!filterSearchInput.value && searchQuery) filterSearchInput.value = searchQuery;
         } else {
-            searchQuery = localStorage.getItem(LS.searchQuery) || '';
+            searchQuery = readStoredSearchQuery();
         }
         const searchNorm = normalizeSearchValue(searchQuery);
         const allTags = getAllTagsFromCategories(allCategories);
@@ -1005,10 +1036,12 @@ document.addEventListener('DOMContentLoaded', function() {
         if (paginate) {
             const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
             currentPage = Math.min(Math.max(1, currentPage), totalPages);
+            writeStoredCurrentPage(currentPage);
             const start = (currentPage - 1) * PAGE_SIZE;
             filteredItems = filteredItems.slice(start, start + PAGE_SIZE);
         } else {
             currentPage = 1;
+            writeStoredCurrentPage(1);
         }
 
         cleanupObjectUrls();
@@ -1064,6 +1097,7 @@ document.addEventListener('DOMContentLoaded', function() {
         filterTagModeSelect.value = getTagFilterMode();
         filterTagModeSelect.addEventListener('change', () => {
             currentPage = 1;
+            writeStoredCurrentPage(1);
             setTagFilterMode(filterTagModeSelect.value);
             renderResources();
         });
@@ -1072,6 +1106,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (filterTagSelect && filterTagSelect.tagName === 'SELECT') {
         filterTagSelect.addEventListener('change', (e) => {
             currentPage = 1;
+            writeStoredCurrentPage(1);
             try { localStorage.setItem(LS.selectedFilterTag, e.target.value || ''); } catch (_) {}
             renderResources();
         });
@@ -1079,6 +1114,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (filterSearchInput) {
         filterSearchInput.addEventListener('input', (e) => {
             currentPage = 1;
+            writeStoredCurrentPage(1);
             try { localStorage.setItem(LS.searchQuery, e.target.value || ''); } catch (_) {}
             renderResources();
         });
@@ -1089,6 +1125,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const action = btn.dataset.pageAction;
         if (action === 'prev' && currentPage > 1) currentPage -= 1;
         if (action === 'next') currentPage += 1;
+        writeStoredCurrentPage(currentPage);
         renderResources();
     });
     container.addEventListener('click', (e) => {

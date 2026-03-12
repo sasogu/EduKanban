@@ -21,6 +21,23 @@ const DEFAULT_CATEGORY_NAMES = {
 
 const CATEGORY_KEYS = ["en-preparacion", "preparadas", "en-proceso", "pendientes", "archivadas"];
 
+function getCurrentPageScope() {
+    const path = (window.location.pathname || '').toLowerCase();
+    if (path.endsWith('/recursos.html') || path.endsWith('recursos.html')) return 'resources';
+    if (path.endsWith('/archivo.html') || path.endsWith('archivo.html')) return 'archive';
+    if (path.endsWith('/historico.html') || path.endsWith('historico.html')) return 'history';
+    if (path.endsWith('/recordatorios.html') || path.endsWith('recordatorios.html')) return 'reminders';
+    return 'board';
+}
+
+const PAGE_SCOPE = getCurrentPageScope();
+const LEGACY_SEARCH_QUERY_KEY = 'edukanban.searchQuery';
+const LEGACY_SIDEBAR_COLLAPSED_KEY = 'edukanban.sidebarCollapsed';
+
+function scopedUiKey(name) {
+    return `edukanban.${PAGE_SCOPE}.${name}`;
+}
+
 // category names dependen del idioma (ver i18n.i18nCategoryNames)
 
 // Claves de almacenamiento local específicas de EduKanban
@@ -33,8 +50,9 @@ const LS = {
   nextcloudLastSync: 'edukanban.nextcloudLastSync',
   selectedFilterTag: 'edukanban.selectedFilterTag',
     tagFilterMode: 'edukanban.tagFilterMode', // 'or' | 'and'
-        sidebarCollapsed: 'edukanban.sidebarCollapsed',
-  searchQuery: 'edukanban.searchQuery',
+        sidebarCollapsed: scopedUiKey('sidebarCollapsed'),
+  sidebarDetails: scopedUiKey('sidebarDetails'),
+  searchQuery: scopedUiKey('searchQuery'),
   visibleColumn: 'edukanban.visibleColumn', // compat: antes guardaba un string; ahora guarda JSON array
   notificationsEnabled: 'edukanban.notificationsEnabled',
   pendingDropboxAction: 'edukanban.pendingDropboxAction',
@@ -274,6 +292,36 @@ function updateSyncSummary() {
     if (tone === 'success') summaryEl.classList.add('status-success');
     else if (tone === 'error') summaryEl.classList.add('status-error');
     else if (tone === 'warning') summaryEl.classList.add('status-warning');
+}
+
+function readScopedSearchQuery() {
+    try {
+        return localStorage.getItem(LS.searchQuery) || localStorage.getItem(LEGACY_SEARCH_QUERY_KEY) || '';
+    } catch (_) {
+        return '';
+    }
+}
+
+function writeScopedSearchQuery(value) {
+    try { localStorage.setItem(LS.searchQuery, value || ''); } catch (_) {}
+}
+
+function readSidebarDetailsState() {
+    try {
+        const raw = localStorage.getItem(LS.sidebarDetails) || '';
+        const parsed = raw ? JSON.parse(raw) : {};
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (_) {
+        return {};
+    }
+}
+
+function writeSidebarDetailsState(name, open) {
+    try {
+        const next = readSidebarDetailsState();
+        next[name] = !!open;
+        localStorage.setItem(LS.sidebarDetails, JSON.stringify(next));
+    } catch (_) {}
 }
 
 function getResolvedNextcloudBase(conf) {
@@ -2223,10 +2271,10 @@ function renderTasks() {
     }
     let searchQuery = '';
     if (filterSearchInput) {
-        searchQuery = filterSearchInput.value || localStorage.getItem(LS.searchQuery) || '';
+        searchQuery = filterSearchInput.value || readScopedSearchQuery();
         if (!filterSearchInput.value && searchQuery) filterSearchInput.value = searchQuery;
     } else {
-        searchQuery = localStorage.getItem(LS.searchQuery) || '';
+        searchQuery = readScopedSearchQuery();
     }
     const searchNorm = normalizeSearchValue(searchQuery);
     // Columns: ahora puede ser múltiple. Si LS guarda string antiguo, lo convertimos a array.
@@ -4428,6 +4476,7 @@ document.addEventListener('DOMContentLoaded', function() {
     try {
         const layout = document.querySelector('main.board-layout');
         const toggleBtn = document.getElementById('sidebar-toggle');
+        const tagDetails = document.getElementById('tag-filter');
         if (layout && toggleBtn) {
             const applyCollapsed = (collapsed) => {
                 const isCollapsed = !!collapsed;
@@ -4437,10 +4486,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 toggleBtn.textContent = isCollapsed ? '⟩' : '⟨⟩';
             };
             let startCollapsed = false;
-            try { startCollapsed = (localStorage.getItem(LS.sidebarCollapsed) === '1'); } catch (_) {}
+            try {
+                const scoped = localStorage.getItem(LS.sidebarCollapsed);
+                const legacy = localStorage.getItem(LEGACY_SIDEBAR_COLLAPSED_KEY);
+                startCollapsed = ((scoped || legacy) === '1');
+            } catch (_) {}
             // En móvil no colapsamos
             const isMobile = window.matchMedia && window.matchMedia('(max-width: 699px)').matches;
             applyCollapsed(startCollapsed && !isMobile);
+
+            if (tagDetails) {
+                const detailsState = readSidebarDetailsState();
+                if ('tagFilter' in detailsState) tagDetails.open = !!detailsState.tagFilter;
+                tagDetails.addEventListener('toggle', () => {
+                    writeSidebarDetailsState('tagFilter', tagDetails.open);
+                });
+            }
 
             toggleBtn.addEventListener('click', () => {
                 const currently = layout.classList.contains('sidebar-collapsed');
@@ -4476,16 +4537,20 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('sidebar-open-columns')?.addEventListener('click', () => expandAndFocus('columns'));
 
             // Si cambias tamaño a móvil/escritorio, re-aplicar regla
-            if (window.matchMedia) {
-                const mq = window.matchMedia('(max-width: 699px)');
-                if (mq && mq.addEventListener) {
-                    mq.addEventListener('change', () => {
-                        let desired = false;
-                        try { desired = (localStorage.getItem(LS.sidebarCollapsed) === '1'); } catch (_) {}
-                        applyCollapsed(desired && !mq.matches);
-                    });
+                if (window.matchMedia) {
+                    const mq = window.matchMedia('(max-width: 699px)');
+                    if (mq && mq.addEventListener) {
+                        mq.addEventListener('change', () => {
+                            let desired = false;
+                        try {
+                            const scoped = localStorage.getItem(LS.sidebarCollapsed);
+                            const legacy = localStorage.getItem(LEGACY_SIDEBAR_COLLAPSED_KEY);
+                            desired = ((scoped || legacy) === '1');
+                        } catch (_) {}
+                            applyCollapsed(desired && !mq.matches);
+                        });
+                    }
                 }
-            }
         }
     } catch (_) {}
 
@@ -4526,7 +4591,7 @@ document.addEventListener('DOMContentLoaded', function() {
         renderTasks();
     });
     document.getElementById('filter-search')?.addEventListener('input', (e) => {
-        try { localStorage.setItem(LS.searchQuery, e.target.value || ''); } catch (_) {}
+        writeScopedSearchQuery(e.target.value || '');
         renderTasks();
     });
     document.getElementById('filter-column')?.addEventListener('change', (e) => {

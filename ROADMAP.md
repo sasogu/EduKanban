@@ -47,7 +47,7 @@ Este documento recoge mejoras propuestas para abordar poco a poco, con foco en i
 - Criterio de cierre: Los atajos funcionan sin interferir con escritura en inputs o textareas.
 - Estado: Implementado con `/` para búsqueda, `n` y `Alt+N` para nueva actividad, y `Esc` para cerrar overlays visibles.
 
-### [ ] 3. Persistencia adicional de UI
+### [x] 3. Persistencia adicional de UI
 - Prioridad: Media
 - Impacto: Medio
 - Riesgo: Bajo
@@ -60,6 +60,7 @@ Este documento recoge mejoras propuestas para abordar poco a poco, con foco en i
   - Guardar secciones abiertas/cerradas del sidebar.
   - Recordar vista o filtro reciente por página.
 - Criterio de cierre: Al recargar, la app vuelve al contexto esperado en cada vista.
+- Estado: Implementado con búsqueda persistida por vista, página actual de recursos y estado abierto/cerrado del panel de etiquetas.
 
 ### [ ] 4. Paginación avanzada en recursos
 - Prioridad: Media
