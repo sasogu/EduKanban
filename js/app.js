@@ -56,6 +56,7 @@ const LS = {
   visibleColumn: 'edukanban.visibleColumn', // compat: antes guardaba un string; ahora guarda JSON array
   notificationsEnabled: 'edukanban.notificationsEnabled',
   pendingDropboxAction: 'edukanban.pendingDropboxAction',
+  returnAfterDropboxAuth: 'edukanban.returnAfterDropboxAuth',
   lastReauthAt: 'edukanban.lastReauthAt',
   mediaLoop: 'edukanban.mediaLoop',
   mediaLoopAB: 'edukanban.mediaLoopAB',
@@ -3409,23 +3410,45 @@ async function validateToken() {
 }
 
 // --- REAUTENTICACIÓN AUTOMÁTICA CON DROPBOX ---
+function getDropboxAppRedirectUri() {
+    const basePath = getCurrentBasePath();
+    return new URL('index.html', window.location.origin + basePath).toString();
+}
+
+function rememberDropboxReturnUrl() {
+    try {
+        const currentUrl = new URL(window.location.href);
+        currentUrl.hash = '';
+        localStorage.setItem(LS.returnAfterDropboxAuth, currentUrl.toString());
+    } catch (_) {}
+}
+
+function consumeDropboxReturnUrl() {
+    try {
+        const raw = localStorage.getItem(LS.returnAfterDropboxAuth) || '';
+        localStorage.removeItem(LS.returnAfterDropboxAuth);
+        if (!raw) return '';
+        const target = new URL(raw, window.location.origin);
+        if (target.origin !== window.location.origin) return '';
+        target.hash = '';
+        return target.toString();
+    } catch (_) {
+        return '';
+    }
+}
+
 function getDropboxRedirectUri() {
-    // Si quieres fijar una URI exacta registrada en Dropbox, usa
-    // DROPBOX_REDIRECT_URI. Si no, usamos la página actual para mantener
-    // compatibilidad con configuraciones previas.
+    // Dropbox debe volver siempre a la página principal de la app.
     try {
         if (typeof DROPBOX_REDIRECT_URI === 'string' && DROPBOX_REDIRECT_URI && DROPBOX_REDIRECT_URI !== 'about:blank') {
             return DROPBOX_REDIRECT_URI;
         }
     } catch (_) {}
-    const origin = window.location.origin || (window.location.protocol + '//' + window.location.host);
-    const cleanPath = (window.location.pathname || '/').split('?')[0].split('#')[0];
-    if (cleanPath.endsWith('index.html')) return origin + cleanPath.replace(/index\.html$/, '');
-    if (cleanPath === '/' || cleanPath === '') return origin + '/';
-    return origin + cleanPath;
+    return getDropboxAppRedirectUri();
 }
 
 function startDropboxAuth() {
+    rememberDropboxReturnUrl();
     const redirectUri = getDropboxRedirectUri();
     const authUrl = `https://www.dropbox.com/oauth2/authorize?client_id=${DROPBOX_APP_KEY}&response_type=token&redirect_uri=${encodeURIComponent(redirectUri)}`;
     window.location.href = authUrl;
@@ -4090,6 +4113,14 @@ function handleAuthCallback() {
         
         // Limpiar URL
         window.history.replaceState({}, document.title, window.location.pathname);
+
+        const returnUrl = consumeDropboxReturnUrl();
+        const currentUrl = new URL(window.location.href);
+        currentUrl.hash = '';
+        if (returnUrl && returnUrl !== currentUrl.toString()) {
+            window.location.replace(returnUrl);
+            return;
+        }
         
         updateDropboxButtons();
         showToast('✅ Conectado con Dropbox correctamente');
