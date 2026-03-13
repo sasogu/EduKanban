@@ -568,6 +568,7 @@ function showConfirm(message, acceptLabel = 'Aceptar', cancelLabel = 'Cancelar')
     }
 
     msgEl.textContent = message;
+    msgEl.style.whiteSpace = 'pre-line';
     acceptBtn.textContent = acceptLabel;
     cancelBtn.textContent = cancelLabel;
     modal.style.display = 'flex';
@@ -597,6 +598,7 @@ function showConfirm(message, acceptLabel = 'Aceptar', cancelLabel = 'Cancelar')
         setTimeout(() => acceptBtn.focus(), 0);
     });
 }
+window.showConfirm = showConfirm;
 
 function convertirEnlaces(texto) {
     // Escapar HTML y luego convertir URLs en enlaces seguros o embeds de YouTube

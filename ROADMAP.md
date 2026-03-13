@@ -156,7 +156,7 @@ Este documento recoge mejoras propuestas para abordar poco a poco, con foco en i
   - Mejorar resumen de actividad por etiquetas.
 - Criterio de cierre: El histórico ayuda a revisar trabajo real y detectar patrones.
 
-### 10. Exportación/importación robusta
+### [x] 10. Exportación/importación robusta
 - Prioridad: Alta
 - Impacto: Alto
 - Riesgo: Medio
@@ -169,6 +169,7 @@ Este documento recoge mejoras propuestas para abordar poco a poco, con foco en i
   - Validar estructura antes de importar.
   - Mostrar resumen previo de lo que se va a sobrescribir.
 - Criterio de cierre: Importar deja de ser una operación ciega.
+- Estado: Implementado con `schemaVersion`, validación estructural, compatibilidad con copias antiguas y confirmación previa con resumen de la copia y del estado local.
 
 ## Fase 3: Cambios estructurales
 

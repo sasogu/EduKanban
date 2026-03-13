@@ -28,6 +28,12 @@
       backup_created: 'Copia creada',
       backup_restored: 'Copia restaurada',
       backup_invalid: 'Archivo de copia no válido',
+      backup_import_confirm_title: 'La importación reemplazará los datos locales actuales.',
+      backup_import_confirm_summary: 'Resumen de la copia:',
+      backup_import_confirm_current: 'Estado actual:',
+      backup_import_confirm_apply: 'Importar',
+      backup_schema_unsupported: 'La copia usa una versión de esquema no compatible.',
+      backup_invalid_structure: 'La copia no tiene la estructura esperada.',
       new_activity: 'Nueva Actividad',
       view_reminders: '⏰ Ver Recordatorios',
       view_archive: '🗄️ Ver Archivo',
@@ -130,6 +136,12 @@
       backup_created: 'Còpia creada',
       backup_restored: 'Còpia restaurada',
       backup_invalid: 'Fitxer de còpia no vàlid',
+      backup_import_confirm_title: 'La importació substituirà les dades locals actuals.',
+      backup_import_confirm_summary: 'Resum de la còpia:',
+      backup_import_confirm_current: 'Estat actual:',
+      backup_import_confirm_apply: 'Importar',
+      backup_schema_unsupported: 'La còpia usa una versió d esquema no compatible.',
+      backup_invalid_structure: 'La còpia no té l estructura esperada.',
       new_activity: 'Nova activitat',
       view_reminders: '⏰ Veure recordatoris',
       view_archive: '🗄️ Veure arxiu',
@@ -313,16 +325,114 @@
 
   // Helpers de backup reutilizables en todas las páginas
   const LS_BACKUP = { categories: 'edukanban.categories', deleted: 'edukanban.deletedTasks' };
+  const BACKUP_SCHEMA_VERSION = 1;
+  const BACKUP_APP_NAME = 'EduKanban';
   function getNowStamp(){
     const d=new Date(); const pad=n=>String(n).padStart(2,'0');
     return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
   }
   function safeToast(msg,type){ if (window.showToast) showToast(msg,type); else try{console.log(msg)}catch(_){}}
+  function getDefaultCategoriesShape(){
+    return {
+      'en-preparacion': [],
+      'preparadas': [],
+      'en-proceso': [],
+      'pendientes': [],
+      'archivadas': []
+    };
+  }
+  function cloneCategoriesShape(input){
+    const base = getDefaultCategoriesShape();
+    try{
+      if (!input || typeof input !== 'object') return base;
+      for (const key of Object.keys(base)) {
+        base[key] = Array.isArray(input[key]) ? input[key] : [];
+      }
+    }catch(_){}
+    return base;
+  }
+  function countTasksInCategories(categories){
+    try{
+      return Object.values(cloneCategoriesShape(categories)).reduce((sum, list) => sum + list.length, 0);
+    }catch(_){ return 0; }
+  }
+  function getBackupSummaryLines(data){
+    const categories = cloneCategoriesShape(data && data.categories);
+    const deletedTasks = Array.isArray(data && data.deletedTasks) ? data.deletedTasks : [];
+    const schemaVersion = Number.isFinite(Number(data && data.schemaVersion)) ? Number(data.schemaVersion) : 0;
+    const version = (data && data.version) ? String(data.version) : 'desconocida';
+    const exportedAt = (data && data.exportedAt) ? String(data.exportedAt) : 'desconocida';
+    return [
+      `- app: ${data && data.app ? data.app : 'desconocida'}`,
+      `- schemaVersion: ${schemaVersion || 'desconocida'}`,
+      `- version: ${version}`,
+      `- exportedAt: ${exportedAt}`,
+      `- tareas activas: ${countTasksInCategories(categories)}`,
+      `- tareas eliminadas: ${deletedTasks.length}`
+    ];
+  }
+  function getCurrentLocalBackupSummaryLines(){
+    try{
+      return getBackupSummaryLines({
+        app: BACKUP_APP_NAME,
+        schemaVersion: BACKUP_SCHEMA_VERSION,
+        version: 'local',
+        exportedAt: new Date().toISOString(),
+        categories: JSON.parse(localStorage.getItem(LS_BACKUP.categories) || '{}'),
+        deletedTasks: JSON.parse(localStorage.getItem(LS_BACKUP.deleted) || '[]')
+      });
+    }catch(_){
+      return [];
+    }
+  }
+  function validateBackupPayload(data){
+    if (!data || typeof data !== 'object') return { ok: false, error: 'invalid-structure' };
+    if (data.app && String(data.app) !== BACKUP_APP_NAME) return { ok: false, error: 'invalid-structure' };
+    const hasLegacyVersion = typeof data.version === 'string' && data.version.length > 0;
+    const schemaVersion = Number.isFinite(Number(data.schemaVersion)) ? Number(data.schemaVersion) : (hasLegacyVersion ? 1 : 0);
+    if (!schemaVersion || schemaVersion > BACKUP_SCHEMA_VERSION) return { ok: false, error: 'unsupported-schema' };
+    if (!data.categories || typeof data.categories !== 'object' || Array.isArray(data.categories)) return { ok: false, error: 'invalid-structure' };
+    const normalizedCategories = cloneCategoriesShape(data.categories);
+    const deletedTasks = Array.isArray(data.deletedTasks) ? data.deletedTasks : [];
+    return {
+      ok: true,
+      payload: {
+        app: BACKUP_APP_NAME,
+        schemaVersion,
+        version: typeof data.version === 'string' && data.version ? data.version : '2.0.0',
+        exportedAt: typeof data.exportedAt === 'string' && data.exportedAt ? data.exportedAt : null,
+        categories: normalizedCategories,
+        deletedTasks
+      }
+    };
+  }
+  async function confirmBackupImport(data){
+    const lines = [
+      t('backup_import_confirm_title'),
+      '',
+      t('backup_import_confirm_summary'),
+      ...getBackupSummaryLines(data),
+      '',
+      t('backup_import_confirm_current'),
+      ...getCurrentLocalBackupSummaryLines()
+    ];
+    if (typeof window.showConfirm === 'function') {
+      return await window.showConfirm(lines.join('\n'), t('backup_import_confirm_apply'), t('cancel'));
+    }
+    return window.confirm(lines.join('\n'));
+  }
   function exportBackup(){
     try{
       const categories = JSON.parse(localStorage.getItem(LS_BACKUP.categories) || '{}');
       const deletedTasks = JSON.parse(localStorage.getItem(LS_BACKUP.deleted) || '[]');
-      const payload = { app: 'EduKanban', version: '2.0.0', exportedAt: new Date().toISOString(), categories, deletedTasks };
+      const payload = {
+        app: BACKUP_APP_NAME,
+        schemaVersion: BACKUP_SCHEMA_VERSION,
+        version: '2.0.0',
+        exportedAt: new Date().toISOString(),
+        categories: cloneCategoriesShape(categories),
+        deletedTasks: Array.isArray(deletedTasks) ? deletedTasks : []
+      };
       const blob = new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
       const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`edukanban-backup-${getNowStamp()}.json`;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
@@ -333,14 +443,22 @@
     try{
       const text = await file.text();
       const data = JSON.parse(text);
-      if (!data || typeof data !== 'object' || !data.categories) throw new Error('invalid');
-      localStorage.setItem(LS_BACKUP.categories, JSON.stringify(data.categories));
-      if (Array.isArray(data.deletedTasks)) localStorage.setItem(LS_BACKUP.deleted, JSON.stringify(data.deletedTasks));
+      const validated = validateBackupPayload(data);
+      if (!validated.ok) throw new Error(validated.error);
+      const accept = await confirmBackupImport(validated.payload);
+      if (!accept) return;
+      localStorage.setItem(LS_BACKUP.categories, JSON.stringify(validated.payload.categories));
+      localStorage.setItem(LS_BACKUP.deleted, JSON.stringify(validated.payload.deletedTasks));
       safeToast(t('backup_restored'));
       if (typeof window.renderTasks === 'function') window.renderTasks();
       if (typeof window.__rerenderArchive === 'function') window.__rerenderArchive();
       if (typeof window.__rerenderReminders === 'function') window.__rerenderReminders();
-    }catch(e){ console.error('importBackup',e); safeToast(t('backup_invalid'),'error'); }
+    }catch(e){
+      console.error('importBackup',e);
+      if (e && e.message === 'unsupported-schema') safeToast(t('backup_schema_unsupported'),'error');
+      else if (e && e.message === 'invalid-structure') safeToast(t('backup_invalid_structure'),'error');
+      else safeToast(t('backup_invalid'),'error');
+    }
   }
   function applyI18nCommon(){
     // Selector de idioma si existe

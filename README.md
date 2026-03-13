@@ -155,7 +155,7 @@ El proyecto contiene los siguientes archivos y directorios:
 ### Sincronización y copias
 - Conectar con Dropbox (OAuth 2.0) para sincronizar categorías, adjuntos y registros de eliminación en el archivo `/edukanban.json` y en `/edukanban_attachments`.
 - Gestionar el estado de la sesión con reautenticación asistida, indicador visual y sincronización manual cuando sea necesario.
-- Exportar e importar copias de seguridad en formato JSON desde el panel de administración.
+- Exportar e importar copias de seguridad en formato JSON desde el panel de administración, con `schemaVersion`, validación previa y resumen antes de sobrescribir los datos locales.
 - Almacenar todos los datos locales con prefijo `edukanban.*` y conservar los adjuntos en IndexedDB para continuidad offline.
 
 ### PWA y accesibilidad
