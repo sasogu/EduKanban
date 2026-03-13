@@ -829,6 +829,29 @@ function loadCategoriesFromLocalStorage() {
         localStorage.setItem(LS.categories, JSON.stringify(categories));
     }
 }
+
+function normalizeTaskTags(task) {
+    const toTag = (value) => {
+        if (typeof value === 'string') return value.trim();
+        if (value && typeof value === 'object') {
+            if (typeof value.name === 'string') return value.name.trim();
+            if (typeof value.tag === 'string') return value.tag.trim();
+        }
+        return '';
+    };
+
+    let source = [];
+    if (Array.isArray(task && task.tags)) {
+        source = task.tags;
+    } else if (typeof (task && task.tags) === 'string') {
+        source = task.tags.split(/[;,]/g);
+    } else if (typeof (task && task.tag) === 'string') {
+        source = task.tag.split(/[;,]/g);
+    }
+
+    return Array.from(new Set(source.map(toTag).filter(Boolean)));
+}
+
 function migrateOldTasks() {
     let needsSave = false;
     for (const category in categories) {
@@ -836,6 +859,11 @@ function migrateOldTasks() {
             if (!task.id) { task.id = generateUUID(); needsSave = true; }
             if (!task.lastModified) { task.lastModified = new Date().toISOString(); needsSave = true; }
             if (!Array.isArray(task.attachments)) { task.attachments = []; needsSave = true; }
+            const normalizedTags = normalizeTaskTags(task);
+            const hasDifferentTags = !Array.isArray(task.tags)
+                || task.tags.length !== normalizedTags.length
+                || task.tags.some((tag, index) => tag !== normalizedTags[index]);
+            if (hasDifferentTags) { task.tags = normalizedTags; needsSave = true; }
             // Añadir historial de realizados si no existe
             if (!Array.isArray(task.doneHistory)) { task.doneHistory = []; needsSave = true; }
             if (Array.isArray(task.attachments)) {
@@ -1222,7 +1250,7 @@ function __getDoneEvents(task, filterTags = []) {
         // - entradas legacy (sin tag): cuentan si la tarea contiene CUALQUIERA de las etiquetas seleccionadas
         if (tag && tags.includes(tag)) {
             events.push({ ts, time, tag });
-        } else if (tag == null && Array.isArray(task.tags) && tags.some(t => task.tags.includes(t))) {
+        } else if (tag == null && tags.some(t => normalizeTaskTags(task).includes(t))) {
             events.push({ ts, time, tag });
         }
     }
@@ -1246,7 +1274,7 @@ function toggleTaskCompletion(taskId) {
         task.doneHistory = Array.isArray(task.doneHistory) ? task.doneHistory : [];
         // Guardar el "hecho" asociado a la etiqueta activa (si existe)
         const activeTag = __getActiveFilterTag();
-        const taskTags = Array.isArray(task.tags) ? task.tags.filter(Boolean) : [];
+        const taskTags = normalizeTaskTags(task);
         const tagForEvent = activeTag || (taskTags.length === 1 ? taskTags[0] : '');
         task.doneHistory.push({ ts: new Date().toISOString(), tag: tagForEvent });
         task.lastModified = new Date().toISOString();
@@ -1340,7 +1368,7 @@ async function splitTaskByTags(taskId) {
     const data = findTask(taskId);
     if (!data) return;
     const { task, category } = data;
-    const tags = Array.isArray(task.tags) ? Array.from(new Set(task.tags.filter(t => typeof t === 'string' && t.trim().length))) : [];
+    const tags = normalizeTaskTags(task);
     if (tags.length <= 1) {
         showToast((window.i18n&&i18n.t)?i18n.t('split_single_error'):'La actividad ya tiene una sola etiqueta.', 'error');
         return;
@@ -1440,7 +1468,7 @@ function openEditTask(taskId) {
     // Prefill
     taskNameInput.value = data.task.task || '';
     categorySelect.value = data.category;
-    tagsInput.value = (data.task.tags || []).join(', ');
+    tagsInput.value = normalizeTaskTags(data.task).join(', ');
     if (reminderInput) {
         // Convertir ISO a valor datetime-local (sin zona, formato YYYY-MM-DDTHH:mm)
         const iso = data.task.reminderAt || '';
@@ -2230,14 +2258,15 @@ function parseSearchQuery(query) {
 
 function taskMatchesSearch(task, parsedSearch, categoryKey = '') {
     if (!parsedSearch || !parsedSearch.hasActiveTerms) return true;
+    const taskTags = normalizeTaskTags(task);
     const parts = [];
     if (task && task.task) parts.push(task.task);
-    if (Array.isArray(task.tags) && task.tags.length) parts.push(task.tags.join(' '));
+    if (taskTags.length) parts.push(taskTags.join(' '));
     if (Array.isArray(task.attachments) && task.attachments.length) {
         parts.push(task.attachments.map(att => att && att.name ? att.name : '').join(' '));
     }
     const haystack = normalizeSearchValue(parts.join(' '));
-    const normalizedTags = Array.isArray(task?.tags) ? task.tags.map(tag => normalizeSearchValue(tag)) : [];
+    const normalizedTags = taskTags.map(tag => normalizeSearchValue(tag));
     const normalizedCategory = (Array.isArray(categoryKey) ? categoryKey : [categoryKey])
         .map(value => normalizeSearchValue(value || ''))
         .filter(Boolean)
@@ -2478,9 +2507,15 @@ function renderTasks() {
         let filteredTasks = tasks;
         if (filterTags && filterTags.length) {
             if (tagFilterMode === 'and') {
-                filteredTasks = tasks.filter(task => Array.isArray(task.tags) && filterTags.every(t => task.tags.includes(t)));
+                filteredTasks = tasks.filter(task => {
+                    const taskTags = normalizeTaskTags(task);
+                    return filterTags.every(t => taskTags.includes(t));
+                });
             } else {
-                filteredTasks = tasks.filter(task => Array.isArray(task.tags) && filterTags.some(t => task.tags.includes(t)));
+                filteredTasks = tasks.filter(task => {
+                    const taskTags = normalizeTaskTags(task);
+                    return filterTags.some(t => taskTags.includes(t));
+                });
             }
         }
         if (parsedSearch.hasActiveTerms) {
@@ -2492,8 +2527,9 @@ function renderTasks() {
             const { count: doneCount, lastIso } = __getDoneCountAndLastIso(task, filterTags);
             const lastDone = doneCount && lastIso ? new Date(lastIso).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' }) : '';
             const doneMeta = doneCount ? `<small class="done-meta">✔️ ${doneCount} ${(window.i18n&&i18n.t)?i18n.t('times'):'veces'}${lastDone ? ` • ${(window.i18n&&i18n.t)?i18n.t('last'):'Última'}: ${lastDone}` : ''}</small>` : '';
-            const tagsHtml = (task.tags && task.tags.length)
-                ? `<small class="tags">${task.tags.map(t => '<span class="tag-chip in-task">#'+t+'</span>').join(' ')}</small>`
+            const taskTags = normalizeTaskTags(task);
+            const tagsHtml = taskTags.length
+                ? `<small class="tags">${taskTags.map(t => '<span class="tag-chip in-task">#'+t+'</span>').join(' ')}</small>`
                 : '';
             const reminderHtml = task.reminderAt
                 ? `<small class="reminder-meta">⏰ ${new Date(task.reminderAt).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' })}</small>`
@@ -2541,7 +2577,7 @@ function renderTasks() {
                     </select>
                     <button class="done-btn" aria-label="${(window.i18n&&i18n.t)?i18n.t('mark_done'):'Marcar realizado'}" title="${(window.i18n&&i18n.t)?i18n.t('mark_done'):'Marcar realizado'}" onclick="markTaskDone('${task.id}')">✔️ <span class="btn-label">${(window.i18n&&i18n.t)?i18n.t('done'):'Hecho'}</span></button>
                     <button class="edit-btn" aria-label="${(window.i18n&&i18n.t)?i18n.t('edit'):'Editar'} actividad" title="${(window.i18n&&i18n.t)?i18n.t('edit'):'Editar'}" onclick="openEditTask('${task.id}')">✏️ <span class="btn-label">${(window.i18n&&i18n.t)?i18n.t('edit'):'Editar'}</span></button>
-                    ${task.tags && task.tags.length > 1 ? `<button class="split-btn" aria-label="${(window.i18n&&i18n.t)?i18n.t('split_by_tags'):'Dividir por etiquetas'}" title="${(window.i18n&&i18n.t)?i18n.t('split_by_tags'):'Dividir por etiquetas'}" onclick="splitTaskByTags('${task.id}')">🔀 <span class="btn-label">${(window.i18n&&i18n.t)?i18n.t('split'):'Dividir'}</span></button>` : ''}
+                    ${taskTags.length > 1 ? `<button class="split-btn" aria-label="${(window.i18n&&i18n.t)?i18n.t('split_by_tags'):'Dividir por etiquetas'}" title="${(window.i18n&&i18n.t)?i18n.t('split_by_tags'):'Dividir por etiquetas'}" onclick="splitTaskByTags('${task.id}')">🔀 <span class="btn-label">${(window.i18n&&i18n.t)?i18n.t('split'):'Dividir'}</span></button>` : ''}
                     <button class="delete-btn" aria-label="${(window.i18n&&i18n.t)?i18n.t('delete'):'Eliminar'} actividad" title="${(window.i18n&&i18n.t)?i18n.t('delete'):'Eliminar'}" onclick="removeTask('${task.id}')">🗑️ <span class="btn-label">${(window.i18n&&i18n.t)?i18n.t('delete'):'Eliminar'}</span></button>
                 </div>
             </div>`;
@@ -2592,7 +2628,7 @@ function renderTasks() {
                 g.items.forEach(it => {
                     const div = document.createElement('div');
                     div.className = 'task';
-                    const tags = (it.task.tags||[]);
+                    const tags = normalizeTaskTags(it.task);
                     div.innerHTML = `
                         <span>${convertirEnlaces(it.task.task)}
                           ${tags.length ? `<small class=\"tags\">${tags.map(t => '<span class=\"tag-chip in-task\">#'+t+'</span>').join(' ')}</small>` : ''}
@@ -3096,9 +3132,7 @@ function getAllTags() {
     const tagsSet = new Set();
     Object.values(categories).forEach(tasks => {
         tasks.forEach(task => {
-            if (task.tags && Array.isArray(task.tags)) {
-                task.tags.forEach(tag => tagsSet.add(tag));
-            }
+            normalizeTaskTags(task).forEach(tag => tagsSet.add(tag));
         });
     });
     return Array.from(tagsSet).sort();

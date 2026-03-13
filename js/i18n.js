@@ -327,6 +327,7 @@
   const LS_BACKUP = { categories: 'edukanban.categories', deleted: 'edukanban.deletedTasks' };
   const BACKUP_SCHEMA_VERSION = 1;
   const BACKUP_APP_NAME = 'EduKanban';
+  const APP_VERSION = '2.0.1';
   function getNowStamp(){
     const d=new Date(); const pad=n=>String(n).padStart(2,'0');
     return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
@@ -399,7 +400,7 @@
       payload: {
         app: BACKUP_APP_NAME,
         schemaVersion,
-        version: typeof data.version === 'string' && data.version ? data.version : '2.0.0',
+        version: typeof data.version === 'string' && data.version ? data.version : APP_VERSION,
         exportedAt: typeof data.exportedAt === 'string' && data.exportedAt ? data.exportedAt : null,
         categories: normalizedCategories,
         deletedTasks
@@ -428,7 +429,7 @@
       const payload = {
         app: BACKUP_APP_NAME,
         schemaVersion: BACKUP_SCHEMA_VERSION,
-        version: '2.0.0',
+        version: APP_VERSION,
         exportedAt: new Date().toISOString(),
         categories: cloneCategoriesShape(categories),
         deletedTasks: Array.isArray(deletedTasks) ? deletedTasks : []
