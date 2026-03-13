@@ -3412,7 +3412,7 @@ async function validateToken() {
 // --- REAUTENTICACIÓN AUTOMÁTICA CON DROPBOX ---
 function getDropboxAppRedirectUri() {
     const basePath = getCurrentBasePath();
-    return new URL('index.html', window.location.origin + basePath).toString();
+    return new URL(basePath, window.location.origin).toString();
 }
 
 function rememberDropboxReturnUrl() {
