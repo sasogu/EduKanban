@@ -351,6 +351,21 @@ header .boton-accion.boton-primario:hover {
     color: var(--color-muted);
     font-size: 0.95rem;
 }
+.resources-page-size-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-muted);
+  font-size: 0.95rem;
+}
+.resources-page-size-select {
+  min-width: 72px;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--color-text);
+}
 .resources-page-btn[disabled] {
     opacity: 0.45;
     cursor: not-allowed;

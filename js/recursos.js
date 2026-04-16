@@ -9,12 +9,15 @@ document.addEventListener('DOMContentLoaded', function() {
         searchQuery: scopedUiKey('searchQuery'),
         legacySearchQuery: 'edukanban.searchQuery',
         tagFilterMode: 'edukanban.tagFilterMode',
-        currentPage: scopedUiKey('currentPage')
+        currentPage: scopedUiKey('currentPage'),
+        pageSize: scopedUiKey('pageSize')
     };
     const container = document.getElementById('resources-container');
     if (!container) return;
-    const PAGE_SIZE = 10;
+    const PAGE_SIZE_OPTIONS = [10, 25, 50];
+    const DEFAULT_PAGE_SIZE = 10;
     let currentPage = 1;
+    let pageSize = DEFAULT_PAGE_SIZE;
     const filterTagSelect = document.getElementById('filter-tag');
     const filterSearchInput = document.getElementById('filter-search');
     const filterTagModeSelect = document.getElementById('filter-tag-mode');
@@ -67,7 +70,22 @@ document.addEventListener('DOMContentLoaded', function() {
         try { localStorage.setItem(LS.currentPage, String(page > 0 ? page : 1)); } catch (_) {}
     }
 
+    function readStoredPageSize() {
+        try {
+            const raw = parseInt(localStorage.getItem(LS.pageSize) || String(DEFAULT_PAGE_SIZE), 10);
+            return PAGE_SIZE_OPTIONS.includes(raw) ? raw : DEFAULT_PAGE_SIZE;
+        } catch (_) {
+            return DEFAULT_PAGE_SIZE;
+        }
+    }
+
+    function writeStoredPageSize(size) {
+        const next = PAGE_SIZE_OPTIONS.includes(size) ? size : DEFAULT_PAGE_SIZE;
+        try { localStorage.setItem(LS.pageSize, String(next)); } catch (_) {}
+    }
+
     currentPage = readStoredCurrentPage();
+    pageSize = readStoredPageSize();
 
     function loadNextcloudConfig() {
         try {
@@ -1067,23 +1085,26 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function renderResourcesPagination(totalItems, paginate) {
-        if (!paginate || totalItems <= PAGE_SIZE) {
+        if (!paginate || totalItems <= pageSize) {
             writeStoredCurrentPage(1);
             paginationEl.hidden = true;
             paginationEl.innerHTML = '';
             return;
         }
 
-        const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+        const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
         currentPage = Math.min(Math.max(1, currentPage), totalPages);
         writeStoredCurrentPage(currentPage);
         paginationEl.dataset.totalPages = String(totalPages);
         const prevDisabled = currentPage <= 1 ? ' disabled' : '';
         const nextDisabled = currentPage >= totalPages ? ' disabled' : '';
-        const startItem = ((currentPage - 1) * PAGE_SIZE) + 1;
-        const endItem = Math.min(currentPage * PAGE_SIZE, totalItems);
+        const startItem = ((currentPage - 1) * pageSize) + 1;
+        const endItem = Math.min(currentPage * pageSize, totalItems);
         const firstDisabled = currentPage === 1 ? ' disabled' : '';
         const lastDisabled = currentPage === totalPages ? ' disabled' : '';
+        const sizeOptions = PAGE_SIZE_OPTIONS
+            .map(size => `<option value="${size}"${size === pageSize ? ' selected' : ''}>${size}</option>`)
+            .join('');
         const pageButtons = [];
         const visiblePages = new Set([1, totalPages, currentPage - 1, currentPage, currentPage + 1]);
         const orderedPages = Array.from(visiblePages)
@@ -1105,6 +1126,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
         paginationEl.hidden = false;
         paginationEl.innerHTML = `
+            <label class="resources-page-size-control" for="resources-page-size">
+                Por pagina
+                <select id="resources-page-size" class="resources-page-size-select" aria-label="Recursos por pagina" data-page-size>
+                    ${sizeOptions}
+                </select>
+            </label>
             <button type="button" class="boton-accion resources-page-btn" data-page-action="first"${firstDisabled}>Primera</button>
             <button type="button" class="boton-accion resources-page-btn" data-page-action="prev"${prevDisabled}>Anterior</button>
             <div class="resources-page-numbers" role="group" aria-label="Páginas de recursos">${pageButtons.join('')}</div>
@@ -1157,15 +1184,14 @@ document.addEventListener('DOMContentLoaded', function() {
         if (parsedSearch.hasActiveTerms) {
             filteredItems = filteredItems.filter(({ task, category }) => taskMatchesSearch(task, parsedSearch, [category, categoryNames[category] || category]));
         }
-        const hasActiveFilters = selectedTags.length > 0 || !!parsedSearch.hasActiveTerms;
-        const paginate = !hasActiveFilters;
+        const paginate = true;
         const totalItems = filteredItems.length;
         if (paginate) {
-            const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+            const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
             currentPage = Math.min(Math.max(1, currentPage), totalPages);
             writeStoredCurrentPage(currentPage);
-            const start = (currentPage - 1) * PAGE_SIZE;
-            filteredItems = filteredItems.slice(start, start + PAGE_SIZE);
+            const start = (currentPage - 1) * pageSize;
+            filteredItems = filteredItems.slice(start, start + pageSize);
         } else {
             currentPage = 1;
             writeStoredCurrentPage(1);
@@ -1259,6 +1285,16 @@ document.addEventListener('DOMContentLoaded', function() {
         if (action === 'next') currentPage += 1;
         if (action === 'last') currentPage = totalPages;
         writeStoredCurrentPage(currentPage);
+        renderResources();
+    });
+    paginationEl.addEventListener('change', (e) => {
+        const sizeSelect = e.target.closest('[data-page-size]');
+        if (!sizeSelect) return;
+        const nextSize = parseInt(sizeSelect.value || String(DEFAULT_PAGE_SIZE), 10);
+        pageSize = PAGE_SIZE_OPTIONS.includes(nextSize) ? nextSize : DEFAULT_PAGE_SIZE;
+        writeStoredPageSize(pageSize);
+        currentPage = 1;
+        writeStoredCurrentPage(1);
         renderResources();
     });
     container.addEventListener('click', (e) => {
