@@ -904,13 +904,19 @@ document.addEventListener('DOMContentLoaded', function() {
             return s && (!q || s.toLowerCase().includes(q));
         });
 
-        host.innerHTML = '';
-        for (const tag of visible) {
+        const numericTags = [];
+        const textTags = [];
+        visible.forEach((tag) => {
+            if (/^\d/.test(String(tag || '').trim())) numericTags.push(tag);
+            else textTags.push(tag);
+        });
+
+        const buildTagItem = (tag, index) => {
             const safe = String(tag)
                 .replace(/\s+/g, '-')
                 .replace(/[^a-zA-Z0-9\-]/g, '')
                 .toLowerCase();
-            const id = `tag-${safe}`;
+            const id = `tag-${safe || 'x'}-${index}`;
 
             const label = document.createElement('label');
             label.className = 'tag-filter-item';
@@ -927,7 +933,38 @@ document.addEventListener('DOMContentLoaded', function() {
 
             label.appendChild(cb);
             label.appendChild(text);
-            host.appendChild(label);
+            return label;
+        };
+
+        const appendGroup = (title, tags, offset) => {
+            if (!tags.length) return;
+            const group = document.createElement('section');
+            group.className = 'tag-filter-group';
+
+            const heading = document.createElement('h4');
+            heading.className = 'tag-filter-group-title';
+            heading.textContent = title;
+
+            const list = document.createElement('div');
+            list.className = 'tag-filter-group-list';
+            tags.forEach((tag, idx) => {
+                list.appendChild(buildTagItem(tag, offset + idx));
+            });
+
+            group.appendChild(heading);
+            group.appendChild(list);
+            host.appendChild(group);
+        };
+
+        host.innerHTML = '';
+        appendGroup('Etiquetas numéricas', numericTags, 0);
+        appendGroup('Etiquetas de texto', textTags, numericTags.length);
+
+        if (!visible.length) {
+            const empty = document.createElement('p');
+            empty.className = 'tag-filter-empty';
+            empty.textContent = 'No hay etiquetas para mostrar';
+            host.appendChild(empty);
         }
 
         if (countEl) countEl.textContent = selected.size ? `(${selected.size})` : '';
