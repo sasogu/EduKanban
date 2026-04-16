@@ -892,17 +892,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const host = document.getElementById('filter-tag');
         if (!host) return;
 
-        const searchInput = document.getElementById('filter-tag-search');
         const clearBtn = document.getElementById('filter-tag-clear');
         const countEl = document.getElementById('tag-filter-count');
 
         const selected = new Set(readSelectedTagsFromStorage());
-        const q = (searchInput?.value || '').trim().toLowerCase();
-
-        const visible = (Array.isArray(allTags) ? allTags : []).filter(t => {
-            const s = String(t || '');
-            return s && (!q || s.toLowerCase().includes(q));
-        });
+        const visible = (Array.isArray(allTags) ? allTags : []).filter(t => String(t || ''));
 
         const numericTags = [];
         const textTags = [];
@@ -970,20 +964,12 @@ document.addEventListener('DOMContentLoaded', function() {
         if (countEl) countEl.textContent = selected.size ? `(${selected.size})` : '';
 
         // Bindings (idempotentes)
-        if (searchInput && !searchInput.dataset.bound) {
-            searchInput.dataset.bound = '1';
-            searchInput.addEventListener('input', () => {
-                renderTagFilterCheckboxes(allTags);
-            });
-        }
-
         if (clearBtn && !clearBtn.dataset.bound) {
             clearBtn.dataset.bound = '1';
             clearBtn.addEventListener('click', () => {
                 currentPage = 1;
                 writeStoredCurrentPage(1);
                 persistSelectedTagsToStorage([]);
-                if (searchInput) searchInput.value = '';
                 renderTagFilterCheckboxes(allTags);
                 renderResources();
             });
