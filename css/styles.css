@@ -347,8 +347,14 @@ header .boton-accion.boton-primario:hover {
   margin-bottom: 0;
   padding: 6px 10px;
   font-size: 0.92rem;
-  border-color: var(--color-border);
-  background: #fff;
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  color: #1f2937;
+}
+.resources-pagination .resources-page-btn:hover:not([disabled]) {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+  color: #0f172a;
 }
 .resources-page-numbers {
     display: inline-flex;
@@ -362,17 +368,18 @@ header .boton-accion.boton-primario:hover {
 }
 .resources-page-number.is-active,
 .resources-page-number[aria-current="page"] {
-    background: var(--color-primary);
+  background: #1d4ed8;
+  border-color: #1d4ed8;
     color: #fff;
 }
 .resources-page-ellipsis {
-    color: var(--color-muted);
+  color: #64748b;
     font-size: 1rem;
 }
 .resources-page-status {
     flex: 1 1 100%;
     text-align: center;
-    color: var(--color-muted);
+  color: #475569;
     font-size: 0.9rem;
 }
 .resources-page-size-control {
@@ -391,7 +398,10 @@ header .boton-accion.boton-primario:hover {
   color: var(--color-text);
 }
 .resources-page-btn[disabled] {
-    opacity: 0.45;
+  opacity: 1;
+  color: #94a3b8;
+  background: #f1f5f9;
+  border-color: #e2e8f0;
     cursor: not-allowed;
 }
 @media (max-width: 600px) {
