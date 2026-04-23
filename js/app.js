@@ -4868,6 +4868,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Mantener referencia al último <audio>/<video> activo (clic/foco)
     let lastActiveMediaEl = null;
     const setLastActiveMedia = (el) => { try { if (el && (el.tagName === 'AUDIO' || el.tagName === 'VIDEO')) lastActiveMediaEl = el; } catch (_) {} };
+    window.setLastActiveMedia = setLastActiveMedia;
     document.addEventListener('focusin', (e) => {
         const t = e.target;
         if (t && (t.tagName === 'AUDIO' || t.tagName === 'VIDEO')) setLastActiveMedia(t);

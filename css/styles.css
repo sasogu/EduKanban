@@ -657,8 +657,16 @@ button:hover { background: #1f2937; }
 }
 .attachment-audio-wrap .audio-speed,
 .attachment-video-wrap .video-speed { display: inline-flex; align-items: center; gap: 4px; }
+.attachment-audio-wrap .audio-speed button,
+.attachment-video-wrap .video-speed button {
+  min-width: 40px;
+  min-height: 36px;
+  padding: 6px 10px;
+  font-size: 18px;
+  font-weight: 600;
+}
 .attachment-audio-wrap .audio-speed-label,
-.attachment-video-wrap .video-speed-label { font-size: 14px; min-width: 36px; text-align: center; color: var(--color-muted); }
+.attachment-video-wrap .video-speed-label { font-size: 14px; min-width: 40px; text-align: center; color: var(--color-muted); }
 
 /* Estado activo del bucle */
 .attachment-audio-wrap .audio-loop-toggle.active,
@@ -728,10 +736,10 @@ button:hover { background: #1f2937; }
   .attachment-audio-wrap .audio-speed button,
   .attachment-video-wrap .video-restart,
   .attachment-video-wrap .video-speed button {
-    padding: 4px 6px; /* reducir ancho */
-    font-size: 38px;
-    min-height: 30px;
-    min-width: 32px; /* evitar botones muy anchos */
+    padding: 6px 10px;
+    font-size: 18px;
+    min-height: 38px;
+    min-width: 40px;
     width: auto;
     white-space: nowrap;
   }

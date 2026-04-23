@@ -528,6 +528,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (typeof window.bindPitchPersistence === 'function') {
                         window.bindPitchPersistence(audioEl);
                     }
+                    if (!audioEl.dataset.activeMediaBound) {
+                        ['play', 'pointerdown', 'click'].forEach((evt) => {
+                            audioEl.addEventListener(evt, () => markMediaAsActive(audioEl));
+                        });
+                        audioEl.dataset.activeMediaBound = '1';
+                    }
                 } else {
                     const span = document.createElement('span');
                     span.textContent = 'Audio no disponible';
@@ -541,6 +547,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     try { videoEl.setAttribute('playsinline', ''); } catch (_) {}
                     if (typeof window.bindPitchPersistence === 'function') {
                         window.bindPitchPersistence(videoEl);
+                    }
+                    if (!videoEl.dataset.activeMediaBound) {
+                        ['play', 'pointerdown', 'click'].forEach((evt) => {
+                            videoEl.addEventListener(evt, () => markMediaAsActive(videoEl));
+                        });
+                        videoEl.dataset.activeMediaBound = '1';
                     }
                 } else {
                     const span = document.createElement('span');
@@ -569,6 +581,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (speedDownBtn && !speedDownBtn.dataset.bound) {
                 speedDownBtn.addEventListener('click', () => {
                     if (!audioEl || typeof window.adjustMediaPlaybackRate !== 'function') return;
+                    markMediaAsActive(audioEl);
                     const step = Number(window.MEDIA_RATE_STEP) || 0.05;
                     window.adjustMediaPlaybackRate(audioEl, -step, updateSpeedLabel);
                 });
@@ -577,6 +590,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (speedUpBtn && !speedUpBtn.dataset.bound) {
                 speedUpBtn.addEventListener('click', () => {
                     if (!audioEl || typeof window.adjustMediaPlaybackRate !== 'function') return;
+                    markMediaAsActive(audioEl);
                     const step = Number(window.MEDIA_RATE_STEP) || 0.05;
                     window.adjustMediaPlaybackRate(audioEl, step, updateSpeedLabel);
                 });
@@ -603,6 +617,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (vSpeedDownBtn && !vSpeedDownBtn.dataset.bound) {
                 vSpeedDownBtn.addEventListener('click', () => {
                     if (!videoEl || typeof window.adjustMediaPlaybackRate !== 'function') return;
+                    markMediaAsActive(videoEl);
                     const step = Number(window.MEDIA_RATE_STEP) || 0.05;
                     window.adjustMediaPlaybackRate(videoEl, -step, updateVideoSpeedLabel);
                 });
@@ -611,6 +626,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (vSpeedUpBtn && !vSpeedUpBtn.dataset.bound) {
                 vSpeedUpBtn.addEventListener('click', () => {
                     if (!videoEl || typeof window.adjustMediaPlaybackRate !== 'function') return;
+                    markMediaAsActive(videoEl);
                     const step = Number(window.MEDIA_RATE_STEP) || 0.05;
                     window.adjustMediaPlaybackRate(videoEl, step, updateVideoSpeedLabel);
                 });
@@ -671,6 +687,16 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     window.addEventListener('beforeunload', cleanupObjectUrls);
+
+    function markMediaAsActive(mediaEl) {
+        try {
+            if (!mediaEl) return;
+            if (typeof window.setLastActiveMedia === 'function') {
+                window.setLastActiveMedia(mediaEl);
+            }
+            if (typeof mediaEl.focus === 'function') mediaEl.focus();
+        } catch (_) {}
+    }
 
     function convertirEnlaces(texto) {
         const urlRegex = /(https?:\/\/[^\s]+)/g;
