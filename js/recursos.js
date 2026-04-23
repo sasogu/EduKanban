@@ -674,8 +674,77 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function convertirEnlaces(texto) {
         const urlRegex = /(https?:\/\/[^\s]+)/g;
-        return texto.replace(urlRegex, function(url) {
-            return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+        const escapeHTML = (s) => String(s || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+
+        const escaped = typeof texto === 'string' ? escapeHTML(texto) : '';
+
+        const toEmbed = (rawUrl) => {
+            try {
+                const decodedUrl = rawUrl.replace(/&amp;/g, '&');
+                const u = new URL(decodedUrl);
+                const host = u.hostname.replace(/^www\./, '').toLowerCase();
+                const isYtHost = (h) => (
+                    h === 'youtube.com' || h === 'youtube-nocookie.com' || h === 'youtu.be' || h === 'music.youtube.com'
+                );
+                if (!isYtHost(host)) return null;
+
+                const validId = (s, min = 6) => /^[A-Za-z0-9_-]+$/.test(s || '') && (s || '').length >= min;
+                const parseStartSeconds = (urlObj) => {
+                    try {
+                        const raw = urlObj.searchParams.get('t') || urlObj.searchParams.get('start') || '';
+                        if (!raw) return 0;
+                        if (/^\d+$/.test(raw)) return Math.max(0, parseInt(raw, 10));
+                        const m = raw.match(/(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/i);
+                        if (m) {
+                            const h = parseInt(m[1] || '0', 10) || 0;
+                            const mn = parseInt(m[2] || '0', 10) || 0;
+                            const s = parseInt(m[3] || '0', 10) || 0;
+                            return Math.max(0, h * 3600 + mn * 60 + s);
+                        }
+                        const n = parseInt(raw, 10);
+                        return isNaN(n) ? 0 : Math.max(0, n);
+                    } catch (_) { return 0; }
+                };
+
+                const listId = u.searchParams.get('list') || '';
+                let videoId = '';
+                if (host === 'youtu.be') {
+                    videoId = (u.pathname || '/').slice(1);
+                } else {
+                    if (u.pathname.startsWith('/watch')) videoId = u.searchParams.get('v') || '';
+                    else if (u.pathname.startsWith('/shorts/')) videoId = u.pathname.split('/')[2] || '';
+                    else if (u.pathname.startsWith('/embed/')) videoId = u.pathname.split('/')[2] || '';
+                }
+                const startSec = parseStartSeconds(u);
+
+                let embedUrl = '';
+                if (validId(listId, 10) && validId(videoId)) {
+                    embedUrl = `https://www.youtube-nocookie.com/embed/${videoId}?list=${encodeURIComponent(listId)}&rel=0&modestbranding=1${startSec ? `&start=${startSec}` : ''}`;
+                } else if (validId(listId, 10)) {
+                    embedUrl = `https://www.youtube-nocookie.com/embed/videoseries?list=${encodeURIComponent(listId)}&rel=0&modestbranding=1`;
+                } else if (validId(videoId)) {
+                    embedUrl = `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1${startSec ? `&start=${startSec}` : ''}`;
+                } else {
+                    return null;
+                }
+
+                const iframe = `<div class="yt-embed"><iframe src="${embedUrl}" title="YouTube embed" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen loading="lazy"></iframe></div>`;
+                const safeHref = encodeURI(decodedUrl);
+                const link = `<div class="yt-link"><a href="${safeHref}" target="_blank" rel="noopener noreferrer">${escapeHTML(decodedUrl)}</a></div>`;
+                return iframe + link;
+            } catch (_) { return null; }
+        };
+
+        return escaped.replace(urlRegex, function(url) {
+            const embed = toEmbed(url);
+            if (embed) return embed;
+            const safeHref = encodeURI(url.replace(/&amp;/g, '&'));
+            return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer">${escapeHTML(url.replace(/&amp;/g, '&'))}</a>`;
         });
     }
 
